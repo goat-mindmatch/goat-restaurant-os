@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
       clicked_at: now,
       completed: true,         // クリックと同時に申告済み扱い
       completed_at: now,
+      coupon_code: couponCode,
       note: `coupon:${couponCode}`,
       // verified_at は null のまま（検証待ち）
     }).select('id').single()

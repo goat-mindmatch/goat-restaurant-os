@@ -23,11 +23,11 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
-    // note が "coupon:XXX" で始まるものを検索（配列で取得して最初の要素を使う）
+    // 専用カラムで検索
     const { data: rows } = await db.from('reviews')
-      .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, note, review_text, staff(name)')
+      .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, review_text, staff(name)')
       .eq('tenant_id', TENANT_ID)
-      .like('note', `coupon:${code}%`)
+      .eq('coupon_code', code)
       .limit(1)
 
     const data = Array.isArray(rows) && rows.length > 0 ? rows[0] : null
