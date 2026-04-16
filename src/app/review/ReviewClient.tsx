@@ -74,13 +74,14 @@ export default function ReviewClient({
     setStage('select')
   }
 
+  // スタッフ選択後 → Googleオープン + 即座に完了画面を表示
   const handleGoToGoogle = async () => {
     if (!selectedStaff) return
     setSubmitting(true)
     setError(null)
     try {
-      // クリック記録
-      const res = await fetch('/api/reviews/click', {
+      // クリック & 完了を一度に記録（簡易確認コード発行）
+      const res = await fetch('/api/reviews/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -92,50 +93,17 @@ export default function ReviewClient({
       if (!res.ok) throw new Error(data.error ?? 'エラー')
 
       setReviewId(data.review_id)
+      setCompletion({
+        staff_name: selectedStaff.name,
+        coupon_code: data.coupon_code,
+      })
 
-      // localStorage に保存（戻ってきた時復元用）
-      localStorage.setItem(LS_KEY, JSON.stringify({
-        staff: selectedStaff,
-        review_id: data.review_id,
-        timestamp: Date.now(),
-      }))
-
-      // Google投稿画面を開く（別タブ）
+      // Google投稿画面を別タブで開く
       window.open(GOOGLE_REVIEW_URL, '_blank', 'noopener,noreferrer')
 
-      // 画面を「書き終わった？」ステージに遷移
-      setStage('awaiting_completion')
-    } catch (e) {
-      setError((e as Error).message)
-    }
-    setSubmitting(false)
-  }
-
-  const handleConfirmCompleted = async () => {
-    if (reviewText.trim().length < 20) {
-      setError('投稿した口コミの内容を20文字以上ペーストしてください')
-      return
-    }
-    setSubmitting(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/reviews/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          review_id: reviewId,
-          uid: customerLineUserId,
-          review_text: reviewText.trim(),
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'エラー')
-      setCompletion({
-        staff_name: data.staff_name,
-        coupon_code: data.coupon_code ?? 'MZ-OK',
-      })
-      localStorage.removeItem(LS_KEY)
+      // 完了画面へ直接遷移（中間ステージ廃止）
       setStage('completed')
+      localStorage.removeItem(LS_KEY)
     } catch (e) {
       setError((e as Error).message)
     }
@@ -197,130 +165,71 @@ export default function ReviewClient({
     )
   }
 
-  // ===== ステージ2：口コミ本文をペースト =====
+  // ===== ステージ2は廃止（click直後にcompletedへ） =====
   if (stage === 'awaiting_completion') {
-    const charCount = reviewText.trim().length
-    const canSubmit = charCount >= 20
-
+    // localStorage由来の古い状態があった場合用の救済ビュー
     return (
-      <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50 py-6">
-        <div className="bg-white mx-4 rounded-3xl p-6 shadow-xl">
-          <div className="text-center mb-5">
-            <p className="text-5xl mb-3">📝</p>
-            <h2 className="text-lg font-bold text-gray-800">投稿した口コミをコピペしてください</h2>
-            {selectedStaff && (
-              <p className="text-xs text-gray-500 mt-1">{selectedStaff.name}さんの接客について</p>
-            )}
-          </div>
-
-          {/* 操作手順 */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-900">
-            <p className="font-bold mb-1.5">📱 コピー方法</p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>Google投稿画面で<b>自分の口コミ</b>を表示</li>
-              <li>口コミの本文を<b>長押し</b>して選択</li>
-              <li>「コピー」をタップ</li>
-              <li>この画面に戻って下の欄に<b>ペースト</b></li>
-            </ol>
-          </div>
-
-          {/* ペースト欄 */}
-          <label className="text-xs font-semibold text-gray-700 mb-2 block">
-            口コミの内容
-            <span className={`ml-2 ${canSubmit ? 'text-green-600' : 'text-gray-400'}`}>
-              {charCount}/20文字以上
-            </span>
-          </label>
-          <textarea
-            value={reviewText}
-            onChange={e => setReviewText(e.target.value)}
-            placeholder="ここに投稿した口コミをペーストしてください（長押し → ペースト）"
-            rows={6}
-            className={`w-full border-2 rounded-xl px-3 py-3 text-sm focus:outline-none ${
-              canSubmit ? 'border-green-300 focus:border-green-500' : 'border-gray-200 focus:border-orange-400'
-            }`}
-          />
-
-          {/* 注意文 */}
-          <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
-            ⚠️ 次回来店時にスタッフが<b>Google上の口コミと照合</b>します。<br />
-            実際の投稿と内容が違う場合は特典をお渡しできません。
-          </div>
-
-          {/* 送信ボタン */}
-          <button onClick={handleConfirmCompleted}
-            disabled={submitting || !canSubmit}
-            className={`w-full mt-4 font-bold py-4 rounded-2xl text-base shadow-lg transition-all ${
-              canSubmit && !submitting
-                ? 'bg-green-500 hover:bg-green-600 text-white'
-                : 'bg-gray-200 text-gray-400'
-            }`}>
-            {submitting ? '処理中...' : canSubmit ? '✅ 提出して検証コードを受け取る' : '口コミ本文をペーストしてください'}
-          </button>
-
-          {/* まだの方用 再オープン */}
-          <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer"
-            className="block w-full border border-red-200 text-red-400 font-medium py-2.5 rounded-xl text-center text-xs mt-3">
-            ⭐ Google 投稿画面をもう一度開く
-          </a>
-
-          {/* やり直し */}
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow text-center">
+          <p className="text-4xl mb-3">🔄</p>
+          <p className="text-gray-700 mb-4">前回の途中データが残っているようです</p>
           <button onClick={handleReset}
-            className="block w-full text-gray-400 text-xs mt-3 underline">
-            ↺ 最初からやり直す
+            className="w-full bg-blue-500 text-white font-bold py-3 rounded-xl">
+            最初からやり直す
           </button>
-
-          {error && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
         </div>
       </div>
     )
   }
 
-  // ===== ステージ3：完了・検証待ち画面 =====
+  // ===== 完了・確認コード画面 =====
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="p-6">
         {/* サクセス表示 */}
         <div className="text-center py-6">
           <p className="text-6xl mb-3">🙏</p>
-          <h1 className="text-2xl font-bold text-gray-800 mb-1">ご協力ありがとうございました</h1>
+          <h1 className="text-2xl font-bold text-gray-800 mb-1">ご協力ありがとうございます</h1>
           <p className="text-sm text-gray-600 mt-2">
-            {completion?.staff_name && `${completion.staff_name}${completion.staff_name !== '指名なし' ? 'さん' : ''}の接客として`}<br />
-            受付けました
+            {completion?.staff_name && `${completion.staff_name}${completion.staff_name !== '指名なし' ? 'さん' : ''}の接客として受付けました`}
           </p>
         </div>
 
-        {/* 検証コードカード */}
+        {/* Googleレビューを書いてね強調 */}
+        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 mb-4 text-center">
+          <p className="text-4xl mb-2">⭐</p>
+          <p className="font-bold text-red-800 mb-1">別タブでGoogle投稿画面が開きました</p>
+          <p className="text-xs text-red-700">
+            そちらで口コミのご投稿をお願いします<br />
+            投稿後は自動で特典をお送りします
+          </p>
+          <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer"
+            className="inline-block mt-3 bg-red-500 hover:bg-red-600 text-white font-bold px-6 py-2.5 rounded-xl text-sm">
+            ⭐ Google投稿画面を開く
+          </a>
+        </div>
+
+        {/* 確認コードカード */}
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
           <div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-5 text-white">
-            <p className="text-xs font-semibold opacity-80">次回ご来店時に提示する検証コード</p>
-            <p className="text-lg font-bold mt-1">スタッフにこの画面をお見せください</p>
+            <p className="text-xs font-semibold opacity-80">もし自動で確認できなかった時の保険</p>
+            <p className="text-base font-bold mt-1">確認コード</p>
           </div>
           <div className="p-6">
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-dashed border-indigo-300 rounded-2xl p-5 text-center">
-              <p className="text-xs text-gray-500">検証コード</p>
-              <p className="text-3xl font-bold text-indigo-600 tracking-wider my-2 select-all">
+              <p className="text-3xl font-bold text-indigo-600 tracking-wider my-1 select-all">
                 {completion?.coupon_code}
               </p>
-              <p className="text-xs text-gray-500">発行: {new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+              <p className="text-[10px] text-gray-400">発行: {new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
             </div>
 
-            {/* 重要な説明 */}
-            <div className="mt-5 bg-amber-50 border-2 border-amber-200 rounded-xl p-4 text-sm">
-              <p className="font-bold text-amber-900 mb-2">📱 ご利用方法</p>
-              <ol className="list-decimal list-inside space-y-1.5 text-amber-800 text-xs">
-                <li>次回ご来店時に<b>この画面をスタッフにお見せ</b>ください</li>
-                <li>スタッフが<b>Googleレビュー</b>を確認します</li>
-                <li>確認後、<b>特典をお渡し</b>します</li>
+            <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-800">
+              <p className="font-bold mb-1.5">📱 このあとの流れ</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Googleで口コミを投稿してください</li>
+                <li>システムが自動検知すると LINE で特典コードをお送りします（数分〜数時間）</li>
+                <li>万が一自動で確認できなかった場合は、次回来店時にこの画面を見せてください</li>
               </ol>
-            </div>
-
-            <div className="mt-4 bg-gray-50 rounded-xl p-3 text-xs text-gray-600">
-              💡 画面スクショやLINEに保存しておくと便利です
             </div>
           </div>
         </div>
@@ -329,7 +238,7 @@ export default function ReviewClient({
           またのご来店を<br />心よりお待ちしております 🙌
         </div>
 
-        {/* やり直し（テスト用） */}
+        {/* やり直し */}
         <div className="text-center mt-4">
           <button onClick={handleReset}
             className="text-xs text-gray-400 underline">
