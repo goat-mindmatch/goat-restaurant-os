@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/sync-google-reviews",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
