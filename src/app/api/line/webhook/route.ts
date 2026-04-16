@@ -81,11 +81,19 @@ async function handleEvent(event: LineEvent) {
     return
   }
 
-  // シフト希望入力待ちチェック
-  const shiftSession = await getShiftSession(userId)
-  if (shiftSession === 'awaiting_shift_dates') {
-    await handleShiftDatesInput(userId, text)
-    return
+  // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー']
+  if (MENU_KEYWORDS.includes(text)) {
+    const sb = createServiceClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb as any).from('line_sessions').delete().eq('line_user_id', userId)
+  } else {
+    // メニュー以外 → シフト希望入力待ちチェック（旧テキスト式フロー用）
+    const shiftSession = await getShiftSession(userId)
+    if (shiftSession === 'awaiting_shift_dates') {
+      await handleShiftDatesInput(userId, text)
+      return
+    }
   }
 
   switch (text) {
