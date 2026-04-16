@@ -23,13 +23,14 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
-    // note が "coupon:XXX" から始まるものを検索
-    // PostgRESTのLIKEは * をワイルドカードに使う
-    const { data } = await db.from('reviews')
+    // note が "coupon:XXX" で始まるものを検索（配列で取得して最初の要素を使う）
+    const { data: rows } = await db.from('reviews')
       .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, note, review_text, staff(name)')
       .eq('tenant_id', TENANT_ID)
-      .filter('note', 'like', `coupon:${code}*`)
-      .maybeSingle()
+      .like('note', `coupon:${code}%`)
+      .limit(1)
+
+    const data = Array.isArray(rows) && rows.length > 0 ? rows[0] : null
 
     if (!data) {
       return NextResponse.json({ error: 'コードが見つかりません' }, { status: 404 })
