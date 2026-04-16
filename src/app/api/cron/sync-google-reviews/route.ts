@@ -3,15 +3,12 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/cron/sync-google-reviews
- * Google Business Profile API から新しい口コミを取得し、
- * 直近クリック済みのレビューに自動で verified_at を付与する。
+ * Places API (New) で店舗の口コミ数・レビューを取得し、
+ * 前回から増えたぶんを直近クリックに自動紐付け。
  *
- * 前提環境変数（Google Cloud Console で準備）:
- *   GOOGLE_OAUTH_CLIENT_ID
- *   GOOGLE_OAUTH_CLIENT_SECRET
- *   GOOGLE_OAUTH_REFRESH_TOKEN
- *   GOOGLE_BUSINESS_ACCOUNT_ID   (accounts/XXXX)
- *   GOOGLE_BUSINESS_LOCATION_ID  (locations/YYYY)
+ * 必要な環境変数:
+ *   GOOGLE_PLACES_API_KEY   - Google Cloud Places API (New) の APIキー
+ *   NEXT_PUBLIC_GOOGLE_PLACE_ID   - 店舗の Place ID（既に設定済）
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -21,58 +18,42 @@ import { sendLineMessage as sendStaffLineMessage } from '@/lib/line-staff'
 
 const TENANT_ID = process.env.TENANT_ID!
 const CRON_SECRET = process.env.CRON_SECRET
+const PLACE_ID = process.env.NEXT_PUBLIC_GOOGLE_PLACE_ID
+const API_KEY = process.env.GOOGLE_PLACES_API_KEY
 
-// ======================================================
-// Google OAuth: refresh_token から access_token を取得
-// ======================================================
-async function getAccessToken(): Promise<string | null> {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET
-  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN
-  if (!clientId || !clientSecret || !refreshToken) return null
+type GoogleReview = {
+  name?: string                 // unique ID
+  relativePublishTimeDescription?: string
+  rating?: number
+  text?: { text?: string; languageCode?: string }
+  originalText?: { text?: string; languageCode?: string }
+  authorAttribution?: { displayName?: string; uri?: string; photoUri?: string }
+  publishTime?: string
+}
 
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
+type PlaceDetails = {
+  userRatingCount?: number
+  rating?: number
+  reviews?: GoogleReview[]
+}
+
+async function fetchPlaceDetails(): Promise<PlaceDetails | null> {
+  if (!PLACE_ID || !API_KEY) return null
+
+  const url = `https://places.googleapis.com/v1/places/${PLACE_ID}`
+  const res = await fetch(url, {
+    headers: {
+      'X-Goog-Api-Key': API_KEY,
+      'X-Goog-FieldMask': 'id,displayName,userRatingCount,rating,reviews',
+    },
   })
   if (!res.ok) {
-    console.error('Google token refresh failed', await res.text())
+    console.error('Places API failed', await res.text())
     return null
   }
-  const json = await res.json()
-  return json.access_token as string
+  return await res.json()
 }
 
-// ======================================================
-// Business Profile API から口コミ一覧取得
-// ======================================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchGoogleReviews(accessToken: string): Promise<any[]> {
-  const account = process.env.GOOGLE_BUSINESS_ACCOUNT_ID
-  const location = process.env.GOOGLE_BUSINESS_LOCATION_ID
-  if (!account || !location) return []
-
-  const url = `https://mybusiness.googleapis.com/v4/${account}/${location}/reviews`
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) {
-    console.error('Google reviews fetch failed', await res.text())
-    return []
-  }
-  const json = await res.json()
-  return json.reviews ?? []
-}
-
-// ======================================================
-// メインハンドラ
-// ======================================================
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization')
   if (CRON_SECRET && auth !== `Bearer ${CRON_SECRET}`) {
@@ -80,94 +61,116 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const accessToken = await getAccessToken()
-    if (!accessToken) {
+    if (!PLACE_ID || !API_KEY) {
       return NextResponse.json({
         ok: false,
         skipped: true,
-        reason: 'Google OAuth credentials not configured',
+        reason: 'GOOGLE_PLACES_API_KEY or PLACE_ID not set',
       })
     }
 
-    const googleReviews = await fetchGoogleReviews(accessToken)
+    const place = await fetchPlaceDetails()
+    if (!place) {
+      return NextResponse.json({ ok: false, error: 'Places API fetch failed' })
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
-    // 既に取り込み済みの Google review IDs を取得
-    const { data: synced } = await db.from('google_reviews_cache')
+    // 前回カウント取得
+    const { data: lastRow } = await db.from('google_review_count_history')
+      .select('count, checked_at')
+      .eq('tenant_id', TENANT_ID)
+      .order('checked_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const currentCount = place.userRatingCount ?? 0
+    const previousCount = lastRow?.count ?? 0
+    const delta = Math.max(0, currentCount - previousCount)
+
+    // カウント履歴を記録
+    await db.from('google_review_count_history').insert({
+      tenant_id: TENANT_ID,
+      count: currentCount,
+      rating: place.rating ?? null,
+      checked_at: new Date().toISOString(),
+    })
+
+    // サンプルレビュー5件をキャッシュに保存
+    const { data: cached } = await db.from('google_reviews_cache')
       .select('review_id').eq('tenant_id', TENANT_ID)
-    const syncedIds = new Set((synced ?? []).map((r: { review_id: string }) => r.review_id))
+    const cachedIds = new Set((cached ?? []).map((r: { review_id: string }) => r.review_id))
 
-    let autoVerified = 0
-    const newReviews: string[] = []
-
-    for (const gr of googleReviews) {
-      if (syncedIds.has(gr.reviewId)) continue
-
-      newReviews.push(gr.reviewId)
-
-      // 取り込みキャッシュ
+    let newCached = 0
+    for (const gr of place.reviews ?? []) {
+      if (!gr.name || cachedIds.has(gr.name)) continue
+      const reviewText = gr.text?.text ?? gr.originalText?.text ?? null
       await db.from('google_reviews_cache').insert({
         tenant_id: TENANT_ID,
-        review_id: gr.reviewId,
-        reviewer_name: gr.reviewer?.displayName ?? null,
-        star_rating: gr.starRating ?? null,
-        comment: gr.comment ?? null,
-        created_time: gr.createTime ?? new Date().toISOString(),
+        review_id: gr.name,
+        reviewer_name: gr.authorAttribution?.displayName ?? null,
+        star_rating: String(gr.rating ?? ''),
+        comment: reviewText,
+        created_time: gr.publishTime ?? new Date().toISOString(),
         fetched_at: new Date().toISOString(),
       })
+      newCached++
+    }
 
-      // 直近1日以内の未検証クリックを自動マッチング
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      const { data: pendingRows } = await db.from('reviews')
+    // 増分に応じて、未検証クリックを自動承認（直近から順に）
+    let autoVerified = 0
+    if (delta > 0) {
+      const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+      const { data: pending } = await db.from('reviews')
         .select('id, staff_id, customer_line_user_id, note')
         .eq('tenant_id', TENANT_ID)
         .is('verified_at', null)
         .gte('clicked_at', since)
         .order('clicked_at', { ascending: false })
-        .limit(1)
+        .limit(delta)
 
-      const pending = (pendingRows ?? [])[0]
-      if (pending) {
+      for (const p of pending ?? []) {
         await db.from('reviews').update({
           verified_at: new Date().toISOString(),
-          note: `${pending.note ?? ''} | auto-verified:${gr.reviewId}`,
-        }).eq('id', pending.id)
+          note: `${p.note ?? ''} | auto-verified-by-places-api`,
+        }).eq('id', p.id)
         autoVerified++
 
-        // 顧客LINEに通知（customer_line_user_id があり、顧客LINEが設定されていれば）
-        if (pending.customer_line_user_id) {
-          const couponCode = (pending.note ?? '').replace('coupon:', '').trim()
+        // 顧客LINEへ通知
+        if (p.customer_line_user_id) {
+          const couponMatch = String(p.note ?? '').match(/coupon:([A-Z0-9-]+)/)
+          const couponCode = couponMatch?.[1] ?? 'MZ-OK'
           try {
-            await sendCustomerLineMessage(pending.customer_line_user_id,
-              `🎉 口コミありがとうございました！\n\nGoogle上で投稿を確認しました。\n\n【確認コード】\n${couponCode}\n\n次回ご来店時にこの画面をスタッフへお見せください。特典をお渡しします🙌`
-            )
+            await sendCustomerLineMessage(p.customer_line_user_id,
+              `🎉 口コミありがとうございました！\n\nGoogle上で投稿を確認しました。\n\n【特典コード】\n${couponCode}\n\n次回ご来店時にこの画面をスタッフにお見せください🙌`)
           } catch (e) {
-            console.error('Failed to notify customer:', e)
+            console.error('customer notify failed', e)
           }
         }
       }
     }
 
-    // 管理者に日次レポート（何件自動検証したか）
-    if (newReviews.length > 0) {
-      const { data: managers } = await db.from('staff')
-        .select('line_user_id, name')
-        .eq('tenant_id', TENANT_ID).eq('role', 'manager')
-        .not('line_user_id', 'is', null)
-      for (const m of managers ?? []) {
+    // 管理者に日次レポート
+    const { data: managers } = await db.from('staff')
+      .select('line_user_id, name')
+      .eq('tenant_id', TENANT_ID).eq('role', 'manager')
+      .not('line_user_id', 'is', null)
+
+    for (const m of managers ?? []) {
+      try {
         await sendStaffLineMessage(m.line_user_id,
-          `📊 Google口コミ同期完了\n新規: ${newReviews.length}件\n自動検証: ${autoVerified}件`)
-          .catch(() => {})
-      }
+          `📊 Google口コミ同期\n\n総件数: ${currentCount}件（前回比 +${delta}）\n平均評価: ★${place.rating ?? '-'}\n自動検証: ${autoVerified}件`)
+      } catch {}
     }
 
     return NextResponse.json({
       ok: true,
-      total_google_reviews: googleReviews.length,
-      new_reviews: newReviews.length,
+      current_count: currentCount,
+      previous_count: previousCount,
+      delta,
       auto_verified: autoVerified,
+      new_cached_reviews: newCached,
     })
   } catch (e) {
     console.error(e)
