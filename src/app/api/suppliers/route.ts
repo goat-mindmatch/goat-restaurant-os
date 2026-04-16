@@ -25,6 +25,12 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+
+    // 新規登録時は name 必須
+    if (!body.id && (!body.name || !String(body.name).trim())) {
+      return NextResponse.json({ error: '業者名（name）が必要です' }, { status: 400 })
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 

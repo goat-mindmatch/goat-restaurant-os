@@ -23,15 +23,23 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
-    // note に "coupon:XXX" 形式で保存されている
+    // note が "coupon:XXX" を含むものを前方一致で検索
     const { data } = await db.from('reviews')
-      .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, note, review_text, staff(name), verifier:staff!reviews_verified_by_fkey(name)')
+      .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, note, review_text, staff(name)')
       .eq('tenant_id', TENANT_ID)
-      .eq('note', `coupon:${code}`)
+      .like('note', `coupon:${code}%`)
       .maybeSingle()
 
     if (!data) {
       return NextResponse.json({ error: 'コードが見つかりません' }, { status: 404 })
+    }
+
+    // 検証者の名前を別途取得
+    let verifierName: string | null = null
+    if (data.verified_by) {
+      const { data: verifier } = await db.from('staff')
+        .select('name').eq('id', data.verified_by).maybeSingle()
+      verifierName = verifier?.name ?? null
     }
 
     return NextResponse.json({
@@ -41,7 +49,7 @@ export async function GET(req: NextRequest) {
       completed: data.completed,
       completed_at: data.completed_at,
       verified_at: data.verified_at,
-      verified_by_name: data.verifier?.name ?? null,
+      verified_by_name: verifierName,
       review_text: data.review_text ?? null,
     })
   } catch (e) {

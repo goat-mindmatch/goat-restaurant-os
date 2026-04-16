@@ -22,6 +22,12 @@ function generateCouponCode(): string {
 export async function POST(req: NextRequest) {
   try {
     const { staff_id, customer_line_user_id } = await req.json()
+
+    // 必須チェック（staff_id と customer_line_user_id のどちらかは必要）
+    if (!staff_id && !customer_line_user_id) {
+      return NextResponse.json({ error: 'staff_id or customer_line_user_id required' }, { status: 400 })
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
