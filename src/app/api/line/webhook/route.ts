@@ -20,7 +20,21 @@ import { createServiceClient } from '@/lib/supabase'
 import { sendLineMessage, sendQuickReply } from '@/lib/line-staff'
 
 const CHANNEL_SECRET = process.env.LINE_STAFF_CHANNEL_SECRET!
-const TENANT_ID = process.env.TENANT_ID!
+const TENANT_SLUG = process.env.TENANT_ID! // env変数はslug（mazesoba-jinrui）
+
+// テナントUUIDをslugから取得（キャッシュ）
+let _tenantId: string | null = null
+async function getTenantId(): Promise<string> {
+  if (_tenantId) return _tenantId
+  const supabase = createServiceClient()
+  const { data } = await (supabase as any)
+    .from('tenants')
+    .select('id')
+    .eq('slug', TENANT_SLUG)
+    .single()
+  _tenantId = (data as { id: string })?.id ?? ''
+  return _tenantId
+}
 
 // ================================
 // 署名検証（LINE公式）
@@ -111,7 +125,7 @@ async function handleFollow(lineUserId: string) {
   const { data: existing } = await supabase
     .from('staff')
     .select('id, name')
-    .eq('tenant_id', TENANT_ID)
+    .eq('tenant_id', await getTenantId())
     .eq('line_user_id', lineUserId)
     .single()
 
@@ -162,7 +176,7 @@ async function handleNameInput(lineUserId: string, name: string) {
   const { data: staffData } = await supabase
     .from('staff')
     .select('id, name')
-    .eq('tenant_id', TENANT_ID)
+    .eq('tenant_id', await getTenantId())
     .ilike('name', `%${name}%`)
     .single()
 
@@ -203,7 +217,7 @@ async function handleUnknownMessage(lineUserId: string, _text: string) {
   const { data: existing } = await supabase
     .from('staff')
     .select('id')
-    .eq('tenant_id', TENANT_ID)
+    .eq('tenant_id', await getTenantId())
     .eq('line_user_id', lineUserId)
     .single()
 
@@ -231,7 +245,7 @@ async function handleClockIn(lineUserId: string) {
   const { data: staffData } = await supabase
     .from('staff')
     .select('id, name')
-    .eq('tenant_id', TENANT_ID)
+    .eq('tenant_id', await getTenantId())
     .eq('line_user_id', lineUserId)
     .single()
 
@@ -267,7 +281,7 @@ async function handleClockIn(lineUserId: string) {
   // 打刻保存
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase.from('attendance') as any).upsert({
-    tenant_id: TENANT_ID,
+    tenant_id: await getTenantId(),
     staff_id: staff.id,
     date: today,
     clock_in: nowTime,
@@ -286,7 +300,7 @@ async function handleClockOut(lineUserId: string) {
   const { data: staffData2 } = await supabase
     .from('staff')
     .select('id, name')
-    .eq('tenant_id', TENANT_ID)
+    .eq('tenant_id', await getTenantId())
     .eq('line_user_id', lineUserId)
     .single()
 
@@ -353,7 +367,7 @@ async function handleShiftCheck(lineUserId: string) {
   const { data: staffData3 } = await supabase
     .from('staff')
     .select('id, name')
-    .eq('tenant_id', TENANT_ID)
+    .eq('tenant_id', await getTenantId())
     .eq('line_user_id', lineUserId)
     .single()
 
