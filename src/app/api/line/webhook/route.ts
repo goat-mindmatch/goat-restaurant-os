@@ -82,7 +82,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -125,6 +125,12 @@ async function handleEvent(event: LineEvent) {
     case '口コミ書きました':
     case '完了':
       await handleReviewCompleted(userId)
+      break
+    case '検証':
+    case 'クーポン検証':
+    case 'クーポン':
+      await sendLineMessage(userId,
+        `🔍 クーポン検証ページです。\n\nお客様の検証コードを入力して承認してください👇\nhttps://goat-restaurant-os.vercel.app/verify?uid=${userId}\n\n💡 ブックマークしておくと便利です。`)
       break
     case '管理メニュー':
       await handleAdminMenu(userId)

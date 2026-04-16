@@ -201,43 +201,47 @@ export default function ReviewClient({
     )
   }
 
-  // ===== ステージ3：完了・特典表示 =====
+  // ===== ステージ3：完了・検証待ち画面 =====
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="p-6">
         {/* サクセス表示 */}
-        <div className="text-center py-8">
-          <p className="text-6xl mb-3 animate-bounce">🎉</p>
-          <h1 className="text-2xl font-bold text-gray-800 mb-1">ありがとうございました！</h1>
-          <p className="text-sm text-gray-600">
+        <div className="text-center py-6">
+          <p className="text-6xl mb-3">🙏</p>
+          <h1 className="text-2xl font-bold text-gray-800 mb-1">ご協力ありがとうございました</h1>
+          <p className="text-sm text-gray-600 mt-2">
             {completion?.staff_name && `${completion.staff_name}${completion.staff_name !== '指名なし' ? 'さん' : ''}の接客として`}<br />
-            記録させていただきました
+            受付けました
           </p>
         </div>
 
-        {/* クーポンカード */}
+        {/* 検証コードカード */}
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-          <div className="bg-gradient-to-br from-red-500 to-orange-500 p-6 text-white">
-            <p className="text-xs font-semibold opacity-80">口コミ特典</p>
-            <p className="text-2xl font-bold mt-1">次回来店時にお使いいただけます</p>
+          <div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-5 text-white">
+            <p className="text-xs font-semibold opacity-80">次回ご来店時に提示する検証コード</p>
+            <p className="text-lg font-bold mt-1">スタッフにこの画面をお見せください</p>
           </div>
           <div className="p-6">
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-dashed border-orange-300 rounded-2xl p-5 text-center">
-              <p className="text-xs text-gray-500">クーポンコード</p>
-              <p className="text-3xl font-bold text-orange-600 tracking-wider my-2">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-dashed border-indigo-300 rounded-2xl p-5 text-center">
+              <p className="text-xs text-gray-500">検証コード</p>
+              <p className="text-3xl font-bold text-indigo-600 tracking-wider my-2 select-all">
                 {completion?.coupon_code}
               </p>
-              <p className="text-xs text-gray-500">有効期限：次回来店時</p>
+              <p className="text-xs text-gray-500">発行: {new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
             </div>
-            <div className="mt-5 bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm">
-              <p className="font-semibold text-blue-800 mb-1">📱 ご利用方法</p>
-              <p className="text-blue-700 text-xs">
-                次回来店時に、この画面を<b>スタッフにお見せ</b>ください。<br />
-                画面スクショでもOKです。
-              </p>
+
+            {/* 重要な説明 */}
+            <div className="mt-5 bg-amber-50 border-2 border-amber-200 rounded-xl p-4 text-sm">
+              <p className="font-bold text-amber-900 mb-2">📱 ご利用方法</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-amber-800 text-xs">
+                <li>次回ご来店時に<b>この画面をスタッフにお見せ</b>ください</li>
+                <li>スタッフが<b>Googleレビュー</b>を確認します</li>
+                <li>確認後、<b>特典をお渡し</b>します</li>
+              </ol>
             </div>
-            <div className="mt-4 text-center text-xs text-gray-400">
-              口コミ完了時刻: {new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
+
+            <div className="mt-4 bg-gray-50 rounded-xl p-3 text-xs text-gray-600">
+              💡 画面スクショやLINEに保存しておくと便利です
             </div>
           </div>
         </div>
