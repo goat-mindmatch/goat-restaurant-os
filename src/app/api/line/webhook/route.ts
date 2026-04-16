@@ -113,7 +113,8 @@ async function handleEvent(event: LineEvent) {
       await handleShiftBoard(userId)
       break
     case '発注依頼':
-      await sendLineMessage(userId, '発注依頼フォームを開きます。\n（Phase 2で実装予定）')
+      await sendLineMessage(userId,
+        `📦 発注依頼フォームです。\n\nタップして開いてください👇\nhttps://goat-restaurant-os.vercel.app/order-form?uid=${userId}\n\n品目・数量・配達希望日を入力できます。`)
       break
     case '管理メニュー':
       await handleAdminMenu(userId)

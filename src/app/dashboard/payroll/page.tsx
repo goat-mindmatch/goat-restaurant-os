@@ -1,0 +1,60 @@
+export const dynamic = 'force-dynamic'
+
+import { createServiceClient } from '@/lib/supabase'
+import PayrollClient from './PayrollClient'
+
+const TENANT_ID = process.env.TENANT_ID!
+
+async function getPayrollData() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+
+  const now = new Date()
+  const firstDay = now.toISOString().slice(0, 7) + '-01'
+  const lastDay = now.toISOString().slice(0, 10)
+
+  const [staffRes, attRes] = await Promise.all([
+    db.from('staff').select('id, name, hourly_wage')
+      .eq('tenant_id', TENANT_ID).eq('is_active', true).order('name'),
+    db.from('attendance').select('staff_id, date, clock_in, clock_out, work_minutes, break_minutes')
+      .eq('tenant_id', TENANT_ID).gte('date', firstDay).lte('date', lastDay),
+  ])
+
+  const staffList = staffRes.data ?? []
+  const attendance = attRes.data ?? []
+
+  return { staffList, attendance, month: now.getMonth() + 1 }
+}
+
+export default async function PayrollPage() {
+  const { staffList, attendance, month } = await getPayrollData()
+
+  return (
+    <main className="min-h-screen bg-gray-50 pb-24">
+      <div className="bg-white border-b px-4 py-4">
+        <h1 className="text-xl font-bold text-gray-900">給与計算</h1>
+        <p className="text-sm text-gray-500">{month}月の勤務時間・給与集計</p>
+      </div>
+
+      <PayrollClient staffList={staffList} attendance={attendance} month={month} />
+
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+        <div className="grid grid-cols-5 gap-1 px-2 py-2">
+          {[
+            { label: 'ホーム', href: '/dashboard', icon: '🏠' },
+            { label: 'シフト', href: '/dashboard/shifts', icon: '📅' },
+            { label: '発注', href: '/dashboard/orders', icon: '📦' },
+            { label: '売上', href: '/dashboard/sales', icon: '💰' },
+            { label: '給与', href: '/dashboard/payroll', icon: '💴' },
+          ].map(item => (
+            <a key={item.href} href={item.href}
+              className="flex flex-col items-center py-1 text-xs text-gray-500 hover:text-gray-900">
+              <span className="text-xl">{item.icon}</span>
+              {item.label}
+            </a>
+          ))}
+        </div>
+      </nav>
+    </main>
+  )
+}
