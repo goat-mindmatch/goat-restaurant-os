@@ -56,10 +56,24 @@ export async function POST(req: NextRequest) {
 // イベント処理
 // ================================
 async function handleEvent(event: LineEvent) {
+  const userId = event.source.userId
+
+  // 友だち追加イベント → 登録フロー開始
+  if (event.type === 'follow') {
+    await handleFollow(userId)
+    return
+  }
+
   if (event.type !== 'message' || event.message.type !== 'text') return
 
-  const userId = event.source.userId
   const text = event.message.text.trim()
+
+  // 登録待ち状態かチェック（名前入力待ち）
+  const isPending = await checkPendingRegistration(userId)
+  if (isPending) {
+    await handleNameInput(userId, text)
+    return
+  }
 
   switch (text) {
     case '出勤':
@@ -81,8 +95,129 @@ async function handleEvent(event: LineEvent) {
       await handleAdminMenu(userId)
       break
     default:
-      // 無視（特定フロー中の返答は別途セッション管理で対応）
+      // 未登録スタッフへのガイド
+      await handleUnknownMessage(userId, text)
       break
+  }
+}
+
+// ================================
+// 友だち追加 → 登録フロー開始
+// ================================
+async function handleFollow(lineUserId: string) {
+  const supabase = createServiceClient()
+
+  // すでに登録済みか確認
+  const { data: existing } = await supabase
+    .from('staff')
+    .select('id, name')
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId)
+    .single()
+
+  const staff = existing as { id: string; name: string } | null
+
+  if (staff) {
+    await sendLineMessage(
+      lineUserId,
+      `おかえりなさい、${staff.name}さん！\n出勤・退勤ボタンからご利用ください。`
+    )
+    return
+  }
+
+  // 登録待ちセッションを作成
+  await (supabase as any).from('line_sessions').upsert({
+    line_user_id: lineUserId,
+    state: 'awaiting_name',
+    created_at: new Date().toISOString(),
+  })
+
+  await sendLineMessage(
+    lineUserId,
+    'はじめまして！\n人類みなまぜそば スタッフ用LINEです。\n\nお名前（名字のみ）を入力してください。\n例：「中地」'
+  )
+}
+
+// ================================
+// 登録待ち状態チェック
+// ================================
+async function checkPendingRegistration(lineUserId: string): Promise<boolean> {
+  const supabase = createServiceClient()
+  const { data } = await (supabase as any)
+    .from('line_sessions')
+    .select('state')
+    .eq('line_user_id', lineUserId)
+    .eq('state', 'awaiting_name')
+    .single()
+  return !!data
+}
+
+// ================================
+// 名前入力 → LINE ID 登録
+// ================================
+async function handleNameInput(lineUserId: string, name: string) {
+  const supabase = createServiceClient()
+
+  // staffテーブルで名前照合
+  const { data: staffData } = await supabase
+    .from('staff')
+    .select('id, name')
+    .eq('tenant_id', TENANT_ID)
+    .ilike('name', `%${name}%`)
+    .single()
+
+  const staff = staffData as { id: string; name: string } | null
+
+  if (!staff) {
+    await sendLineMessage(
+      lineUserId,
+      `「${name}」のスタッフ情報が見つかりませんでした。\n\n名字のみで入力してください（例：「中地」「河野」）\nそれでも見つからない場合は管理者に連絡してください。`
+    )
+    return
+  }
+
+  // LINE IDを登録
+  await (supabase as any)
+    .from('staff')
+    .update({ line_user_id: lineUserId })
+    .eq('id', staff.id)
+
+  // セッション削除
+  await (supabase as any)
+    .from('line_sessions')
+    .delete()
+    .eq('line_user_id', lineUserId)
+
+  await sendLineMessage(
+    lineUserId,
+    `✅ ${staff.name}さん、登録完了しました！\n\n出勤・退勤ボタンが使えるようになりました。\nよろしくお願いします！`
+  )
+}
+
+// ================================
+// 未登録ユーザーへのガイド
+// ================================
+async function handleUnknownMessage(lineUserId: string, _text: string) {
+  const supabase = createServiceClient()
+
+  const { data: existing } = await supabase
+    .from('staff')
+    .select('id')
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId)
+    .single()
+
+  if (!existing) {
+    // 未登録 → 登録フローへ誘導
+    await (supabase as any).from('line_sessions').upsert({
+      line_user_id: lineUserId,
+      state: 'awaiting_name',
+      created_at: new Date().toISOString(),
+    })
+    await sendLineMessage(
+      lineUserId,
+      'まだ登録が完了していません。\nお名前（名字のみ）を入力してください。\n例：「中地」'
+    )
   }
 }
 
