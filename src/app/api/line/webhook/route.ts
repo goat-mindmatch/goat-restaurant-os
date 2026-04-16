@@ -81,6 +81,13 @@ async function handleEvent(event: LineEvent) {
     return
   }
 
+  // シフト希望入力待ちチェック
+  const shiftSession = await getShiftSession(userId)
+  if (shiftSession === 'awaiting_shift_dates') {
+    await handleShiftDatesInput(userId, text)
+    return
+  }
+
   switch (text) {
     case '出勤':
       await handleClockIn(userId)
@@ -94,6 +101,9 @@ async function handleEvent(event: LineEvent) {
     case 'シフト確認':
       await handleShiftCheck(userId)
       break
+    case 'シフトボード':
+      await handleShiftBoard(userId)
+      break
     case '発注依頼':
       await sendLineMessage(userId, '発注依頼フォームを開きます。\n（Phase 2で実装予定）')
       break
@@ -101,7 +111,6 @@ async function handleEvent(event: LineEvent) {
       await handleAdminMenu(userId)
       break
     default:
-      // 未登録スタッフへのガイド
       await handleUnknownMessage(userId, text)
       break
   }
@@ -338,19 +347,185 @@ async function handleClockOut(lineUserId: string) {
 }
 
 // ================================
-// シフト希望収集
+// シフトセッション管理
+// ================================
+async function getShiftSession(lineUserId: string): Promise<string | null> {
+  const supabase = createServiceClient()
+  const { data } = await (supabase as any)
+    .from('line_sessions')
+    .select('state')
+    .eq('line_user_id', lineUserId)
+    .eq('state', 'awaiting_shift_dates')
+    .single()
+  return data ? data.state : null
+}
+
+// ================================
+// シフト希望収集 開始
 // ================================
 async function handleShiftRequestStart(lineUserId: string) {
+  const supabase = createServiceClient()
+
+  // スタッフ確認
+  const { data: staffData } = await supabase
+    .from('staff').select('id, name')
+    .eq('tenant_id', await getTenantId())
+    .eq('line_user_id', lineUserId).single()
+  const staff = staffData as { id: string; name: string } | null
+  if (!staff) {
+    await sendLineMessage(lineUserId, 'スタッフ登録が確認できませんでした。')
+    return
+  }
+
   const now = new Date()
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const year = nextMonth.getFullYear()
   const month = nextMonth.getMonth() + 1
+  const lastDay = new Date(year, month, 0).getDate()
+
+  // セッション保存
+  await (supabase as any).from('line_sessions').upsert({
+    line_user_id: lineUserId,
+    state: 'awaiting_shift_dates',
+    meta: JSON.stringify({ year, month }),
+    created_at: new Date().toISOString(),
+  })
+
+  // 現在の提出状況を表示
+  const boardText = await buildShiftBoard(year, month)
 
   await sendLineMessage(
     lineUserId,
-    `📅 ${year}年${month}月のシフト希望を収集します。\n\n出勤できる日を「5/1,5/3,5/5」のようにカンマ区切りで送ってください。\n（例: 5/1,5/3,5/5,5/8）`
+    `📅 ${year}年${month}月のシフト希望提出\n\n【現在の提出状況】\n${boardText}\n\n────────────────\n出勤できる日を日付のみで送ってください。\n例：「1,3,5,8,10,15,20」\n\n※すでに提出済みの場合は上書きされます。`
   )
-  // TODO: セッション状態管理（Phase 1で簡易実装 → Redis or Supabase sessions table）
+}
+
+// ================================
+// シフト希望 日付入力処理
+// ================================
+async function handleShiftDatesInput(lineUserId: string, text: string) {
+  const supabase = createServiceClient()
+
+  // スタッフ確認
+  const { data: staffData } = await supabase
+    .from('staff').select('id, name')
+    .eq('tenant_id', await getTenantId())
+    .eq('line_user_id', lineUserId).single()
+  const staff = staffData as { id: string; name: string } | null
+  if (!staff) return
+
+  // セッションからyear/month取得
+  const { data: sessionData } = await (supabase as any)
+    .from('line_sessions').select('meta')
+    .eq('line_user_id', lineUserId)
+    .eq('state', 'awaiting_shift_dates').single()
+
+  const meta = sessionData?.meta ? JSON.parse(sessionData.meta) : null
+  const now = new Date()
+  const year = meta?.year ?? new Date(now.getFullYear(), now.getMonth() + 1, 1).getFullYear()
+  const month = meta?.month ?? (now.getMonth() + 2 > 12 ? 1 : now.getMonth() + 2)
+  const lastDay = new Date(year, month, 0).getDate()
+
+  // 日付パース（「1,3,5」「1・3・5」「1 3 5」対応）
+  const rawDates = text.split(/[,、・\s]+/).map(s => s.trim()).filter(Boolean)
+  const validDates: string[] = []
+  const invalidDates: string[] = []
+
+  for (const d of rawDates) {
+    const num = parseInt(d.replace(/日$/, ''))
+    if (!isNaN(num) && num >= 1 && num <= lastDay) {
+      const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(num).padStart(2,'0')}`
+      validDates.push(dateStr)
+    } else {
+      invalidDates.push(d)
+    }
+  }
+
+  if (validDates.length === 0) {
+    await sendLineMessage(lineUserId,
+      `日付が認識できませんでした。\n数字のみで入力してください。\n例：「1,3,5,8,10」`)
+    return
+  }
+
+  // 保存（upsert）
+  await (supabase as any).from('shift_requests').upsert({
+    tenant_id: await getTenantId(),
+    staff_id: staff.id,
+    target_year: year,
+    target_month: month,
+    available_dates: validDates,
+    status: 'pending',
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'staff_id,target_year,target_month' })
+
+  // セッション削除
+  await (supabase as any).from('line_sessions').delete()
+    .eq('line_user_id', lineUserId)
+
+  // 提出後のボードを表示
+  const boardText = await buildShiftBoard(year, month)
+  const dayNums = validDates.map(d => parseInt(d.split('-')[2])).sort((a,b) => a-b).join(', ')
+
+  await sendLineMessage(lineUserId,
+    `✅ ${staff.name}さんの${month}月シフト希望を受け付けました！\n\n提出日: ${dayNums}日\n\n【更新後の提出状況】\n${boardText}`)
+}
+
+// ================================
+// シフトボード（全員の提出状況）
+// ================================
+async function buildShiftBoard(year: number, month: number): Promise<string> {
+  const supabase = createServiceClient()
+  const tenantId = await getTenantId()
+
+  const { data: requests } = await (supabase as any)
+    .from('shift_requests')
+    .select('staff_id, available_dates, staff(name)')
+    .eq('tenant_id', tenantId)
+    .eq('target_year', year)
+    .eq('target_month', month)
+
+  if (!requests?.length) return '（まだ誰も提出していません）'
+
+  // 日付ごとに誰が希望しているか集計
+  const dayMap: Record<number, string[]> = {}
+  const lastDay = new Date(year, month, 0).getDate()
+
+  for (let d = 1; d <= lastDay; d++) {
+    dayMap[d] = []
+  }
+
+  for (const req of requests) {
+    const name = (req.staff as { name: string })?.name ?? '?'
+    for (const dateStr of (req.available_dates as string[])) {
+      const day = parseInt(dateStr.split('-')[2])
+      if (dayMap[day] !== undefined) dayMap[day].push(name)
+    }
+  }
+
+  // 誰かいる日だけ表示
+  const DAYS_JP = ['日','月','火','水','木','金','土']
+  const lines: string[] = []
+  for (let d = 1; d <= lastDay; d++) {
+    if (dayMap[d].length > 0) {
+      const date = new Date(year, month - 1, d)
+      const dow = DAYS_JP[date.getDay()]
+      lines.push(`${month}/${d}(${dow}): ${dayMap[d].join('・')}`)
+    }
+  }
+
+  return lines.length > 0 ? lines.join('\n') : '（まだ誰も提出していません）'
+}
+
+async function handleShiftBoard(lineUserId: string) {
+  const now = new Date()
+  // 来月のボードを表示
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const year = nextMonth.getFullYear()
+  const month = nextMonth.getMonth() + 1
+
+  const boardText = await buildShiftBoard(year, month)
+  await sendLineMessage(lineUserId,
+    `📋 ${year}年${month}月 シフト希望状況\n\n${boardText}\n\n希望を出すには「シフト希望提出」ボタンを押してください。`)
 }
 
 async function handleShiftCheck(lineUserId: string) {
