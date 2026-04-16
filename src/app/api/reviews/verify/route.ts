@@ -23,11 +23,12 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
-    // note が "coupon:XXX" を含むものを前方一致で検索
+    // note が "coupon:XXX" から始まるものを検索
+    // PostgRESTのLIKEは * をワイルドカードに使う
     const { data } = await db.from('reviews')
       .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, note, review_text, staff(name)')
       .eq('tenant_id', TENANT_ID)
-      .like('note', `coupon:${code}%`)
+      .filter('note', 'like', `coupon:${code}*`)
       .maybeSingle()
 
     if (!data) {
