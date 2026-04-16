@@ -20,20 +20,12 @@ import { createServiceClient } from '@/lib/supabase'
 import { sendLineMessage, sendQuickReply } from '@/lib/line-staff'
 
 const CHANNEL_SECRET = process.env.LINE_STAFF_CHANNEL_SECRET!
-const TENANT_SLUG = process.env.TENANT_ID! // env変数はslug（mazesoba-jinrui）
+// TENANT_ID にはUUID（b78c555f-47c9-4552-bdaf-28656814c1f9）を直接設定
+const TENANT_ID = process.env.TENANT_ID!
 
-// テナントUUIDをslugから取得（キャッシュ）
-let _tenantId: string | null = null
+// 互換性のため関数形式を維持
 async function getTenantId(): Promise<string> {
-  if (_tenantId) return _tenantId
-  const supabase = createServiceClient()
-  const { data } = await (supabase as any)
-    .from('tenants')
-    .select('id')
-    .eq('slug', TENANT_SLUG)
-    .single()
-  _tenantId = (data as { id: string })?.id ?? ''
-  return _tenantId
+  return TENANT_ID
 }
 
 // ================================
