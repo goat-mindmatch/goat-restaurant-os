@@ -381,22 +381,13 @@ async function handleShiftRequestStart(lineUserId: string) {
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const year = nextMonth.getFullYear()
   const month = nextMonth.getMonth() + 1
-  const lastDay = new Date(year, month, 0).getDate()
 
-  // セッション保存
-  await (supabase as any).from('line_sessions').upsert({
-    line_user_id: lineUserId,
-    state: 'awaiting_shift_dates',
-    meta: JSON.stringify({ year, month }),
-    created_at: new Date().toISOString(),
-  })
-
-  // 現在の提出状況を表示
-  const boardText = await buildShiftBoard(year, month)
+  // フォームURLを送信（チャットを使わずブラウザで完結）
+  const formUrl = `https://goat-restaurant-os.vercel.app/shift-form?uid=${lineUserId}`
 
   await sendLineMessage(
     lineUserId,
-    `📅 ${year}年${month}月のシフト希望提出\n\n【現在の提出状況】\n${boardText}\n\n────────────────\n出勤できる日を日付のみで送ってください。\n例：「1,3,5,8,10,15,20」\n\n※すでに提出済みの場合は上書きされます。`
+    `📅 ${year}年${month}月のシフト希望フォームです。\n\nタップして開いてください👇\n${formUrl}\n\n日付ごとに出勤時間も指定できます。`
   )
 }
 
