@@ -22,16 +22,16 @@ export async function POST(req: NextRequest) {
     // 'nominee'（指名なし）の場合は staff_id を null に
     const realStaffId = staff_id === 'nominee' ? null : staff_id
 
-    const { error } = await db.from('reviews').insert({
+    const { data, error } = await db.from('reviews').insert({
       tenant_id: TENANT_ID,
       staff_id: realStaffId,
       customer_line_user_id: customer_line_user_id ?? null,
       clicked_at: new Date().toISOString(),
       completed: false,
-    })
+    }).select('id').single()
     if (error) throw error
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, review_id: data.id })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

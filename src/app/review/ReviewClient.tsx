@@ -1,12 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const GOOGLE_PLACE_ID = process.env.NEXT_PUBLIC_GOOGLE_PLACE_ID || ''
-// Google Maps 口コミ投稿URL（Place ID があれば直接口コミフォームへ）
 const GOOGLE_REVIEW_URL = GOOGLE_PLACE_ID
   ? `https://search.google.com/local/writereview?placeid=${GOOGLE_PLACE_ID}`
   : 'https://www.google.com/maps/search/人類みなまぜそば'
+
+type Stage = 'select' | 'awaiting_completion' | 'completed'
+
+type CompletionResult = {
+  staff_name: string | null
+  coupon_code: string
+}
+
+const LS_KEY = 'goat_pending_review'
 
 export default function ReviewClient({
   staffList, customerLineUserId,
@@ -15,20 +23,38 @@ export default function ReviewClient({
   customerLineUserId: string | null
 }) {
   const [selectedStaff, setSelectedStaff] = useState<{ id: string; name: string } | null>(null)
-  const [submitted, setSubmitted] = useState(false)
-  const [redirecting, setRedirecting] = useState(false)
+  const [stage, setStage] = useState<Stage>('select')
+  const [reviewId, setReviewId] = useState<string | null>(null)
+  const [completion, setCompletion] = useState<CompletionResult | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleStaffPick = (staff: { id: string; name: string }) => {
-    setSelectedStaff(staff)
-  }
-
-  const handleGoToReview = async () => {
-    if (!selectedStaff) return
-    setRedirecting(true)
-
-    // スタッフ指名を記録
+  // 戻ってきた時の状態復元
+  useEffect(() => {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return
     try {
-      await fetch('/api/reviews/click', {
+      const p = JSON.parse(raw)
+      // 30分以内なら復元
+      if (Date.now() - p.timestamp < 30 * 60 * 1000) {
+        setSelectedStaff(p.staff)
+        setReviewId(p.review_id)
+        setStage('awaiting_completion')
+      } else {
+        localStorage.removeItem(LS_KEY)
+      }
+    } catch {
+      localStorage.removeItem(LS_KEY)
+    }
+  }, [])
+
+  const handleGoToGoogle = async () => {
+    if (!selectedStaff) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      // クリック記録
+      const res = await fetch('/api/reviews/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -36,114 +62,188 @@ export default function ReviewClient({
           customer_line_user_id: customerLineUserId,
         }),
       })
-    } catch (e) {
-      console.error(e)
-    }
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'エラー')
 
-    setSubmitted(true)
-    setRedirecting(false)
+      setReviewId(data.review_id)
+
+      // localStorage に保存（戻ってきた時復元用）
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        staff: selectedStaff,
+        review_id: data.review_id,
+        timestamp: Date.now(),
+      }))
+
+      // Google投稿画面を開く（別タブ）
+      window.open(GOOGLE_REVIEW_URL, '_blank', 'noopener,noreferrer')
+
+      // 画面を「書き終わった？」ステージに遷移
+      setStage('awaiting_completion')
+    } catch (e) {
+      setError((e as Error).message)
+    }
+    setSubmitting(false)
   }
 
-  if (submitted) {
+  const handleConfirmCompleted = async () => {
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/reviews/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_id: reviewId, uid: customerLineUserId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'エラー')
+      setCompletion({
+        staff_name: data.staff_name,
+        coupon_code: data.coupon_code ?? 'MZ-OK',
+      })
+      localStorage.removeItem(LS_KEY)
+      setStage('completed')
+    } catch (e) {
+      setError((e as Error).message)
+    }
+    setSubmitting(false)
+  }
+
+  // ===== ステージ1：スタッフ選択 =====
+  if (stage === 'select') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-lg">
-          <div className="text-center mb-6">
-            <p className="text-5xl mb-2">⭐</p>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">ありがとうございます！</h2>
-            <p className="text-sm text-gray-600">
-              {selectedStaff?.name}さんの接客を記録しました
+      <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50">
+        <div className="p-6 text-center">
+          <p className="text-5xl mb-2">🍜</p>
+          <h1 className="text-2xl font-bold text-gray-800">ご来店ありがとうございました</h1>
+          <p className="text-sm text-gray-600 mt-2">
+            本日の接客はいかがでしたか？<br />
+            担当したスタッフを選んでください
+          </p>
+        </div>
+
+        <div className="px-4 pb-8">
+          <div className="bg-white rounded-2xl shadow p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-3 text-center">本日の担当スタッフ</p>
+            <div className="grid grid-cols-2 gap-2">
+              {staffList.map(s => (
+                <button key={s.id}
+                  onClick={() => setSelectedStaff(s)}
+                  className={`py-4 rounded-xl font-bold text-base transition-all ${
+                    selectedStaff?.id === s.id
+                      ? 'bg-orange-500 text-white ring-4 ring-orange-200'
+                      : 'bg-gray-50 text-gray-700 border border-gray-200'
+                  }`}>
+                  {s.name}
+                  {selectedStaff?.id === s.id && <span className="block text-xs mt-1">✓ 選択中</span>}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setSelectedStaff({ id: 'nominee', name: '特に指名なし' })}
+              className={`w-full mt-2 py-3 rounded-xl text-sm ${
+                selectedStaff?.id === 'nominee' ? 'bg-gray-600 text-white' : 'bg-gray-50 text-gray-500 border'
+              }`}>
+              わからない / 指名なし
+            </button>
+          </div>
+
+          <div className="mt-6">
+            <button onClick={handleGoToGoogle}
+              disabled={!selectedStaff || submitting}
+              className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl text-lg shadow-lg">
+              {submitting ? '準備中...' : '⭐ Googleで口コミを書く'}
+            </button>
+            <p className="text-xs text-gray-500 text-center mt-3">
+              タップすると口コミ投稿画面が別タブで開きます
             </p>
           </div>
 
-          {/* ステップ案内 */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm">
-            <p className="font-bold text-amber-900 mb-2">📝 次のステップ</p>
-            <div className="space-y-2 text-amber-800">
-              <div className="flex gap-2">
-                <span className="font-bold">①</span>
-                <span>下のボタンから Google で口コミを書く</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="font-bold">②</span>
-                <span>書き終わったら <b>LINEに戻って「書きました」</b>と送信</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="font-bold">③</span>
-                <span>🎁 次回来店時のお礼をお届けします</span>
-              </div>
-            </div>
-          </div>
-
-          <a href={GOOGLE_REVIEW_URL}
-            className="block w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl text-center text-base shadow-lg">
-            ⭐ Googleで口コミを書く
-          </a>
-
-          <p className="text-xs text-gray-500 text-center mt-3">
-            {redirecting ? '🔗 自動で開きます...' : ''}
-          </p>
+          {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
         </div>
       </div>
     )
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50">
-      {/* ヘッダー */}
-      <div className="p-6 text-center">
-        <p className="text-5xl mb-2">🍜</p>
-        <h1 className="text-2xl font-bold text-gray-800">ご来店ありがとうございました</h1>
-        <p className="text-sm text-gray-600 mt-2">
-          本日の接客はいかがでしたか？<br />
-          担当したスタッフを選んでください
-        </p>
-      </div>
-
-      {/* スタッフ選択 */}
-      <div className="px-4 pb-8">
-        <div className="bg-white rounded-2xl shadow p-4">
-          <p className="text-sm font-semibold text-gray-700 mb-3 text-center">本日の担当スタッフ</p>
-          <div className="grid grid-cols-2 gap-2">
-            {staffList.map(s => (
-              <button
-                key={s.id}
-                onClick={() => handleStaffPick(s)}
-                className={`py-4 rounded-xl font-bold text-base transition-all
-                  ${selectedStaff?.id === s.id
-                    ? 'bg-orange-500 text-white ring-4 ring-orange-200'
-                    : 'bg-gray-50 text-gray-700 border border-gray-200'}`}
-              >
-                {s.name}
-                {selectedStaff?.id === s.id && <span className="block text-xs mt-1">✓ 選択中</span>}
-              </button>
-            ))}
+  // ===== ステージ2：書き終わったか確認 =====
+  if (stage === 'awaiting_completion') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-xl">
+          <div className="text-center mb-6">
+            <p className="text-6xl mb-4">✍️</p>
+            <h2 className="text-xl font-bold text-gray-800">Googleで口コミを書き終わりましたか？</h2>
+            {selectedStaff && (
+              <p className="text-sm text-gray-500 mt-2">
+                {selectedStaff.name}さんの接客について
+              </p>
+            )}
           </div>
 
-          <button
-            onClick={() => setSelectedStaff({ id: 'nominee', name: '特に指名なし' })}
-            className={`w-full mt-2 py-3 rounded-xl text-sm
-              ${selectedStaff?.id === 'nominee'
-                ? 'bg-gray-600 text-white'
-                : 'bg-gray-50 text-gray-500 border'}`}
-          >
-            わからない / 指名なし
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 text-xs text-amber-800">
+            💡 まだの方は先に下のボタンから投稿画面を開いてください
+          </div>
+
+          {/* 書いた → 完了ボタン */}
+          <button onClick={handleConfirmCompleted}
+            disabled={submitting}
+            className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-bold py-5 rounded-2xl text-lg shadow-lg mb-3">
+            {submitting ? '処理中...' : '✅ 書きました！特典を受け取る'}
           </button>
+
+          {/* まだの方用 再オープン */}
+          <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer"
+            className="block w-full border-2 border-red-300 text-red-500 font-semibold py-3 rounded-xl text-center text-sm">
+            ⭐ もう一度 Google 投稿画面を開く
+          </a>
+
+          {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
+        </div>
+      </div>
+    )
+  }
+
+  // ===== ステージ3：完了・特典表示 =====
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+      <div className="p-6">
+        {/* サクセス表示 */}
+        <div className="text-center py-8">
+          <p className="text-6xl mb-3 animate-bounce">🎉</p>
+          <h1 className="text-2xl font-bold text-gray-800 mb-1">ありがとうございました！</h1>
+          <p className="text-sm text-gray-600">
+            {completion?.staff_name && `${completion.staff_name}${completion.staff_name !== '指名なし' ? 'さん' : ''}の接客として`}<br />
+            記録させていただきました
+          </p>
         </div>
 
-        {/* 送信ボタン */}
-        <div className="mt-6">
-          <button
-            onClick={handleGoToReview}
-            disabled={!selectedStaff}
-            className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl text-lg shadow-lg transition-all"
-          >
-            ⭐ Googleで口コミを書く
-          </button>
-          <p className="text-xs text-gray-500 text-center mt-3">
-            タップするとGoogleマップに移動します。<br />
-            皆様の声が大きな励みになります！
-          </p>
+        {/* クーポンカード */}
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+          <div className="bg-gradient-to-br from-red-500 to-orange-500 p-6 text-white">
+            <p className="text-xs font-semibold opacity-80">口コミ特典</p>
+            <p className="text-2xl font-bold mt-1">次回来店時にお使いいただけます</p>
+          </div>
+          <div className="p-6">
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-dashed border-orange-300 rounded-2xl p-5 text-center">
+              <p className="text-xs text-gray-500">クーポンコード</p>
+              <p className="text-3xl font-bold text-orange-600 tracking-wider my-2">
+                {completion?.coupon_code}
+              </p>
+              <p className="text-xs text-gray-500">有効期限：次回来店時</p>
+            </div>
+            <div className="mt-5 bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm">
+              <p className="font-semibold text-blue-800 mb-1">📱 ご利用方法</p>
+              <p className="text-blue-700 text-xs">
+                次回来店時に、この画面を<b>スタッフにお見せ</b>ください。<br />
+                画面スクショでもOKです。
+              </p>
+            </div>
+            <div className="mt-4 text-center text-xs text-gray-400">
+              口コミ完了時刻: {new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center mt-6 text-sm text-gray-500">
+          またのご来店を<br />心よりお待ちしております 🙌
         </div>
       </div>
     </div>
