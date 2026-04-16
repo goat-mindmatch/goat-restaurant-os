@@ -41,27 +41,48 @@ export default function ReviewClient({
     }
 
     setSubmitted(true)
-    setTimeout(() => {
-      window.location.href = GOOGLE_REVIEW_URL
-    }, 1500)
+    setRedirecting(false)
   }
 
   if (submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl p-8 text-center max-w-sm w-full shadow-lg">
-          <p className="text-5xl mb-4">⭐</p>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">ありがとうございます！</h2>
-          <p className="text-sm text-gray-600 mb-6">
-            {selectedStaff?.name}さんの接客が伝わりました。<br />
-            このままGoogleレビューへ移動します...
-          </p>
-          <div className="text-xs text-gray-400">
-            {redirecting ? '移動中...' : ''}
+        <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-lg">
+          <div className="text-center mb-6">
+            <p className="text-5xl mb-2">⭐</p>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">ありがとうございます！</h2>
+            <p className="text-sm text-gray-600">
+              {selectedStaff?.name}さんの接客を記録しました
+            </p>
           </div>
-          <a href={GOOGLE_REVIEW_URL} className="text-xs text-blue-500 underline mt-2 block">
-            自動で移動しない場合はこちら
+
+          {/* ステップ案内 */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm">
+            <p className="font-bold text-amber-900 mb-2">📝 次のステップ</p>
+            <div className="space-y-2 text-amber-800">
+              <div className="flex gap-2">
+                <span className="font-bold">①</span>
+                <span>下のボタンから Google で口コミを書く</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="font-bold">②</span>
+                <span>書き終わったら <b>LINEに戻って「書きました」</b>と送信</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="font-bold">③</span>
+                <span>🎁 次回来店時のお礼をお届けします</span>
+              </div>
+            </div>
+          </div>
+
+          <a href={GOOGLE_REVIEW_URL}
+            className="block w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl text-center text-base shadow-lg">
+            ⭐ Googleで口コミを書く
           </a>
+
+          <p className="text-xs text-gray-500 text-center mt-3">
+            {redirecting ? '🔗 自動で開きます...' : ''}
+          </p>
         </div>
       </div>
     )

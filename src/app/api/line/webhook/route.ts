@@ -82,7 +82,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,7 +119,12 @@ async function handleEvent(event: LineEvent) {
     case '口コミテスト':
     case '口コミを書く':
       await sendLineMessage(userId,
-        `⭐ 口コミテスト用フォームです。\n\n※本番は顧客用LINEから届きます。\nタップしてテストしてください👇\nhttps://goat-restaurant-os.vercel.app/review?uid=${userId}\n\nスタッフを選ぶとクリック数が記録されます。`)
+        `⭐ 口コミテスト用フォームです。\n\n※本番は顧客用LINEから届きます。\nタップしてテストしてください👇\nhttps://goat-restaurant-os.vercel.app/review?uid=${userId}\n\nスタッフを選ぶ → Googleで口コミを書く → LINEに戻って「書きました」と送信してください。`)
+      break
+    case '書きました':
+    case '口コミ書きました':
+    case '完了':
+      await handleReviewCompleted(userId)
       break
     case '管理メニュー':
       await handleAdminMenu(userId)
@@ -531,6 +536,50 @@ async function handleShiftBoard(lineUserId: string) {
   const boardText = await buildShiftBoard(year, month)
   await sendLineMessage(lineUserId,
     `📋 ${year}年${month}月 シフト希望状況\n\n${boardText}\n\n希望を出すには「シフト希望提出」ボタンを押してください。`)
+}
+
+// ================================
+// 口コミ完了報告（「書きました」受信時）
+// ================================
+async function handleReviewCompleted(lineUserId: string) {
+  const supabase = createServiceClient()
+
+  // 直近24時間以内の未完了クリックを探す
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const { data: reviewRaw } = await (supabase as any)
+    .from('reviews')
+    .select('id, staff_id, staff(name), completed, clicked_at')
+    .eq('customer_line_user_id', lineUserId)
+    .eq('completed', false)
+    .gte('clicked_at', since)
+    .order('clicked_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  const review = reviewRaw as {
+    id: string
+    staff_id: string | null
+    staff: { name: string } | null
+    completed: boolean
+  } | null
+
+  if (!review) {
+    await sendLineMessage(lineUserId,
+      `⚠️ 直近の口コミ誘導が見つかりませんでした。\n\n「⭐口コミを書く」から始めて、Googleで投稿後に「書きました」と送ってください。`)
+    return
+  }
+
+  // 完了フラグを立てる
+  await (supabase as any).from('reviews')
+    .update({
+      completed: true,
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', review.id)
+
+  const staffName = review.staff?.name ?? '指名なし'
+  await sendLineMessage(lineUserId,
+    `🎉 口コミのご協力ありがとうございました！\n\n${staffName}${review.staff?.name ? 'さんの接客' : ''}として記録しました。\n\n皆様の声が私たちの励みになります。\nまたのご来店をお待ちしております🙌`)
 }
 
 async function handleShiftCheck(lineUserId: string) {
