@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 /**
  * LINE Webhook エンドポイント（スタッフ用）
  * POST /api/line/webhook
