@@ -29,17 +29,32 @@ export default function ReviewClient({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 戻ってきた時の状態復元
+  // 戻ってきた時の状態復元（+ 古いデータ自動クリーンアップ）
   useEffect(() => {
     const raw = localStorage.getItem(LS_KEY)
     if (!raw) return
     try {
       const p = JSON.parse(raw)
-      // 30分以内なら復元
+      // 30分以内なら復元を試みる
       if (Date.now() - p.timestamp < 30 * 60 * 1000) {
-        setSelectedStaff(p.staff)
-        setReviewId(p.review_id)
-        setStage('awaiting_completion')
+        // review_id が既に完了or検証済みなら、自動でクリア
+        fetch(`/api/reviews/check?review_id=${p.review_id}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.completed || !data.exists) {
+              // 既に処理済みのレビュー → クリア
+              localStorage.removeItem(LS_KEY)
+              setStage('select')
+            } else {
+              // まだ未処理 → 復元
+              setSelectedStaff(p.staff)
+              setReviewId(p.review_id)
+              setStage('awaiting_completion')
+            }
+          })
+          .catch(() => {
+            localStorage.removeItem(LS_KEY)
+          })
       } else {
         localStorage.removeItem(LS_KEY)
       }
@@ -47,6 +62,16 @@ export default function ReviewClient({
       localStorage.removeItem(LS_KEY)
     }
   }, [])
+
+  // 最初からやり直す
+  const handleReset = () => {
+    localStorage.removeItem(LS_KEY)
+    setSelectedStaff(null)
+    setReviewId(null)
+    setCompletion(null)
+    setError(null)
+    setStage('select')
+  }
 
   const handleGoToGoogle = async () => {
     if (!selectedStaff) return
@@ -195,6 +220,12 @@ export default function ReviewClient({
             ⭐ もう一度 Google 投稿画面を開く
           </a>
 
+          {/* やり直し */}
+          <button onClick={handleReset}
+            className="block w-full text-gray-400 text-xs mt-4 underline">
+            ↺ 最初からやり直す
+          </button>
+
           {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
         </div>
       </div>
@@ -248,6 +279,14 @@ export default function ReviewClient({
 
         <div className="text-center mt-6 text-sm text-gray-500">
           またのご来店を<br />心よりお待ちしております 🙌
+        </div>
+
+        {/* やり直し（テスト用） */}
+        <div className="text-center mt-4">
+          <button onClick={handleReset}
+            className="text-xs text-gray-400 underline">
+            ↺ 最初からやり直す
+          </button>
         </div>
       </div>
     </div>
