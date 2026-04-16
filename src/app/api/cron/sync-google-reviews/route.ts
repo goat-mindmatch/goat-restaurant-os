@@ -87,7 +87,9 @@ export async function GET(req: NextRequest) {
 
     const currentCount = place.userRatingCount ?? 0
     const previousCount = lastRow?.count ?? 0
-    const delta = Math.max(0, currentCount - previousCount)
+    // 初回実行時（履歴なし）はベースライン作成のみ。差分 → 0
+    const isFirstRun = !lastRow
+    const delta = isFirstRun ? 0 : Math.max(0, currentCount - previousCount)
 
     // カウント履歴を記録
     await db.from('google_review_count_history').insert({
@@ -166,6 +168,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      is_first_run: isFirstRun,
       current_count: currentCount,
       previous_count: previousCount,
       delta,
