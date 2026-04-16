@@ -15,6 +15,7 @@ type ReviewInfo = {
   completed_at: string | null
   verified_at: string | null
   verified_by_name: string | null
+  review_text: string | null
 }
 
 export default function VerifyClient({ staffLineUserId }: { staffLineUserId: string | null }) {
@@ -136,11 +137,24 @@ export default function VerifyClient({ staffLineUserId }: { staffLineUserId: str
             <div className="p-5 space-y-3 text-sm">
               <InfoRow label="対象スタッフ" value={info.staff_name ?? '指名なし'} bold />
               <InfoRow label="口コミクリック日時" value={fmtTime(info.clicked_at)} />
-              <InfoRow label="書きましたボタン" value={info.completed ? fmtTime(info.completed_at) : '未申告'} />
+              <InfoRow label="申告日時" value={info.completed ? fmtTime(info.completed_at) : '未申告'} />
               {info.verified_at && (
                 <InfoRow label="承認済み" value={`${fmtTime(info.verified_at)} by ${info.verified_by_name ?? '?'}`} />
               )}
             </div>
+
+            {/* ペーストされた口コミ本文（最重要！） */}
+            {info.review_text && (
+              <div className="mx-5 mb-4 bg-purple-50 border-2 border-purple-200 rounded-xl overflow-hidden">
+                <div className="bg-purple-100 px-3 py-2">
+                  <p className="font-bold text-purple-900 text-sm">📝 お客様が申告した口コミ本文</p>
+                  <p className="text-[10px] text-purple-700">Google上の実際の口コミと照合してください</p>
+                </div>
+                <div className="p-3 text-sm text-gray-800 whitespace-pre-wrap bg-white max-h-60 overflow-y-auto">
+                  {info.review_text}
+                </div>
+              </div>
+            )}
 
             {/* 既に承認済みなら何もさせない */}
             {info.verified_at ? (

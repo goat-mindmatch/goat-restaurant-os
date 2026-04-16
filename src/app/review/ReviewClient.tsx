@@ -28,6 +28,7 @@ export default function ReviewClient({
   const [completion, setCompletion] = useState<CompletionResult | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reviewText, setReviewText] = useState('')
 
   // 戻ってきた時の状態復元（+ 古いデータ自動クリーンアップ）
   useEffect(() => {
@@ -111,13 +112,21 @@ export default function ReviewClient({
   }
 
   const handleConfirmCompleted = async () => {
+    if (reviewText.trim().length < 20) {
+      setError('投稿した口コミの内容を20文字以上ペーストしてください')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
       const res = await fetch('/api/reviews/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ review_id: reviewId, uid: customerLineUserId }),
+        body: JSON.stringify({
+          review_id: reviewId,
+          uid: customerLineUserId,
+          review_text: reviewText.trim(),
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'エラー')
@@ -188,45 +197,84 @@ export default function ReviewClient({
     )
   }
 
-  // ===== ステージ2：書き終わったか確認 =====
+  // ===== ステージ2：口コミ本文をペースト =====
   if (stage === 'awaiting_completion') {
+    const charCount = reviewText.trim().length
+    const canSubmit = charCount >= 20
+
     return (
-      <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-xl">
-          <div className="text-center mb-6">
-            <p className="text-6xl mb-4">✍️</p>
-            <h2 className="text-xl font-bold text-gray-800">Googleで口コミを書き終わりましたか？</h2>
+      <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50 py-6">
+        <div className="bg-white mx-4 rounded-3xl p-6 shadow-xl">
+          <div className="text-center mb-5">
+            <p className="text-5xl mb-3">📝</p>
+            <h2 className="text-lg font-bold text-gray-800">投稿した口コミをコピペしてください</h2>
             {selectedStaff && (
-              <p className="text-sm text-gray-500 mt-2">
-                {selectedStaff.name}さんの接客について
-              </p>
+              <p className="text-xs text-gray-500 mt-1">{selectedStaff.name}さんの接客について</p>
             )}
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 text-xs text-amber-800">
-            💡 まだの方は先に下のボタンから投稿画面を開いてください
+          {/* 操作手順 */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-900">
+            <p className="font-bold mb-1.5">📱 コピー方法</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Google投稿画面で<b>自分の口コミ</b>を表示</li>
+              <li>口コミの本文を<b>長押し</b>して選択</li>
+              <li>「コピー」をタップ</li>
+              <li>この画面に戻って下の欄に<b>ペースト</b></li>
+            </ol>
           </div>
 
-          {/* 書いた → 完了ボタン */}
+          {/* ペースト欄 */}
+          <label className="text-xs font-semibold text-gray-700 mb-2 block">
+            口コミの内容
+            <span className={`ml-2 ${canSubmit ? 'text-green-600' : 'text-gray-400'}`}>
+              {charCount}/20文字以上
+            </span>
+          </label>
+          <textarea
+            value={reviewText}
+            onChange={e => setReviewText(e.target.value)}
+            placeholder="ここに投稿した口コミをペーストしてください（長押し → ペースト）"
+            rows={6}
+            className={`w-full border-2 rounded-xl px-3 py-3 text-sm focus:outline-none ${
+              canSubmit ? 'border-green-300 focus:border-green-500' : 'border-gray-200 focus:border-orange-400'
+            }`}
+          />
+
+          {/* 注意文 */}
+          <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+            ⚠️ 次回来店時にスタッフが<b>Google上の口コミと照合</b>します。<br />
+            実際の投稿と内容が違う場合は特典をお渡しできません。
+          </div>
+
+          {/* 送信ボタン */}
           <button onClick={handleConfirmCompleted}
-            disabled={submitting}
-            className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-bold py-5 rounded-2xl text-lg shadow-lg mb-3">
-            {submitting ? '処理中...' : '✅ 書きました！特典を受け取る'}
+            disabled={submitting || !canSubmit}
+            className={`w-full mt-4 font-bold py-4 rounded-2xl text-base shadow-lg transition-all ${
+              canSubmit && !submitting
+                ? 'bg-green-500 hover:bg-green-600 text-white'
+                : 'bg-gray-200 text-gray-400'
+            }`}>
+            {submitting ? '処理中...' : canSubmit ? '✅ 提出して検証コードを受け取る' : '口コミ本文をペーストしてください'}
           </button>
 
           {/* まだの方用 再オープン */}
           <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer"
-            className="block w-full border-2 border-red-300 text-red-500 font-semibold py-3 rounded-xl text-center text-sm">
-            ⭐ もう一度 Google 投稿画面を開く
+            className="block w-full border border-red-200 text-red-400 font-medium py-2.5 rounded-xl text-center text-xs mt-3">
+            ⭐ Google 投稿画面をもう一度開く
           </a>
 
           {/* やり直し */}
           <button onClick={handleReset}
-            className="block w-full text-gray-400 text-xs mt-4 underline">
+            className="block w-full text-gray-400 text-xs mt-3 underline">
             ↺ 最初からやり直す
           </button>
 
-          {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
+          {error && (
+            <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
         </div>
       </div>
     )

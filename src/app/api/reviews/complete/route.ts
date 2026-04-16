@@ -22,7 +22,17 @@ function generateCouponCode(): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { review_id, uid, staff_id } = await req.json()
+    const { review_id, uid, review_text } = await req.json()
+
+    // 口コミ本文チェック（最低20文字）
+    if (!review_text || String(review_text).trim().length < 20) {
+      return NextResponse.json({
+        error: '口コミ本文が短すぎます。投稿した内容をしっかりコピペしてください（20文字以上）',
+      }, { status: 400 })
+    }
+
+    const cleanText = String(review_text).trim().slice(0, 2000)
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
@@ -34,9 +44,8 @@ export async function POST(req: NextRequest) {
         .eq('id', review_id).eq('tenant_id', TENANT_ID).single()
       review = data
     } else if (uid) {
-      // 直近30分以内の未完了クリックを検索
       const since = new Date(Date.now() - 30 * 60 * 1000).toISOString()
-      const query = db.from('reviews')
+      const { data } = await db.from('reviews')
         .select('id, staff_id, completed, staff(name)')
         .eq('tenant_id', TENANT_ID)
         .eq('customer_line_user_id', uid)
@@ -44,7 +53,7 @@ export async function POST(req: NextRequest) {
         .gte('clicked_at', since)
         .order('clicked_at', { ascending: false })
         .limit(1)
-      const { data } = await query.maybeSingle()
+        .maybeSingle()
       review = data
     }
 
@@ -62,6 +71,7 @@ export async function POST(req: NextRequest) {
       completed: true,
       completed_at: new Date().toISOString(),
       note: `coupon:${couponCode}`,
+      review_text: cleanText,
     }).eq('id', review.id)
 
     return NextResponse.json({

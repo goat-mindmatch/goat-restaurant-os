@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     // note に "coupon:XXX" 形式で保存されている
     const { data } = await db.from('reviews')
-      .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, note, staff(name), verifier:staff!reviews_verified_by_fkey(name)')
+      .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, note, review_text, staff(name), verifier:staff!reviews_verified_by_fkey(name)')
       .eq('tenant_id', TENANT_ID)
       .eq('note', `coupon:${code}`)
       .maybeSingle()
@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
       completed_at: data.completed_at,
       verified_at: data.verified_at,
       verified_by_name: data.verifier?.name ?? null,
+      review_text: data.review_text ?? null,
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
