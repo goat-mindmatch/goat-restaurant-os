@@ -82,7 +82,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -115,6 +115,11 @@ async function handleEvent(event: LineEvent) {
     case '発注依頼':
       await sendLineMessage(userId,
         `📦 発注依頼フォームです。\n\nタップして開いてください👇\nhttps://goat-restaurant-os.vercel.app/order-form?uid=${userId}\n\n品目・数量・配達希望日を入力できます。`)
+      break
+    case '口コミテスト':
+    case '口コミを書く':
+      await sendLineMessage(userId,
+        `⭐ 口コミテスト用フォームです。\n\n※本番は顧客用LINEから届きます。\nタップしてテストしてください👇\nhttps://goat-restaurant-os.vercel.app/review?uid=${userId}\n\nスタッフを選ぶとクリック数が記録されます。`)
       break
     case '管理メニュー':
       await handleAdminMenu(userId)
