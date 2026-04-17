@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     // Claude Vision API で画像解析
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY })
     const visionRes = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250514',
+      model: 'claude-haiku-4-5',
       max_tokens: 500,
       messages: [{
         role: 'user',
