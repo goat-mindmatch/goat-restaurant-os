@@ -222,15 +222,15 @@ export default function ReviewClient({
           </div>
 
           {/* アップロードエリア */}
-          <input type="file" ref={fileInputRef} accept="image/*" capture="environment"
+          <input type="file" ref={fileInputRef} accept="image/*"
             onChange={handleFileSelect} className="hidden" />
 
           {!previewUrl ? (
             <button onClick={() => fileInputRef.current?.click()}
               className="w-full bg-white border-2 border-dashed border-blue-300 rounded-2xl py-10 flex flex-col items-center gap-3 hover:border-blue-500 transition-colors">
-              <span className="text-4xl">📷</span>
-              <span className="text-blue-600 font-bold">スクリーンショットを選択</span>
-              <span className="text-xs text-gray-400">カメラロールから選ぶか、その場で撮影</span>
+              <span className="text-4xl">🖼️</span>
+              <span className="text-blue-600 font-bold">写真フォルダからスクショを選択</span>
+              <span className="text-xs text-gray-400">撮影済みのスクリーンショットを選んでください</span>
             </button>
           ) : (
             <div className="bg-white rounded-2xl shadow overflow-hidden">
