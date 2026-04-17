@@ -120,38 +120,15 @@ export async function GET(req: NextRequest) {
       newCached++
     }
 
-    // 増分に応じて、未検証クリックを自動承認（直近から順に）
-    let autoVerified = 0
-    if (delta > 0) {
-      const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-      const { data: pending } = await db.from('reviews')
-        .select('id, staff_id, customer_line_user_id, note')
-        .eq('tenant_id', TENANT_ID)
-        .is('verified_at', null)
-        .gte('clicked_at', since)
-        .order('clicked_at', { ascending: false })
-        .limit(delta)
-
-      for (const p of pending ?? []) {
-        await db.from('reviews').update({
-          verified_at: new Date().toISOString(),
-          note: `${p.note ?? ''} | auto-verified-by-places-api`,
-        }).eq('id', p.id)
-        autoVerified++
-
-        // 顧客LINEへ通知
-        if (p.customer_line_user_id) {
-          const couponMatch = String(p.note ?? '').match(/coupon:([A-Z0-9-]+)/)
-          const couponCode = couponMatch?.[1] ?? 'MZ-OK'
-          try {
-            await sendCustomerLineMessage(p.customer_line_user_id,
-              `🎉 口コミありがとうございました！\n\nGoogle上で投稿を確認しました。\n\n【特典コード】\n${couponCode}\n\n次回ご来店時にこの画面をスタッフにお見せください🙌`)
-          } catch (e) {
-            console.error('customer notify failed', e)
-          }
-        }
-      }
-    }
+    // ※ 自動承認は停止済み（スクショ検証方式に移行）
+    // Places API は「通知 + 統計」のみに使用。
+    // 未検証クリック数だけカウント
+    const { data: pendingRows } = await db.from('reviews')
+      .select('id')
+      .eq('tenant_id', TENANT_ID)
+      .is('verified_at', null)
+      .eq('completed', true)
+    const pendingCount = pendingRows?.length ?? 0
 
     // 管理者に日次レポート
     const { data: managers } = await db.from('staff')
@@ -161,8 +138,9 @@ export async function GET(req: NextRequest) {
 
     for (const m of managers ?? []) {
       try {
+        const pendingMsg = pendingCount > 0 ? `\n⏳ スクショ未提出: ${pendingCount}件` : ''
         await sendStaffLineMessage(m.line_user_id,
-          `📊 Google口コミ同期\n\n総件数: ${currentCount}件（前回比 +${delta}）\n平均評価: ★${place.rating ?? '-'}\n自動検証: ${autoVerified}件`)
+          `📊 Google口コミ日次レポート\n\n総件数: ${currentCount}件（前日比 +${delta}）\n平均評価: ★${place.rating ?? '-'}${pendingMsg}`)
       } catch {}
     }
 
@@ -172,7 +150,7 @@ export async function GET(req: NextRequest) {
       current_count: currentCount,
       previous_count: previousCount,
       delta,
-      auto_verified: autoVerified,
+      pending_count: pendingCount,
       new_cached_reviews: newCached,
     })
   } catch (e) {
