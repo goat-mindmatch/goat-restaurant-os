@@ -81,21 +81,39 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'approve') {
+      // レビュー情報を取得（LINE通知用）
+      const { data: reviewData } = await db.from('reviews')
+        .select('coupon_code, customer_line_user_id')
+        .eq('id', review_id).single()
+
       await db.from('reviews').update({
         verified_at: new Date().toISOString(),
         verified_by: verifiedBy,
       }).eq('id', review_id).eq('tenant_id', TENANT_ID)
+
+      // 承認後：お客様のLINEにクーポンを自動送信
+      if (reviewData?.customer_line_user_id && reviewData?.coupon_code) {
+        const lineUserId = reviewData.customer_line_user_id
+        const couponCode = reviewData.coupon_code
+
+        // スタッフLINE経由で送信（顧客LINE未設定の場合でもスタッフ登録者には届く）
+        try {
+          const { sendLineMessage } = await import('@/lib/line-staff')
+          await sendLineMessage(lineUserId,
+            `🎉 口コミありがとうございました！\n\nスタッフが確認し、承認しました。\n\n【特典コード】\n${couponCode}\n\n次回ご来店時にこの画面をスタッフにお見せください🙌`)
+        } catch (e) {
+          console.error('LINE notification failed:', e)
+        }
+      }
     } else {
-      // 却下 = verified_at をリセット状態、note に rejected マーク
       await db.from('reviews').update({
         verified_at: null,
         verified_by: verifiedBy,
-        // note 末尾に rejected を追記
         note: `coupon:rejected-by-${verifiedBy ?? 'unknown'}`,
       }).eq('id', review_id).eq('tenant_id', TENANT_ID)
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, action })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

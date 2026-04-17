@@ -303,26 +303,24 @@ export default function ReviewClient({
         {verdict === 'review' && (
           <>
             <div className="text-center py-6">
-              <p className="text-6xl mb-3">⏳</p>
-              <h1 className="text-xl font-bold text-gray-800">スタッフ確認中です</h1>
+              <p className="text-6xl mb-3">📩</p>
+              <h1 className="text-xl font-bold text-gray-800">確認中です</h1>
               <p className="text-sm text-gray-600 mt-2">
-                画像の確認に少しお時間をいただきます
+                スタッフが確認後、<b>LINEで特典コードをお送りします</b>
               </p>
             </div>
-            <div className="bg-white rounded-2xl shadow p-6 text-center">
-              <p className="text-sm text-gray-700 mb-3">
-                {verdictReason || 'AI による自動判定ができませんでした'}
-              </p>
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-                <p className="font-bold mb-1">📱 次回ご来店時に</p>
-                <p className="text-xs">スタッフにこの画面をお見せください。確認後、特典をお渡しします。</p>
+            <div className="bg-white rounded-2xl shadow p-6">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-center">
+                <p className="font-bold text-green-800 mb-1">📱 この後の流れ</p>
+                <p className="text-xs text-green-700">
+                  スタッフが内容を確認次第、<br />
+                  <b>LINEに特典コードが届きます</b>。<br />
+                  この画面を閉じて大丈夫です。
+                </p>
               </div>
-              {couponCode && (
-                <div className="mt-3 bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400">確認コード</p>
-                  <p className="text-xl font-bold text-gray-600">{couponCode}</p>
-                </div>
-              )}
+              <p className="text-xs text-gray-400 text-center mt-3">
+                通常、当日中にご連絡いたします
+              </p>
             </div>
           </>
         )}
