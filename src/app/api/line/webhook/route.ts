@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic'
  * - "シフト確認"    → 今月のシフト表示
  * - "発注依頼"      → 発注依頼フロー開始
  * - "管理メニュー"  → 管理者パスワード確認
+ * - [画像送信]      → レシートOCR → expenses テーブルに自動保存
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -67,6 +68,12 @@ async function handleEvent(event: LineEvent) {
   // 友だち追加イベント → 登録フロー開始
   if (event.type === 'follow') {
     await handleFollow(userId)
+    return
+  }
+
+  // 画像メッセージ → レシートOCR
+  if (event.type === 'message' && event.message.type === 'image') {
+    await handleReceiptImage(userId, event.message.id)
     return
   }
 
@@ -640,6 +647,125 @@ async function handleShiftCheck(lineUserId: string) {
 }
 
 // ================================
+// レシートOCR（画像 → Claude Vision → expenses保存）
+// ================================
+async function handleReceiptImage(lineUserId: string, messageId: string) {
+  // スタッフ確認
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+  const { data: staff } = await db.from('staff')
+    .select('id, name').eq('line_user_id', lineUserId).eq('tenant_id', TENANT_ID).single()
+
+  if (!staff) {
+    await sendLineMessage(lineUserId, 'スタッフ登録が必要です。まず登録を完了してください。')
+    return
+  }
+
+  await sendLineMessage(lineUserId, '📷 レシートを読み取り中です...')
+
+  try {
+    // LINE Content API からバイナリ画像を取得
+    const lineToken = process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN!
+    const contentRes = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+      headers: { Authorization: `Bearer ${lineToken}` },
+    })
+    if (!contentRes.ok) throw new Error('LINE画像取得失敗')
+
+    const imageBuffer = await contentRes.arrayBuffer()
+    const base64Image = Buffer.from(imageBuffer).toString('base64')
+    const contentType = contentRes.headers.get('content-type') ?? 'image/jpeg'
+
+    // Claude Vision でレシート情報を抽出
+    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+
+    const today = new Date().toISOString().split('T')[0]
+
+    const extraction = await anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 512,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: contentType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: base64Image },
+          },
+          {
+            type: 'text',
+            text: `このレシート・領収書から以下の情報をJSON形式で抽出してください。
+不明な項目はnullにしてください。
+
+{
+  "date": "YYYY-MM-DD形式の日付（不明なら今日: ${today}）",
+  "vendor": "店名・業者名",
+  "amount": 税込合計金額（数値のみ、円記号なし）,
+  "tax_amount": 消費税額（数値のみ、不明なら0）,
+  "category": "food/utility/consumable/equipment/rent/communication/other のいずれか",
+  "note": "品目の簡単なメモ（最大30文字）"
+}
+
+categoryの判定基準:
+- food: 食材・仕入れ・飲食
+- utility: 電気・ガス・水道
+- consumable: 消耗品（容器・袋・洗剤等）
+- equipment: 設備・厨房機器
+- rent: 家賃
+- communication: 通信・電話
+- other: その他
+
+JSONのみを返してください。前後の説明は不要です。`,
+          },
+        ],
+      }],
+    })
+
+    const rawText = extraction.content[0].type === 'text' ? extraction.content[0].text.trim() : ''
+    // コードブロック除去
+    const jsonText = rawText.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '').trim()
+    const extracted = JSON.parse(jsonText)
+
+    // expenses に保存
+    const { data: expense, error } = await db.from('expenses').insert({
+      tenant_id: TENANT_ID,
+      date: extracted.date ?? today,
+      category: extracted.category ?? 'other',
+      vendor: extracted.vendor ?? null,
+      amount: Number(extracted.amount ?? 0),
+      tax_amount: Number(extracted.tax_amount ?? 0),
+      note: extracted.note ?? null,
+      ai_extracted: true,
+      recorded_by: staff.id,
+    }).select().single()
+
+    if (error) throw error
+
+    const CATEGORY_LABELS: Record<string, string> = {
+      food: '食材費', utility: '光熱費', consumable: '消耗品',
+      equipment: '設備費', rent: '家賃', communication: '通信費', other: 'その他',
+    }
+    const catLabel = CATEGORY_LABELS[expense.category] ?? expense.category
+
+    await sendLineMessage(
+      lineUserId,
+      `✅ レシートをPLに記録しました！\n\n` +
+      `📅 日付: ${expense.date}\n` +
+      `🏪 ${expense.vendor ?? '（店名不明）'}\n` +
+      `💴 ¥${Number(expense.amount).toLocaleString()}\n` +
+      `📂 カテゴリ: ${catLabel}\n` +
+      (expense.note ? `📝 ${expense.note}\n` : '') +
+      `\n内容が違う場合はダッシュボードで修正できます。`
+    )
+  } catch (e) {
+    console.error('Receipt OCR error:', e)
+    await sendLineMessage(
+      lineUserId,
+      '⚠️ レシードの読み取りに失敗しました。\n再度送信するか、手動でダッシュボードから入力してください。'
+    )
+  }
+}
+
+// ================================
 // 管理メニュー（パスワード保護）
 // ================================
 async function handleAdminMenu(lineUserId: string) {
@@ -655,7 +781,7 @@ async function handleAdminMenu(lineUserId: string) {
 // ================================
 type LineEvent = {
   type: string
-  message: { type: string; text: string }
+  message: { type: string; text: string; id: string }
   source: { userId: string }
   replyToken: string
 }

@@ -161,6 +161,47 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 -- ================================
+-- 経費（レシートOCR→PL反映）
+-- ================================
+CREATE TABLE IF NOT EXISTS expenses (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  date            DATE NOT NULL,
+  category        TEXT NOT NULL DEFAULT 'other'
+                  CHECK (category IN ('food','utility','consumable','equipment','rent','communication','other')),
+  vendor          TEXT,
+  amount          INTEGER NOT NULL,
+  tax_amount      INTEGER DEFAULT 0,
+  note            TEXT,
+  receipt_url     TEXT,
+  ai_extracted    BOOLEAN DEFAULT false,
+  recorded_by     UUID REFERENCES staff(id),
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ================================
+-- 固定費マスタ（家賃・通信費等）
+-- ================================
+CREATE TABLE IF NOT EXISTS fixed_costs (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  amount      INTEGER NOT NULL,
+  category    TEXT NOT NULL DEFAULT 'other'
+              CHECK (category IN ('rent','communication','equipment','other')),
+  is_active   BOOLEAN DEFAULT true,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 初期データ: 人類みなまぜそば 固定費
+WITH t AS (SELECT id FROM tenants WHERE slug = 'mazesoba-jinrui')
+INSERT INTO fixed_costs (tenant_id, name, amount, category) VALUES
+  ((SELECT id FROM t), '家賃',   280000, 'rent'),
+  ((SELECT id FROM t), '通信費',   8000, 'communication')
+ON CONFLICT DO NOTHING;
+
+-- ================================
 -- インデックス（検索高速化）
 -- ================================
 CREATE INDEX IF NOT EXISTS idx_attendance_staff_date ON attendance(staff_id, date);
@@ -168,6 +209,8 @@ CREATE INDEX IF NOT EXISTS idx_attendance_tenant_date ON attendance(tenant_id, d
 CREATE INDEX IF NOT EXISTS idx_shifts_tenant_date ON shifts(tenant_id, date);
 CREATE INDEX IF NOT EXISTS idx_daily_sales_tenant_date ON daily_sales(tenant_id, date);
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_date ON orders(tenant_id, order_date);
+CREATE INDEX IF NOT EXISTS idx_expenses_tenant_date ON expenses(tenant_id, date);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(tenant_id, category);
 
 -- ================================
 -- updated_at 自動更新トリガー
@@ -186,6 +229,7 @@ CREATE TRIGGER trg_attendance_updated BEFORE UPDATE ON attendance FOR EACH ROW E
 CREATE TRIGGER trg_shifts_updated BEFORE UPDATE ON shifts FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_daily_sales_updated BEFORE UPDATE ON daily_sales FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_orders_updated BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER trg_expenses_updated BEFORE UPDATE ON expenses FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ================================
 -- Row Level Security（RLS）
@@ -207,3 +251,7 @@ CREATE POLICY "service_all" ON shift_requests FOR ALL TO service_role USING (tru
 CREATE POLICY "service_all" ON shifts FOR ALL TO service_role USING (true);
 CREATE POLICY "service_all" ON daily_sales FOR ALL TO service_role USING (true);
 CREATE POLICY "service_all" ON orders FOR ALL TO service_role USING (true);
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fixed_costs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_all" ON expenses FOR ALL TO service_role USING (true);
+CREATE POLICY "service_all" ON fixed_costs FOR ALL TO service_role USING (true);

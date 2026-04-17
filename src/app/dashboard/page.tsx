@@ -164,7 +164,7 @@ export default async function DashboardPage() {
             { label: 'ホーム', href: '/dashboard', icon: '🏠' },
             { label: 'シフト', href: '/dashboard/shifts', icon: '📅' },
             { label: '発注', href: '/dashboard/orders', icon: '📦' },
-            { label: '売上', href: '/dashboard/sales', icon: '💰' },
+            { label: 'PL', href: '/dashboard/pl', icon: '📋' },
             { label: '給与', href: '/dashboard/payroll', icon: '💴' },
           ].map((item) => (
             <a
