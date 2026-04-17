@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
-    // 専用カラムで検索
+    // 専用カラムで検索（staff_id→staffの関連を明示）
     const { data: rows } = await db.from('reviews')
-      .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, review_text, staff(name)')
+      .select('id, staff_id, clicked_at, completed, completed_at, verified_at, verified_by, review_text, staff:staff!reviews_staff_id_fkey(name)')
       .eq('tenant_id', TENANT_ID)
       .eq('coupon_code', code)
       .limit(1)

@@ -13,7 +13,7 @@ async function getReviewData() {
 
   const [reviewsRes, staffRes] = await Promise.all([
     db.from('reviews')
-      .select('staff_id, clicked_at, completed, verified_at, staff(name)')
+      .select('staff_id, clicked_at, completed, verified_at, staff:staff!reviews_staff_id_fkey(name)')
       .eq('tenant_id', TENANT_ID)
       .gte('clicked_at', firstDay)
       .order('clicked_at', { ascending: false }),

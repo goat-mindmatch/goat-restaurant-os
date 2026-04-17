@@ -40,13 +40,13 @@ export async function POST(req: NextRequest) {
 
     if (review_id) {
       const { data } = await db.from('reviews')
-        .select('id, staff_id, completed, staff(name)')
+        .select('id, staff_id, completed, staff:staff!reviews_staff_id_fkey(name)')
         .eq('id', review_id).eq('tenant_id', TENANT_ID).single()
       review = data
     } else if (uid) {
       const since = new Date(Date.now() - 30 * 60 * 1000).toISOString()
       const { data } = await db.from('reviews')
-        .select('id, staff_id, completed, staff(name)')
+        .select('id, staff_id, completed, staff:staff!reviews_staff_id_fkey(name)')
         .eq('tenant_id', TENANT_ID)
         .eq('customer_line_user_id', uid)
         .eq('completed', false)

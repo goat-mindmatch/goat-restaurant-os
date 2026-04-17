@@ -495,7 +495,7 @@ async function buildShiftBoard(year: number, month: number): Promise<string> {
 
   const { data: requests } = await (supabase as any)
     .from('shift_requests')
-    .select('staff_id, available_dates, staff(name)')
+    .select('staff_id, available_dates, staff:staff!reviews_staff_id_fkey(name)')
     .eq('tenant_id', tenantId)
     .eq('target_year', year)
     .eq('target_month', month)
@@ -554,7 +554,7 @@ async function handleReviewCompleted(lineUserId: string) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { data: reviewRaw } = await (supabase as any)
     .from('reviews')
-    .select('id, staff_id, staff(name), completed, clicked_at')
+    .select('id, staff_id, staff:staff!reviews_staff_id_fkey(name), completed, clicked_at')
     .eq('customer_line_user_id', lineUserId)
     .eq('completed', false)
     .gte('clicked_at', since)
