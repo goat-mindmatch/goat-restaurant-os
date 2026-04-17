@@ -52,16 +52,33 @@ ${itemList}
 
 お手数ですが、ご確認のほどよろしくお願いいたします。`
 
+    // LINE自動送信を試行（業者の連絡先がLINE IDの場合）
+    let autoSent = false
+    // 業者がLINEユーザーIDを持っている場合（将来的にLINE公式連携時）
+    // 現状は管理者がコピペで送信するため、メッセージ生成のみ
+
     // 状態を sent に更新
     await db.from('orders').update({
       status: 'sent',
-      sent_via: order.supplier_contact ? 'line' : null,
+      sent_via: autoSent ? 'line' : null,
       updated_at: new Date().toISOString(),
     }).eq('id', order_id)
+
+    // 管理者に確認通知（スタッフLINE経由）
+    try {
+      const { sendLineMessage } = await import('@/lib/line-staff')
+      const { data: managers } = await db.from('staff')
+        .select('line_user_id').eq('tenant_id', TENANT_ID).eq('role', 'manager').not('line_user_id', 'is', null)
+      for (const m of managers ?? []) {
+        await sendLineMessage(m.line_user_id,
+          `📦 発注送付完了\n業者: ${order.supplier_name}\n品目: ${order.items.length}品\n\n※業者LINEにメッセージを貼り付けてください`).catch(() => {})
+      }
+    } catch {}
 
     return NextResponse.json({
       ok: true,
       message,
+      auto_sent: autoSent,
       supplier: {
         name: order.supplier_name,
         contact_type: order.supplier_contact ? 'line' : null,

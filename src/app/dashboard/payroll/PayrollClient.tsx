@@ -2,138 +2,151 @@
 
 import { useState, useMemo } from 'react'
 
-type Staff = { id: string; name: string; hourly_wage: number }
+type Staff = { id: string; name: string; hourly_wage: number; transport_fee: number | null }
 type Attendance = {
-  staff_id: string
-  date: string
-  clock_in: string | null
-  clock_out: string | null
-  work_minutes: number | null
-  break_minutes: number
+  staff_id: string; date: string; clock_in: string | null; clock_out: string | null
+  work_minutes: number | null; break_minutes: number
+}
+
+const REVIEW_BONUS_PER = 100
+
+function calcLateNightMinutes(clockIn: string | null, clockOut: string | null): number {
+  if (!clockIn || !clockOut) return 0
+  const [inH, inM] = clockIn.split(':').map(Number)
+  const [outH, outM] = clockOut.split(':').map(Number)
+  const endMin = outH * 60 + outM
+  const lateStart = 22 * 60
+  if (endMin <= lateStart) return 0
+  const effectiveStart = Math.max(inH * 60 + inM, lateStart)
+  return Math.max(0, endMin - effectiveStart)
 }
 
 export default function PayrollClient({
-  staffList, attendance, month,
+  staffList, attendance, reviewCountMap, month,
 }: {
   staffList: Staff[]
   attendance: Attendance[]
+  reviewCountMap: Record<string, number>
   month: number
 }) {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null)
 
-  // スタッフごとの集計
   const summaries = useMemo(() => {
     return staffList.map(staff => {
       const myAtt = attendance.filter(a => a.staff_id === staff.id && a.work_minutes)
       const totalMinutes = myAtt.reduce((s, a) => s + (a.work_minutes ?? 0), 0)
       const totalDays = myAtt.length
       const totalHours = totalMinutes / 60
-      const totalPay = Math.round(totalHours * staff.hourly_wage)
-      return { staff, totalDays, totalMinutes, totalHours, totalPay, att: myAtt }
+      const lateNightMin = myAtt.reduce((s, a) => s + calcLateNightMinutes(a.clock_in, a.clock_out), 0)
+      const lateNightHours = lateNightMin / 60
+      const basePay = Math.round(totalHours * staff.hourly_wage)
+      const lateNightPremium = Math.round(lateNightHours * staff.hourly_wage * 0.25)
+      const transportTotal = totalDays * (staff.transport_fee ?? 0)
+      const reviewCount = reviewCountMap[staff.id] ?? 0
+      const reviewBonus = reviewCount * REVIEW_BONUS_PER
+      const totalPay = basePay + lateNightPremium + transportTotal + reviewBonus
+      return { staff, totalDays, totalMinutes, totalHours, lateNightHours, basePay, lateNightPremium, transportTotal, reviewCount, reviewBonus, totalPay, att: myAtt }
     })
-  }, [staffList, attendance])
+  }, [staffList, attendance, reviewCountMap])
 
   const grandTotal = summaries.reduce((s, x) => s + x.totalPay, 0)
-  const grandHours = summaries.reduce((s, x) => s + x.totalHours, 0)
-  const grandDays = summaries.reduce((s, x) => s + x.totalDays, 0)
+  const grandBase = summaries.reduce((s, x) => s + x.basePay, 0)
+  const grandLateNight = summaries.reduce((s, x) => s + x.lateNightPremium, 0)
+  const grandTransport = summaries.reduce((s, x) => s + x.transportTotal, 0)
+  const grandReviewBonus = summaries.reduce((s, x) => s + x.reviewBonus, 0)
 
   const downloadCSV = () => {
-    const header = ['氏名', '時給', '勤務日数', '総労働時間', '給与総額']
+    const header = ['氏名', '時給', '勤務日数', '総労働時間', '深夜時間', '基本給', '深夜手当', '交通費', '口コミ件数', '口コミボーナス', '給与合計']
     const rows = summaries.map(s => [
-      s.staff.name,
-      s.staff.hourly_wage,
-      s.totalDays,
-      s.totalHours.toFixed(1),
-      s.totalPay,
+      s.staff.name, s.staff.hourly_wage, s.totalDays, s.totalHours.toFixed(1), s.lateNightHours.toFixed(1),
+      s.basePay, s.lateNightPremium, s.transportTotal, s.reviewCount, s.reviewBonus, s.totalPay,
     ])
     const bom = '\uFEFF'
     const csv = bom + [header, ...rows].map(r => r.join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
+    a.href = URL.createObjectURL(blob)
     a.download = `payroll_${month}.csv`
     a.click()
-    URL.revokeObjectURL(url)
   }
 
   return (
     <>
-      {/* サマリー */}
-      <div className="mx-4 mt-4 grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl p-4 shadow-sm text-center">
-          <p className="text-xs text-gray-400">総人件費</p>
-          <p className="text-lg font-bold text-gray-900">¥{grandTotal.toLocaleString()}</p>
+      <div className="mx-4 mt-4 grid grid-cols-2 gap-2">
+        <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+          <p className="text-[10px] text-gray-400">総人件費</p>
+          <p className="text-xl font-bold text-gray-900">¥{grandTotal.toLocaleString()}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm text-center">
-          <p className="text-xs text-gray-400">総労働時間</p>
-          <p className="text-lg font-bold text-gray-800">{grandHours.toFixed(1)}h</p>
+        <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+          <p className="text-[10px] text-gray-400">基本給</p>
+          <p className="text-lg font-bold text-gray-800">¥{grandBase.toLocaleString()}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm text-center">
-          <p className="text-xs text-gray-400">延べ出勤</p>
-          <p className="text-lg font-bold text-gray-800">{grandDays}日</p>
+        <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+          <p className="text-[10px] text-gray-400">深夜手当合計</p>
+          <p className="text-lg font-bold text-purple-600">¥{grandLateNight.toLocaleString()}</p>
+        </div>
+        <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+          <p className="text-[10px] text-gray-400">交通費+口コミ</p>
+          <p className="text-lg font-bold text-blue-600">¥{(grandTransport + grandReviewBonus).toLocaleString()}</p>
         </div>
       </div>
 
-      {/* CSV ダウンロード */}
       <div className="mx-4 mt-3">
-        <button onClick={downloadCSV}
-          className="w-full bg-gray-100 text-gray-700 font-semibold py-3 rounded-xl text-sm">
+        <button onClick={downloadCSV} className="w-full bg-gray-100 text-gray-700 font-semibold py-3 rounded-xl text-sm">
           📊 CSV ダウンロード
         </button>
       </div>
 
-      {/* スタッフ別集計 */}
       <div className="mx-4 mt-4">
         <h2 className="text-sm font-semibold text-gray-500 mb-2">スタッフ別</h2>
         <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100">
           {summaries.map(s => (
-            <button key={s.staff.id} onClick={() => setSelectedStaff(s.staff)}
-              className="w-full text-left p-4 hover:bg-gray-50">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-semibold text-gray-800">{s.staff.name}</p>
-                  <p className="text-xs text-gray-500">
-                    時給¥{s.staff.hourly_wage.toLocaleString()} × {s.totalHours.toFixed(1)}h ({s.totalDays}日)
-                  </p>
-                </div>
+            <button key={s.staff.id} onClick={() => setSelectedStaff(s.staff)} className="w-full text-left p-4 hover:bg-gray-50">
+              <div className="flex justify-between items-center mb-1">
+                <p className="font-semibold text-gray-800">{s.staff.name}</p>
                 <p className="text-lg font-bold text-gray-900">¥{s.totalPay.toLocaleString()}</p>
               </div>
+              <div className="flex flex-wrap gap-1 text-[10px]">
+                <span className="bg-gray-100 px-2 py-0.5 rounded">基本 ¥{s.basePay.toLocaleString()}</span>
+                {s.lateNightPremium > 0 && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">深夜 ¥{s.lateNightPremium.toLocaleString()}</span>}
+                {s.transportTotal > 0 && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">交通費 ¥{s.transportTotal.toLocaleString()}</span>}
+                {s.reviewBonus > 0 && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded">口コミ ¥{s.reviewBonus.toLocaleString()}({s.reviewCount}件)</span>}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">{s.totalDays}日 / {s.totalHours.toFixed(1)}h（うち深夜{s.lateNightHours.toFixed(1)}h）</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* 個別詳細モーダル */}
+      <div className="mx-4 mt-4 bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800">
+        <p className="font-bold mb-1">💡 計算式</p>
+        <p>給与 =（勤務時間×時給）+（22時以降×時給×0.25）+ 交通費 + 口コミボーナス（1件¥{REVIEW_BONUS_PER}）</p>
+      </div>
+
       {selectedStaff && (
-        <div className="fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center justify-center p-0 sm:p-4"
-          onClick={() => setSelectedStaff(null)}>
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center justify-center" onClick={() => setSelectedStaff(null)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b px-4 py-3 flex justify-between items-center">
               <div>
                 <h3 className="font-bold">{selectedStaff.name} の勤務記録</h3>
-                <p className="text-xs text-gray-500">{month}月分</p>
+                <p className="text-xs text-gray-500">{month}月 / 時給¥{selectedStaff.hourly_wage}</p>
               </div>
               <button onClick={() => setSelectedStaff(null)} className="text-gray-400 text-xl">×</button>
             </div>
             <div className="p-3">
-              {attendance
-                .filter(a => a.staff_id === selectedStaff.id)
-                .sort((a, b) => a.date.localeCompare(b.date))
-                .map(a => (
-                  <div key={a.date} className="flex justify-between py-2 border-b border-gray-100 last:border-0">
-                    <span className="text-sm text-gray-700">{a.date.slice(5)}</span>
-                    <span className="text-sm text-gray-800">
-                      {a.clock_in?.slice(0, 5) ?? '--:--'}
-                      {' 〜 '}
-                      {a.clock_out?.slice(0, 5) ?? '勤務中'}
-                    </span>
-                    <span className="text-sm font-medium text-gray-900">
+              {attendance.filter(a => a.staff_id === selectedStaff.id).sort((a, b) => a.date.localeCompare(b.date)).map(a => {
+                const ln = calcLateNightMinutes(a.clock_in, a.clock_out)
+                return (
+                  <div key={a.date} className="flex justify-between py-2 border-b border-gray-100 last:border-0 text-sm">
+                    <span className="text-gray-700">{a.date.slice(5)}</span>
+                    <span className="text-gray-800">{a.clock_in?.slice(0, 5) ?? '--:--'} 〜 {a.clock_out?.slice(0, 5) ?? '勤務中'}</span>
+                    <span className="text-gray-900 font-medium">
                       {a.work_minutes ? `${(a.work_minutes / 60).toFixed(1)}h` : '-'}
+                      {ln > 0 && <span className="text-purple-600 text-xs ml-1">🌙{(ln / 60).toFixed(1)}h</span>}
                     </span>
                   </div>
-                ))}
+                )
+              })}
             </div>
           </div>
         </div>

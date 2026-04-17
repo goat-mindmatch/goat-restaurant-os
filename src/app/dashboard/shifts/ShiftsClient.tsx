@@ -70,9 +70,14 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: dateStr, assignments }),
     })
+    const data = await res.json()
     setSaving(false)
     if (res.ok) {
-      setMessage(`✅ ${month}/${selectedDay}のシフトを確定しました`)
+      const violations = data.violations ?? []
+      const vioText = violations.length > 0
+        ? '\n\n⚠️ 制約チェック:\n' + violations.map((v: { message: string }) => v.message).join('\n')
+        : ''
+      setMessage(`✅ ${month}/${selectedDay}のシフトを確定しました${vioText}`)
       setSelectedDay(null)
       setTimeout(() => window.location.reload(), 800)
     } else {

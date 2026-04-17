@@ -13,21 +13,33 @@ async function getPayrollData() {
   const firstDay = now.toISOString().slice(0, 7) + '-01'
   const lastDay = now.toISOString().slice(0, 10)
 
-  const [staffRes, attRes] = await Promise.all([
-    db.from('staff').select('id, name, hourly_wage')
+  const [staffRes, attRes, reviewsRes] = await Promise.all([
+    db.from('staff').select('id, name, hourly_wage, transport_fee')
       .eq('tenant_id', TENANT_ID).eq('is_active', true).order('name'),
     db.from('attendance').select('staff_id, date, clock_in, clock_out, work_minutes, break_minutes')
       .eq('tenant_id', TENANT_ID).gte('date', firstDay).lte('date', lastDay),
+    db.from('reviews').select('staff_id')
+      .eq('tenant_id', TENANT_ID)
+      .not('verified_at', 'is', null)
+      .gte('clicked_at', firstDay)
+      .lte('clicked_at', lastDay),
   ])
 
   const staffList = staffRes.data ?? []
   const attendance = attRes.data ?? []
+  const verifiedReviews = reviewsRes.data ?? []
 
-  return { staffList, attendance, month: now.getMonth() + 1 }
+  // スタッフ別の口コミ件数
+  const reviewCountMap: Record<string, number> = {}
+  for (const r of verifiedReviews) {
+    if (r.staff_id) reviewCountMap[r.staff_id] = (reviewCountMap[r.staff_id] ?? 0) + 1
+  }
+
+  return { staffList, attendance, reviewCountMap, month: now.getMonth() + 1 }
 }
 
 export default async function PayrollPage() {
-  const { staffList, attendance, month } = await getPayrollData()
+  const { staffList, attendance, reviewCountMap, month } = await getPayrollData()
 
   return (
     <main className="min-h-screen bg-gray-50 pb-24">
@@ -36,7 +48,7 @@ export default async function PayrollPage() {
         <p className="text-sm text-gray-500">{month}月の勤務時間・給与集計</p>
       </div>
 
-      <PayrollClient staffList={staffList} attendance={attendance} month={month} />
+      <PayrollClient staffList={staffList} attendance={attendance} reviewCountMap={reviewCountMap} month={month} />
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
         <div className="grid grid-cols-5 gap-1 px-2 py-2">
