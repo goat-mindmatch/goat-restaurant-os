@@ -91,18 +91,13 @@ export async function POST(req: NextRequest) {
         verified_by: verifiedBy,
       }).eq('id', review_id).eq('tenant_id', TENANT_ID)
 
-      // 承認後：お客様のLINEにクーポンを自動送信
+      // 承認後：お客様のLINEにクーポンカードを自動送信
       if (reviewData?.customer_line_user_id && reviewData?.coupon_code) {
-        const lineUserId = reviewData.customer_line_user_id
-        const couponCode = reviewData.coupon_code
-
-        // スタッフLINE経由で送信（顧客LINE未設定の場合でもスタッフ登録者には届く）
         try {
-          const { sendLineMessage } = await import('@/lib/line-staff')
-          await sendLineMessage(lineUserId,
-            `🎉 口コミありがとうございました！\n\nスタッフが確認し、承認しました。\n\n【特典コード】\n${couponCode}\n\n次回ご来店時にこの画面をスタッフにお見せください🙌`)
+          const { sendCouponFlex } = await import('@/lib/line-staff')
+          await sendCouponFlex(reviewData.customer_line_user_id, reviewData.coupon_code)
         } catch (e) {
-          console.error('LINE notification failed:', e)
+          console.error('Flex coupon notification failed:', e)
         }
       }
     } else {
