@@ -37,29 +37,28 @@ const NAV_ITEMS = [
 export default async function MenuOrdersPage() {
   const orders = await getOrders()
 
-  const pending = orders.filter((o: { status: string }) => o.status === 'pending' || o.status === 'confirmed')
-  const cooking = orders.filter((o: { status: string }) => o.status === 'cooking')
-  const done = orders.filter((o: { status: string }) => o.status === 'ready' || o.status === 'served')
-  const todayTotal = orders.reduce((s: number, o: { total_amount: number }) => s + o.total_amount, 0)
+  // キャンセル済みを除いた注文（新着順）
+  const activeOrders = orders.filter(
+    (o: { status: string }) => o.status !== 'cancelled'
+  )
+  const todayTotal = activeOrders.reduce(
+    (s: number, o: { total_amount: number }) => s + o.total_amount, 0
+  )
 
   return (
     <main className="min-h-screen bg-gray-50 pb-24">
       <div className="bg-white border-b px-4 py-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">注文管理</h1>
-          <p className="text-sm text-gray-500">本日 {orders.length}件 · ¥{todayTotal.toLocaleString()}</p>
+          <h1 className="text-xl font-bold text-gray-900">注文一覧</h1>
+          <p className="text-sm text-gray-500">本日 {activeOrders.length}件 · ¥{todayTotal.toLocaleString()}</p>
         </div>
-        <a href="/menu?table=99" target="_blank"
+        <a href="/menu?table=1" target="_blank"
           className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg font-semibold">
-          🍜 メニューを見る
+          🍜 メニュー確認
         </a>
       </div>
 
-      <MenuOrdersClient
-        pendingOrders={pending}
-        cookingOrders={cooking}
-        doneOrders={done}
-      />
+      <MenuOrdersClient orders={activeOrders} />
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
         <div className="grid grid-cols-5 gap-1 px-2 py-2">
