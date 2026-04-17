@@ -173,12 +173,20 @@ export default function PLClient({ data }: { data: PLData }) {
           >
             {showExpenses ? '▲' : '▼'} 経費明細（{data.expenses.length}件）
           </button>
-          <button
-            onClick={() => setAddForm(!addForm)}
-            className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold"
-          >
-            ＋ 手動追加
-          </button>
+          <div className="flex gap-2">
+            <a
+              href="/dashboard/receipts"
+              className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg font-semibold"
+            >
+              📷 レシート
+            </a>
+            <button
+              onClick={() => setAddForm(!addForm)}
+              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold"
+            >
+              ＋ 手動追加
+            </button>
+          </div>
         </div>
 
         {/* 手動追加フォーム */}

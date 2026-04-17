@@ -725,6 +725,29 @@ JSONのみを返してください。前後の説明は不要です。`,
     const jsonText = rawText.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '').trim()
     const extracted = JSON.parse(jsonText)
 
+    // Supabase Storage に画像をアップロード
+    let receiptUrl: string | null = null
+    try {
+      const storageClient = createServiceClient()
+      const ext = contentType.includes('png') ? 'png' : 'jpg'
+      const monthStr = (extracted.date ?? today).slice(0, 7)
+      const filePath = `${TENANT_ID}/${monthStr}/${messageId}.${ext}`
+      const { error: uploadError } = await storageClient.storage
+        .from('receipts')
+        .upload(filePath, Buffer.from(imageBuffer), {
+          contentType,
+          upsert: true,
+        })
+      if (!uploadError) {
+        const { data: { publicUrl } } = storageClient.storage
+          .from('receipts')
+          .getPublicUrl(filePath)
+        receiptUrl = publicUrl
+      }
+    } catch {
+      // 画像保存失敗はOCR結果に影響させない
+    }
+
     // expenses に保存
     const { data: expense, error } = await db.from('expenses').insert({
       tenant_id: TENANT_ID,
@@ -736,6 +759,7 @@ JSONのみを返してください。前後の説明は不要です。`,
       note: extracted.note ?? null,
       ai_extracted: true,
       recorded_by: staff.id,
+      receipt_url: receiptUrl,
     }).select().single()
 
     if (error) throw error
