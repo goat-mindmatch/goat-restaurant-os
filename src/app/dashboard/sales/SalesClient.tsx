@@ -49,17 +49,20 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
     setTimeout(() => setUploadMessage(null), 3000)
   }
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploadingPlatform, setUploadingPlatform] = useState<string | null>(null)
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, platform: string) => {
     const file = e.target.files?.[0]
     if (!file) return
-    setUploading(true)
+    setUploadingPlatform(platform)
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('platform', platform)
     try {
       const res = await fetch('/api/sales/upload', { method: 'POST', body: formData })
       const data = await res.json()
       if (res.ok) {
-        toast(`✅ ${data.count}日分のデータを取り込みました`)
+        toast(`✅ ${data.count}日分を取り込みました（${PLATFORM_LABEL[platform] ?? platform}）`)
         setTimeout(() => window.location.reload(), 1000)
       } else {
         toast(`❌ ${data.error}`)
@@ -67,8 +70,15 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
     } catch (err) {
       toast(`❌ ${(err as Error).message}`)
     }
-    setUploading(false)
+    setUploadingPlatform(null)
     e.target.value = ''
+  }
+
+  const PLATFORM_LABEL: Record<string, string> = {
+    anydeli:   '🏠 AnyDeli（店内）',
+    uber:      '🟢 Uber Eats',
+    rocketnow: '🚀 ロケットなう',
+    menu:      '🔴 menu',
   }
 
   const handleManualSave = async () => {
@@ -194,20 +204,38 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
 
       {/* データ取込 */}
       <div className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-sm">
-        <p className="text-sm font-semibold text-gray-700 mb-3">データ取込</p>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleUpload} className="hidden" disabled={uploading} />
-            <div className={`cursor-pointer text-center py-3 rounded-lg font-semibold text-sm ${uploading ? 'bg-gray-300 text-gray-500' : 'bg-blue-500 text-white'}`}>
-              {uploading ? '取込中...' : '📂 Excel取込'}
-            </div>
-          </label>
+        <p className="text-sm font-semibold text-gray-700 mb-3">Excelファイル取込</p>
+        <p className="text-xs text-gray-400 mb-3">各媒体のExcel・CSVをそれぞれアップロードしてください</p>
+        <div className="space-y-2">
+          {[
+            { platform: 'anydeli',   label: 'AnyDeli（店内）', bg: 'bg-gray-600',   active: 'bg-gray-700' },
+            { platform: 'uber',      label: 'Uber Eats',       bg: 'bg-green-600',  active: 'bg-green-700' },
+            { platform: 'rocketnow', label: 'ロケットなう',    bg: 'bg-orange-500', active: 'bg-orange-600' },
+            { platform: 'menu',      label: 'menu',            bg: 'bg-red-500',    active: 'bg-red-600' },
+          ].map(({ platform, label, bg }) => (
+            <label key={platform} className="block">
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={e => handleUpload(e, platform)}
+                className="hidden"
+                disabled={uploadingPlatform !== null}
+              />
+              <div className={`cursor-pointer flex items-center justify-between px-4 py-3 rounded-xl text-white text-sm font-bold ${
+                uploadingPlatform === platform ? 'bg-gray-400' : `${bg} opacity-90`
+              } ${uploadingPlatform !== null && uploadingPlatform !== platform ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                <span>{uploadingPlatform === platform ? '取込中...' : `📂 ${label}`}</span>
+                <span className="text-xs opacity-70">Excel / CSV</span>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="mt-3 border-t pt-3">
           <button onClick={() => setShowManual(!showManual)}
-            className="py-3 rounded-lg font-semibold text-sm bg-gray-100 text-gray-700">
+            className="w-full py-3 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700">
             ✍️ 手動入力
           </button>
         </div>
-        <p className="text-xs text-gray-400 mt-2">AnyDeli / Uber Eats / ロケットなう の Excel・CSV に対応</p>
       </div>
 
       {/* 手動入力フォーム */}

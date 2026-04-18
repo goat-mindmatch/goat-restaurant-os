@@ -158,6 +158,25 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      {/* クイックリンク */}
+      <section className="mb-4">
+        <h2 className="text-sm font-semibold text-gray-500 mb-2">管理メニュー</h2>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: 'シフト管理', href: '/dashboard/shifts',  icon: '📅', desc: '確定・編集' },
+            { label: '給与計算',   href: '/dashboard/payroll', icon: '💴', desc: '今月の給与' },
+            { label: 'レシート',   href: '/dashboard/receipts', icon: '🧾', desc: '経費・OCR' },
+          ].map(item => (
+            <a key={item.href} href={item.href}
+              className="bg-white rounded-xl p-3 shadow-sm text-center hover:bg-gray-50 transition-colors">
+              <p className="text-2xl mb-1">{item.icon}</p>
+              <p className="text-xs font-semibold text-gray-800">{item.label}</p>
+              <p className="text-xs text-gray-400">{item.desc}</p>
+            </a>
+          ))}
+        </div>
+      </section>
+
       {/* ナビゲーション */}
       <DashboardNav current="/dashboard" />
     </main>

@@ -1,12 +1,12 @@
 /**
  * 全ダッシュボードページ共通ボトムナビ
- * ホーム / シフト / 注文 / 発注 / PL
+ * ホーム / 注文 / 売上 / 発注 / PL
  */
 
 const NAV_ITEMS = [
   { label: 'ホーム', href: '/dashboard',              icon: '🏠' },
-  { label: 'シフト', href: '/dashboard/shifts',       icon: '📅' },
   { label: '注文',   href: '/dashboard/menu-orders',  icon: '🍜' },
+  { label: '売上',   href: '/dashboard/sales',        icon: '💹' },
   { label: '発注',   href: '/dashboard/orders',       icon: '📦' },
   { label: 'PL',     href: '/dashboard/pl',           icon: '📋' },
 ]
