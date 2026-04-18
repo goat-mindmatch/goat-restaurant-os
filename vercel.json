@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/sync-google-reviews",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/shift-request",
+      "schedule": "0 0 20 * *"
+    },
+    {
+      "path": "/api/cron/order-alert",
+      "schedule": "*/30 * * * *"
     }
   ]
 }
