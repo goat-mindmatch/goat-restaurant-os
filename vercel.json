@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/cron/order-alert",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 4 * * *"
     }
   ]
 }
