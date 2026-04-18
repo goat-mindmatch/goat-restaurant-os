@@ -75,7 +75,11 @@ export async function GET(req: NextRequest) {
       return sum + Math.round((a.work_minutes / 60) * a.staff.hourly_wage)
     }, 0)
 
-    const todaySales = sales?.total_sales ?? 0
+    const todaySales    = sales?.total_sales     ?? 0
+    const uberSales     = sales?.uber_sales      ?? 0
+    const rocketnowSales = sales?.rocketnow_sales ?? 0
+    const menuSales     = sales?.menu_sales      ?? 0
+    const deliverySales = (uberSales + rocketnowSales + menuSales) || (sales?.delivery_sales ?? 0)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const monthTotal = monthSales.reduce((s: number, r: any) => s + (r.total_sales ?? 0), 0)
     const laborRatio = todaySales > 0 ? Math.round((laborCost / todaySales) * 100) : null
@@ -85,6 +89,13 @@ export async function GET(req: NextRequest) {
     // 前週比・先月比
     const vsWeek  = weekAgoSales  ? pctChange(todaySales, weekAgoSales.total_sales ?? 0)  : null
     const vsMonth = monthAgoSales ? pctChange(todaySales, monthAgoSales.total_sales ?? 0) : null
+
+    // デリバリー媒体内訳テキスト
+    const deliveryLines = [
+      uberSales     > 0 ? `Uber Eats ¥${uberSales.toLocaleString()}` : '',
+      rocketnowSales > 0 ? `ロケットなう ¥${rocketnowSales.toLocaleString()}` : '',
+      menuSales     > 0 ? `menu ¥${menuSales.toLocaleString()}` : '',
+    ].filter(Boolean).join(' / ') || `デリバリー計 ¥${deliverySales.toLocaleString()}`
 
     let aiComment: string
 
@@ -105,7 +116,7 @@ export async function GET(req: NextRequest) {
 
 【昨日の実績】
 日付: ${target}
-売上: 店内¥${(sales.store_sales ?? 0).toLocaleString()} + デリバリー¥${(sales.delivery_sales ?? 0).toLocaleString()} = 合計¥${todaySales.toLocaleString()}
+売上: 店内¥${(sales.store_sales ?? 0).toLocaleString()} + ${deliveryLines} = 合計¥${todaySales.toLocaleString()}
 注文数: 店内${sales.store_orders ?? 0}件 + デリバリー${sales.delivery_orders ?? 0}件
 出勤: ${staffNames} (${attendance.length}名)
 人件費: ¥${laborCost.toLocaleString()} (L比率: ${laborRatio ?? '-'}%)
