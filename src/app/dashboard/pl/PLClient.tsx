@@ -78,6 +78,25 @@ export default function PLClient({ data }: { data: PLData }) {
   const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], category: 'other', vendor: '', amount: '', note: '' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  const handleExcelExport = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch(`/api/pl/export?month=${data.month}`)
+      if (!res.ok) throw new Error('export failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `PL_${data.month}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setMsg('⚠️ Excel出力に失敗しました')
+    }
+    setExporting(false)
+  }
 
   const profitColor = data.operatingProfit >= 0 ? 'text-green-600' : 'text-red-600'
   const flColor = data.flRatio !== null
@@ -104,8 +123,19 @@ export default function PLClient({ data }: { data: PLData }) {
 
   return (
     <div className="pb-28">
+      {/* Excel出力ボタン */}
+      <div className="mx-4 mt-4 flex justify-end">
+        <button
+          onClick={handleExcelExport}
+          disabled={exporting}
+          className="flex items-center gap-2 bg-green-600 text-white text-sm font-bold px-4 py-2 rounded-xl disabled:opacity-50"
+        >
+          {exporting ? '出力中...' : '📥 Excel出力'}
+        </button>
+      </div>
+
       {/* サマリーカード */}
-      <div className="mx-4 mt-4 grid grid-cols-2 gap-3">
+      <div className="mx-4 mt-3 grid grid-cols-2 gap-3">
         <div className="bg-white rounded-xl p-4 shadow-sm col-span-2">
           <p className="text-xs text-gray-400">売上合計</p>
           <p className="text-3xl font-bold text-gray-900">¥{data.revenue.total.toLocaleString()}</p>

@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
  */
 
 import { createServiceClient } from '@/lib/supabase'
+import DashboardNav from '@/components/DashboardNav'
 import MenuOrdersClient from './MenuOrdersClient'
 
 const TENANT_ID = process.env.TENANT_ID!
@@ -26,13 +27,6 @@ async function getOrders() {
   return orders ?? []
 }
 
-const NAV_ITEMS = [
-  { label: 'ホーム', href: '/dashboard', icon: '🏠' },
-  { label: 'シフト', href: '/dashboard/shifts', icon: '📅' },
-  { label: '注文', href: '/dashboard/menu-orders', icon: '🍜' },
-  { label: 'PL', href: '/dashboard/pl', icon: '📋' },
-  { label: '給与', href: '/dashboard/payroll', icon: '💴' },
-]
 
 export default async function MenuOrdersPage() {
   const orders = await getOrders()
@@ -60,19 +54,7 @@ export default async function MenuOrdersPage() {
 
       <MenuOrdersClient orders={activeOrders} />
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
-        <div className="grid grid-cols-5 gap-1 px-2 py-2">
-          {NAV_ITEMS.map(item => (
-            <a key={item.href} href={item.href}
-              className={`flex flex-col items-center py-1 text-xs hover:text-gray-900 ${
-                item.href === '/dashboard/menu-orders' ? 'text-orange-600 font-semibold' : 'text-gray-500'
-              }`}>
-              <span className="text-xl">{item.icon}</span>
-              {item.label}
-            </a>
-          ))}
-        </div>
-      </nav>
+      <DashboardNav current="/dashboard/menu-orders" />
     </main>
   )
 }
