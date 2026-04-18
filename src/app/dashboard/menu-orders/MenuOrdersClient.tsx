@@ -24,14 +24,28 @@ const PAYMENT_LABELS: Record<string, string> = {
 
 function OrderCard({
   order,
+  onServed,
   onCancel,
 }: {
   order: CustomerOrder
+  onServed: (id: string) => void
   onCancel: (id: string) => void
 }) {
+  const [serving, setServing] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const elapsed = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000)
+
+  const handleServed = async () => {
+    setServing(true)
+    const res = await fetch('/api/menu/order-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: order.id, status: 'served' }),
+    })
+    setServing(false)
+    if (res.ok) onServed(order.id)
+  }
 
   const handleCancel = async () => {
     setCancelling(true)
@@ -41,11 +55,8 @@ function OrderCard({
       body: JSON.stringify({ order_id: order.id, status: 'cancelled' }),
     })
     setCancelling(false)
-    if (res.ok) {
-      onCancel(order.id)
-    } else {
-      setConfirmCancel(false)
-    }
+    if (res.ok) onCancel(order.id)
+    else setConfirmCancel(false)
   }
 
   return (
@@ -80,28 +91,37 @@ function OrderCard({
         </div>
       )}
 
-      {/* キャンセルボタン */}
+      {/* ボタン */}
       {!confirmCancel ? (
-        <button
-          onClick={() => setConfirmCancel(true)}
-          className="w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-500 font-semibold hover:bg-gray-50"
-        >
-          キャンセル
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleServed}
+            disabled={serving}
+            className="flex-1 py-2.5 rounded-xl bg-green-500 text-white text-sm font-bold disabled:opacity-50"
+          >
+            {serving ? '処理中...' : '✅ 提供完了'}
+          </button>
+          <button
+            onClick={() => setConfirmCancel(true)}
+            className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 font-semibold hover:bg-gray-50"
+          >
+            キャンセル
+          </button>
+        </div>
       ) : (
         <div className="flex gap-2">
           <button
             onClick={() => setConfirmCancel(false)}
-            className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-500 font-semibold"
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 font-semibold"
           >
             戻る
           </button>
           <button
             onClick={handleCancel}
             disabled={cancelling}
-            className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold disabled:opacity-50"
+            className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold disabled:opacity-50"
           >
-            {cancelling ? 'キャンセル中...' : '⚠️ キャンセルする'}
+            {cancelling ? '処理中...' : '⚠️ キャンセルする'}
           </button>
         </div>
       )}
@@ -115,8 +135,17 @@ export default function MenuOrdersClient({
   orders: CustomerOrder[]
 }) {
   const [orders, setOrders] = useState(initialOrders)
+  const [served, setServed] = useState<CustomerOrder[]>([])
   const [cancelled, setCancelled] = useState<CustomerOrder[]>([])
-  const [showCancelled, setShowCancelled] = useState(false)
+  const [showDone, setShowDone] = useState(false)
+
+  const handleServed = (id: string) => {
+    const order = orders.find(o => o.id === id)
+    if (order) {
+      setOrders(prev => prev.filter(o => o.id !== id))
+      setServed(prev => [{ ...order, status: 'served' }, ...prev])
+    }
+  }
 
   const handleCancel = (id: string) => {
     const order = orders.find(o => o.id === id)
@@ -126,7 +155,9 @@ export default function MenuOrdersClient({
     }
   }
 
-  if (orders.length === 0 && cancelled.length === 0) {
+  const doneCount = served.length + cancelled.length
+
+  if (orders.length === 0 && doneCount === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center px-4">
         <p className="text-5xl mb-4">🍜</p>
@@ -143,24 +174,35 @@ export default function MenuOrdersClient({
         <div className="text-center py-8 text-gray-400 text-sm">現在の注文はありません</div>
       )}
       {orders.map(o => (
-        <OrderCard key={o.id} order={o} onCancel={handleCancel} />
+        <OrderCard key={o.id} order={o} onServed={handleServed} onCancel={handleCancel} />
       ))}
 
-      {/* キャンセル済み（折りたたみ） */}
-      {cancelled.length > 0 && (
+      {/* 提供完了・キャンセル済み（折りたたみ） */}
+      {doneCount > 0 && (
         <div className="mt-4">
           <button
-            onClick={() => setShowCancelled(!showCancelled)}
+            onClick={() => setShowDone(!showDone)}
             className="text-xs text-gray-400 font-semibold"
           >
-            {showCancelled ? '▲' : '▼'} キャンセル済み ({cancelled.length}件)
+            {showDone ? '▲' : '▼'} 完了済み ({doneCount}件)
           </button>
-          {showCancelled && (
+          {showDone && (
             <div className="mt-2 space-y-2">
+              {served.map(o => (
+                <div key={o.id} className="bg-white rounded-xl p-3 opacity-60">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-semibold text-gray-600">{o.table_number}番 · ✅ 提供完了</span>
+                    <span className="text-gray-500">¥{o.total_amount.toLocaleString()}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {o.items.map(i => `${i.name}×${i.quantity}`).join(' / ')}
+                  </p>
+                </div>
+              ))}
               {cancelled.map(o => (
                 <div key={o.id} className="bg-white rounded-xl p-3 opacity-50">
                   <div className="flex justify-between text-sm">
-                    <span className="font-semibold text-gray-500">{o.table_number}番 · キャンセル</span>
+                    <span className="font-semibold text-gray-500">{o.table_number}番 · ❌ キャンセル</span>
                     <span className="text-gray-400">¥{o.total_amount.toLocaleString()}</span>
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
