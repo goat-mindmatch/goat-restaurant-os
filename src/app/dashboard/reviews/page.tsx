@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createServiceClient } from '@/lib/supabase'
+import DashboardNav from '@/components/DashboardNav'
 
 const TENANT_ID = process.env.TENANT_ID!
 
@@ -11,7 +12,7 @@ async function getReviewData() {
   const now = new Date()
   const firstDay = now.toISOString().slice(0, 7) + '-01'
 
-  const [reviewsRes, staffRes] = await Promise.all([
+  const [reviewsRes, staffRes, googleCountRes, googleCacheRes] = await Promise.all([
     db.from('reviews')
       .select('staff_id, clicked_at, completed, verified_at, staff:staff!reviews_staff_id_fkey(name)')
       .eq('tenant_id', TENANT_ID)
@@ -19,6 +20,16 @@ async function getReviewData() {
       .order('clicked_at', { ascending: false }),
     db.from('staff').select('id, name')
       .eq('tenant_id', TENANT_ID).eq('is_active', true),
+    db.from('google_review_count_history')
+      .select('count, rating, checked_at')
+      .eq('tenant_id', TENANT_ID)
+      .order('checked_at', { ascending: false })
+      .limit(2),
+    db.from('google_reviews_cache')
+      .select('reviewer_name, star_rating, comment, created_time')
+      .eq('tenant_id', TENANT_ID)
+      .order('created_time', { ascending: false })
+      .limit(5),
   ])
 
   const reviews = reviewsRes.data ?? []
@@ -53,16 +64,28 @@ async function getReviewData() {
     return b.claimed - a.claimed
   })
 
+  const googleLatest = googleCountRes.data?.[0] ?? null
+  const googlePrev   = googleCountRes.data?.[1] ?? null
+  const googleDelta  = googleLatest && googlePrev
+    ? Math.max(0, (googleLatest.count ?? 0) - (googlePrev.count ?? 0))
+    : null
+
   return {
     reviews, ranking,
     totalLeads: reviews.length,
     totalClaimed,
     totalVerified,
+    google: {
+      count:  googleLatest?.count  ?? null,
+      rating: googleLatest?.rating ?? null,
+      delta:  googleDelta,
+      cache:  googleCacheRes.data  ?? [],
+    },
   }
 }
 
 export default async function ReviewsDashboardPage() {
-  const { reviews, ranking, totalLeads, totalClaimed, totalVerified } = await getReviewData()
+  const { reviews, ranking, totalLeads, totalClaimed, totalVerified, google } = await getReviewData()
   const month = new Date().getMonth() + 1
 
   return (
@@ -71,6 +94,47 @@ export default async function ReviewsDashboardPage() {
         <h1 className="text-xl font-bold text-gray-900">口コミ・接客評価</h1>
         <p className="text-sm text-gray-500">{month}月のスタッフ貢献度ランキング</p>
       </div>
+
+      {/* Google口コミ集計（自動取得） */}
+      {google.count !== null && (
+        <div className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-500 mb-3">📊 Google口コミ（自動取得）</p>
+          <div className="flex gap-4 mb-3">
+            <div className="text-center">
+              <p className="text-3xl font-black text-gray-900">{google.count}</p>
+              <p className="text-xs text-gray-400">総口コミ数</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-black text-yellow-500">★{google.rating ?? '-'}</p>
+              <p className="text-xs text-gray-400">平均評価</p>
+            </div>
+            {google.delta !== null && (
+              <div className="text-center">
+                <p className="text-3xl font-black text-green-600">+{google.delta}</p>
+                <p className="text-xs text-gray-400">前日比</p>
+              </div>
+            )}
+          </div>
+          {/* 最新口コミ */}
+          {google.cache.length > 0 && (
+            <div className="space-y-2 border-t pt-3">
+              <p className="text-xs text-gray-400">直近の口コミ（Google自動取得）</p>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {google.cache.map((r: any, i: number) => (
+                <div key={i} className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="text-xs font-semibold text-gray-700">{r.reviewer_name ?? '匿名'}</p>
+                    <p className="text-xs text-yellow-500">{'★'.repeat(Number(r.star_rating) || 0)}</p>
+                  </div>
+                  {r.comment && (
+                    <p className="text-xs text-gray-600 line-clamp-2">{r.comment}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* サマリー：3段階（誘導 → 申告 → 検証済） */}
       <div className="mx-4 mt-4 grid grid-cols-3 gap-2">
@@ -154,23 +218,7 @@ export default async function ReviewsDashboardPage() {
         </div>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
-        <div className="grid grid-cols-5 gap-1 px-2 py-2">
-          {[
-            { label: 'ホーム', href: '/dashboard', icon: '🏠' },
-            { label: 'シフト', href: '/dashboard/shifts', icon: '📅' },
-            { label: '発注', href: '/dashboard/orders', icon: '📦' },
-            { label: 'PL', href: '/dashboard/pl', icon: '📋' },
-            { label: '給与', href: '/dashboard/payroll', icon: '💴' },
-          ].map(item => (
-            <a key={item.href} href={item.href}
-              className="flex flex-col items-center py-1 text-xs text-gray-500 hover:text-gray-900">
-              <span className="text-xl">{item.icon}</span>
-              {item.label}
-            </a>
-          ))}
-        </div>
-      </nav>
+      <DashboardNav current="/dashboard/reviews" />
     </main>
   )
 }

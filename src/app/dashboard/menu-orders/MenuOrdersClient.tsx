@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 type OrderItem = { id: string; name: string; price: number; quantity: number }
 
@@ -138,6 +138,43 @@ export default function MenuOrdersClient({
   const [served, setServed] = useState<CustomerOrder[]>([])
   const [cancelled, setCancelled] = useState<CustomerOrder[]>([])
   const [showDone, setShowDone] = useState(false)
+  const [toast, setToast] = useState(false)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 20秒ごとにポーリングして新着注文を検知
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/menu/orders')
+        if (!res.ok) return
+        const { orders: fetched }: { orders: CustomerOrder[] } = await res.json()
+
+        setOrders(prev => {
+          const prevIds = new Set(prev.map(o => o.id))
+          // served/cancelled に移動済みのものは除外した上で比較
+          const newOrders = fetched.filter(o => !prevIds.has(o.id))
+
+          if (newOrders.length > 0) {
+            // トースト表示（3秒）
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+            setToast(true)
+            toastTimerRef.current = setTimeout(() => setToast(false), 3000)
+
+            return [...newOrders, ...prev]
+          }
+          return prev
+        })
+      } catch {
+        // ネットワークエラーは無視
+      }
+    }
+
+    const intervalId = setInterval(poll, 20000)
+    return () => {
+      clearInterval(intervalId)
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
 
   const handleServed = (id: string) => {
     const order = orders.find(o => o.id === id)
@@ -169,6 +206,13 @@ export default function MenuOrdersClient({
 
   return (
     <div className="px-4 mt-4 space-y-3 pb-4">
+      {/* 新着トースト通知 */}
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500 text-white text-sm font-bold px-5 py-3 rounded-2xl shadow-lg">
+          🔔 新しい注文が入りました！
+        </div>
+      )}
+
       {/* アクティブな注文 */}
       {orders.length === 0 && (
         <div className="text-center py-8 text-gray-400 text-sm">現在の注文はありません</div>

@@ -163,9 +163,12 @@ export default async function DashboardPage() {
         <h2 className="text-sm font-semibold text-gray-500 mb-2">管理メニュー</h2>
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'シフト管理', href: '/dashboard/shifts',  icon: '📅', desc: '確定・編集' },
-            { label: '給与計算',   href: '/dashboard/payroll', icon: '💴', desc: '今月の給与' },
-            { label: 'レシート',   href: '/dashboard/receipts', icon: '🧾', desc: '経費・OCR' },
+            { label: 'シフト管理', href: '/dashboard/shifts',    icon: '📅', desc: '確定・編集' },
+            { label: '給与計算',   href: '/dashboard/payroll',   icon: '💴', desc: '今月の給与' },
+            { label: '在庫管理',   href: '/dashboard/inventory', icon: '📦', desc: '食材・消耗品' },
+            { label: '口コミ',     href: '/dashboard/reviews',   icon: '⭐', desc: 'Google連携' },
+            { label: 'レシート',   href: '/dashboard/receipts',  icon: '🧾', desc: '経費・OCR' },
+            { label: '設定',       href: '/dashboard/settings',  icon: '⚙️', desc: 'LINE設定' },
           ].map(item => (
             <a key={item.href} href={item.href}
               className="bg-white rounded-xl p-3 shadow-sm text-center hover:bg-gray-50 transition-colors">
