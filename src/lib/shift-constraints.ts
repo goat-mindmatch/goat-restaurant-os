@@ -113,3 +113,55 @@ export function checkConstraints(
 
   return violations
 }
+
+// ================================
+// 人件費率チェック（月次）
+// ================================
+export type LaborCostCheck = {
+  estimated_monthly_labor: number
+  monthly_target: number
+  labor_ratio: number        // %
+  over_budget: boolean
+  over_amount: number        // 超過額（マイナスなら余裕）
+}
+
+/**
+ * 月の確定シフト全体から人件費率を計算する
+ * @param monthShifts 当月の全シフト行（start_time, end_time, hourly_wage）
+ * @param monthlyTarget 月次売上目標
+ * @param laborRatioTarget 人件費率目標（デフォルト25%）
+ */
+export function checkLaborCostRatio(
+  monthShifts: { start_time: string; end_time: string; hourly_wage?: number }[],
+  monthlyTarget: number,
+  laborRatioTarget = 25,
+): LaborCostCheck {
+  const DEFAULT_WAGE = 1200 // 最低賃金ベース（設定がない場合）
+
+  let totalLabor = 0
+  for (const s of monthShifts) {
+    const [sh, sm] = s.start_time.split(':').map(Number)
+    const [eh, em] = s.end_time.split(':').map(Number)
+    const hours = (eh * 60 + em - sh * 60 - sm) / 60
+    if (hours <= 0) continue
+
+    const wage = s.hourly_wage ?? DEFAULT_WAGE
+    // 深夜割増（22時以降）
+    const lateStart = Math.max(sh + sm / 60, 22)
+    const lateEnd = eh + em / 60
+    const lateHours = lateEnd > 22 ? lateEnd - lateStart : 0
+    const normalHours = hours - lateHours
+    totalLabor += normalHours * wage + lateHours * wage * 1.25
+  }
+
+  const ratio = monthlyTarget > 0 ? (totalLabor / monthlyTarget) * 100 : 0
+  const budgetLabor = monthlyTarget * (laborRatioTarget / 100)
+
+  return {
+    estimated_monthly_labor: Math.round(totalLabor),
+    monthly_target: monthlyTarget,
+    labor_ratio: Math.round(ratio * 10) / 10,
+    over_budget: totalLabor > budgetLabor,
+    over_amount: Math.round(totalLabor - budgetLabor),
+  }
+}

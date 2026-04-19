@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
-import { checkConstraints, type StaffInfo } from '@/lib/shift-constraints'
+import { checkConstraints, checkLaborCostRatio, type StaffInfo } from '@/lib/shift-constraints'
 
 const TENANT_ID = process.env.TENANT_ID!
 
@@ -56,11 +56,40 @@ export async function POST(req: NextRequest) {
       if (error) throw error
     }
 
+    // 人件費率チェック（当月全シフト）
+    const yearMonth = date.slice(0, 7)
+    const { data: monthShifts } = await db.from('shifts')
+      .select('start_time, end_time, staff(hourly_wage)')
+      .eq('tenant_id', TENANT_ID)
+      .gte('date', `${yearMonth}-01`)
+      .lte('date', `${yearMonth}-31`)
+    const { data: tenantRow } = await db.from('tenants')
+      .select('monthly_target').eq('id', TENANT_ID).single()
+    const monthlyTarget = tenantRow?.monthly_target ?? 0
+    const laborCheck = monthlyTarget > 0
+      ? checkLaborCostRatio(
+          (monthShifts ?? []).map((s: { start_time: string; end_time: string; staff: { hourly_wage?: number } | null }) => ({
+            start_time: s.start_time,
+            end_time: s.end_time,
+            hourly_wage: s.staff?.hourly_wage,
+          })),
+          monthlyTarget,
+        )
+      : null
+
+    if (laborCheck?.over_budget) {
+      violations.push({
+        type: 'warning',
+        message: `💴 人件費率 ${laborCheck.labor_ratio}%（目標25%超過・約¥${laborCheck.over_amount.toLocaleString()}オーバー）`,
+      })
+    }
+
     return NextResponse.json({
       ok: true, count: assignments.length,
       violations: violations.map(v => ({ type: v.type, message: v.message })),
       hasErrors: errors.length > 0,
       hasWarnings: warnings.length > 0,
+      labor_check: laborCheck,
     })
   } catch (e) {
     console.error(e)

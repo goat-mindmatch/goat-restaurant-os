@@ -35,6 +35,10 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [storeSales, setStoreSales]         = useState('')
   const [storeOrders, setStoreOrders]       = useState('')
+  const [lunchSales, setLunchSales]         = useState('')
+  const [lunchOrders, setLunchOrders]       = useState('')
+  const [dinnerSales, setDinnerSales]       = useState('')
+  const [dinnerOrders, setDinnerOrders]     = useState('')
   const [uberSales, setUberSales]           = useState('')
   const [uberOrders, setUberOrders]         = useState('')
   const [rocketnowSales, setRocketnowSales] = useState('')
@@ -90,6 +94,10 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
         date,
         store_sales:      storeSales,
         store_orders:     storeOrders,
+        lunch_sales:      lunchSales  || undefined,
+        lunch_orders:     lunchOrders || undefined,
+        dinner_sales:     dinnerSales  || undefined,
+        dinner_orders:    dinnerOrders || undefined,
         uber_sales:       uberSales,
         uber_orders:      uberOrders,
         rocketnow_sales:  rocketnowSales,
@@ -248,17 +256,35 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
 
           {/* 店内 */}
           <div className="bg-gray-50 rounded-xl p-3">
-            <p className="text-xs font-semibold text-gray-600 mb-2">🏠 店内</p>
-            <div className="grid grid-cols-2 gap-2">
+            <p className="text-xs font-semibold text-gray-600 mb-2">🏠 店内合計</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
-                <label className="text-xs text-gray-400">売上</label>
+                <label className="text-xs text-gray-400">売上合計</label>
                 <input type="number" inputMode="numeric" placeholder="¥" value={storeSales} onChange={e => setStoreSales(e.target.value)}
                   className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
               </div>
               <div>
-                <label className="text-xs text-gray-400">注文数</label>
+                <label className="text-xs text-gray-400">注文数合計</label>
                 <input type="number" inputMode="numeric" placeholder="件" value={storeOrders} onChange={e => setStoreOrders(e.target.value)}
                   className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
+              </div>
+            </div>
+            {/* 昼夜別（任意） */}
+            <p className="text-xs text-gray-400 mb-1">内訳（任意）</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-yellow-50 rounded-lg p-2">
+                <p className="text-xs font-semibold text-yellow-700 mb-1">☀️ 昼</p>
+                <input type="number" inputMode="numeric" placeholder="¥" value={lunchSales} onChange={e => setLunchSales(e.target.value)}
+                  className="w-full border rounded-lg px-2 py-1.5 text-sm mb-1" />
+                <input type="number" inputMode="numeric" placeholder="件" value={lunchOrders} onChange={e => setLunchOrders(e.target.value)}
+                  className="w-full border rounded-lg px-2 py-1.5 text-sm" />
+              </div>
+              <div className="bg-indigo-50 rounded-lg p-2">
+                <p className="text-xs font-semibold text-indigo-700 mb-1">🌙 夜</p>
+                <input type="number" inputMode="numeric" placeholder="¥" value={dinnerSales} onChange={e => setDinnerSales(e.target.value)}
+                  className="w-full border rounded-lg px-2 py-1.5 text-sm mb-1" />
+                <input type="number" inputMode="numeric" placeholder="件" value={dinnerOrders} onChange={e => setDinnerOrders(e.target.value)}
+                  className="w-full border rounded-lg px-2 py-1.5 text-sm" />
               </div>
             </div>
           </div>

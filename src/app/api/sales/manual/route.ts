@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
     const {
       date,
       store_sales, store_orders,
+      lunch_sales, lunch_orders,
+      dinner_sales, dinner_orders,
       uber_sales, uber_orders,
       rocketnow_sales, rocketnow_orders,
       menu_sales, menu_orders,
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
-    const { error } = await db.from('daily_sales').upsert({
+    const upsertData: Record<string, unknown> = {
       tenant_id: TENANT_ID,
       date,
       store_sales:      Number(store_sales)  || 0,
@@ -65,7 +67,14 @@ export async function POST(req: NextRequest) {
       food_cost: food_cost !== undefined ? Number(food_cost) : null,
       data_source: 'manual',
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'tenant_id,date' })
+    }
+    // 昼夜別（入力がある場合のみ追加）
+    if (lunch_sales !== undefined)  upsertData.lunch_sales   = Number(lunch_sales)   || 0
+    if (lunch_orders !== undefined) upsertData.lunch_orders  = Number(lunch_orders)  || 0
+    if (dinner_sales !== undefined) upsertData.dinner_sales  = Number(dinner_sales)  || 0
+    if (dinner_orders !== undefined) upsertData.dinner_orders = Number(dinner_orders) || 0
+
+    const { error } = await db.from('daily_sales').upsert(upsertData, { onConflict: 'tenant_id,date' })
 
     if (error) throw error
     return NextResponse.json({ ok: true })

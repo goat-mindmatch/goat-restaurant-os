@@ -5,28 +5,31 @@ export const dynamic = 'force-dynamic'
  * LINE リッチメニュー自動セットアップ
  * POST /api/line/setup-richmenu
  *
- * フロー:
- * 1. 既存リッチメニューを全削除
- * 2. 新しいリッチメニューを作成（6ボタン、2行3列）
- * 3. 全ユーザーにデフォルト設定
+ * スタッフ用（全員デフォルト）+ 経営者用（manager ロールに個別設定）の
+ * 2種類を作成する
  */
 
 import { NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/supabase'
 
 const BASE_URL = 'https://goat-restaurant-os.vercel.app'
+const TENANT_ID = process.env.TENANT_ID!
 
-const RICH_MENU_BODY = {
+// ===========================
+// スタッフ用リッチメニュー（6ボタン）
+// ===========================
+const STAFF_RICH_MENU = {
   size: { width: 2500, height: 1686 },
   selected: true,
-  name: 'GOAT Staff Menu v1',
-  chatBarText: 'メニューを開く',
+  name: 'GOAT Staff Menu v2',
+  chatBarText: 'スタッフメニュー',
   areas: [
-    // 上段左: 出勤打刻
+    // 上段左: 出勤
     {
       bounds: { x: 0, y: 0, width: 833, height: 843 },
       action: { type: 'message', label: '出勤打刻', text: '出勤' },
     },
-    // 上段中: 退勤打刻
+    // 上段中: 退勤
     {
       bounds: { x: 834, y: 0, width: 833, height: 843 },
       action: { type: 'message', label: '退勤打刻', text: '退勤' },
@@ -38,32 +41,95 @@ const RICH_MENU_BODY = {
         type: 'uri',
         label: 'シフト希望提出',
         uri: `${BASE_URL}/shift-form?uid={userId}`,
-        altUri: {
-          desktop: `${BASE_URL}/shift-form?uid={userId}`,
-        },
+        altUri: { desktop: `${BASE_URL}/shift-form?uid={userId}` },
       },
     },
-    // 下段左: 発注依頼
+    // 下段左: 口コミ誘導（お客様に見せる）
     {
       bounds: { x: 0, y: 843, width: 833, height: 843 },
       action: {
         type: 'uri',
-        label: '発注依頼',
-        uri: `${BASE_URL}/order-form?uid={userId}`,
-        altUri: {
-          desktop: `${BASE_URL}/order-form?uid={userId}`,
-        },
+        label: '口コミを書く',
+        uri: `${BASE_URL}/review?uid={userId}`,
+        altUri: { desktop: `${BASE_URL}/review?uid={userId}` },
       },
     },
-    // 下段中: シフト確認
+    // 下段中: 発注依頼
     {
       bounds: { x: 834, y: 843, width: 833, height: 843 },
-      action: { type: 'message', label: 'シフト確認', text: 'シフト確認' },
+      action: {
+        type: 'uri',
+        label: '発注依頼',
+        uri: `${BASE_URL}/order-form?uid={userId}`,
+        altUri: { desktop: `${BASE_URL}/order-form?uid={userId}` },
+      },
     },
-    // 下段右: ヘルプ
+    // 下段右: シフト確認
     {
       bounds: { x: 1668, y: 843, width: 833, height: 843 },
-      action: { type: 'message', label: 'ヘルプ', text: 'ヘルプ' },
+      action: { type: 'message', label: 'シフト確認', text: 'シフト確認' },
+    },
+  ],
+}
+
+// ===========================
+// 経営者用リッチメニュー（6ボタン）
+// ===========================
+const MANAGER_RICH_MENU = {
+  size: { width: 2500, height: 1686 },
+  selected: true,
+  name: 'GOAT Manager Menu v2',
+  chatBarText: '経営メニュー',
+  areas: [
+    // 上段左: 本日の売上確認
+    {
+      bounds: { x: 0, y: 0, width: 833, height: 843 },
+      action: { type: 'message', label: '売上確認', text: '本日の売上' },
+    },
+    // 上段中: PL・損益確認
+    {
+      bounds: { x: 834, y: 0, width: 833, height: 843 },
+      action: {
+        type: 'uri',
+        label: 'PL確認',
+        uri: `${BASE_URL}/dashboard/pl`,
+        altUri: { desktop: `${BASE_URL}/dashboard/pl` },
+      },
+    },
+    // 上段右: シフト確認・修正
+    {
+      bounds: { x: 1668, y: 0, width: 833, height: 843 },
+      action: {
+        type: 'uri',
+        label: 'シフト確認',
+        uri: `${BASE_URL}/dashboard/shifts`,
+        altUri: { desktop: `${BASE_URL}/dashboard/shifts` },
+      },
+    },
+    // 下段左: 人件費率リアルタイム
+    {
+      bounds: { x: 0, y: 843, width: 833, height: 843 },
+      action: { type: 'message', label: '人件費率', text: '人件費率' },
+    },
+    // 下段中: 発注状況確認
+    {
+      bounds: { x: 834, y: 843, width: 833, height: 843 },
+      action: {
+        type: 'uri',
+        label: '発注状況',
+        uri: `${BASE_URL}/dashboard/orders`,
+        altUri: { desktop: `${BASE_URL}/dashboard/orders` },
+      },
+    },
+    // 下段右: スタッフ評価・ダッシュボード
+    {
+      bounds: { x: 1668, y: 843, width: 833, height: 843 },
+      action: {
+        type: 'uri',
+        label: 'ダッシュボード',
+        uri: `${BASE_URL}/dashboard`,
+        altUri: { desktop: `${BASE_URL}/dashboard` },
+      },
     },
   ],
 }
@@ -83,58 +149,74 @@ export async function POST() {
   }
 
   try {
-    // 1. 既存リッチメニューの一覧を取得して全削除
+    // 1. 既存リッチメニューを全削除
     const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers })
     if (listRes.ok) {
       const listData = await listRes.json() as { richmenus: { richMenuId: string }[] }
-      const deletePromises = (listData.richmenus ?? []).map((menu) =>
-        fetch(`https://api.line.me/v2/bot/richmenu/${menu.richMenuId}`, {
-          method: 'DELETE',
-          headers,
-        })
+      await Promise.all(
+        (listData.richmenus ?? []).map(menu =>
+          fetch(`https://api.line.me/v2/bot/richmenu/${menu.richMenuId}`, {
+            method: 'DELETE', headers,
+          })
+        )
       )
-      await Promise.all(deletePromises)
     }
 
-    // 2. リッチメニュー作成
-    const createRes = await fetch('https://api.line.me/v2/bot/richmenu', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(RICH_MENU_BODY),
+    // 2. スタッフ用リッチメニューを作成
+    const staffCreateRes = await fetch('https://api.line.me/v2/bot/richmenu', {
+      method: 'POST', headers, body: JSON.stringify(STAFF_RICH_MENU),
+    })
+    if (!staffCreateRes.ok) {
+      return NextResponse.json(
+        { error: `スタッフメニュー作成失敗: ${staffCreateRes.status}`, detail: await staffCreateRes.text() },
+        { status: 500 }
+      )
+    }
+    const { richMenuId: staffMenuId } = await staffCreateRes.json() as { richMenuId: string }
+
+    // 3. 経営者用リッチメニューを作成
+    const managerCreateRes = await fetch('https://api.line.me/v2/bot/richmenu', {
+      method: 'POST', headers, body: JSON.stringify(MANAGER_RICH_MENU),
+    })
+    if (!managerCreateRes.ok) {
+      return NextResponse.json(
+        { error: `経営者メニュー作成失敗: ${managerCreateRes.status}`, detail: await managerCreateRes.text() },
+        { status: 500 }
+      )
+    }
+    const { richMenuId: managerMenuId } = await managerCreateRes.json() as { richMenuId: string }
+
+    // 4. スタッフメニューを全ユーザーのデフォルトに設定
+    await fetch(`https://api.line.me/v2/bot/user/all/richmenu/${staffMenuId}`, {
+      method: 'POST', headers,
     })
 
-    if (!createRes.ok) {
-      const errBody = await createRes.text()
-      return NextResponse.json(
-        { error: `リッチメニュー作成失敗: ${createRes.status}`, detail: errBody },
-        { status: 500 }
+    // 5. 経営者（role=manager）に個別でmanagerMenuを設定
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createServiceClient() as any
+    const { data: managers } = await db.from('staff')
+      .select('line_user_id, name')
+      .eq('tenant_id', TENANT_ID)
+      .eq('role', 'manager')
+      .eq('is_active', true)
+      .not('line_user_id', 'is', null)
+
+    const managerResults: { name: string; ok: boolean }[] = []
+    for (const m of managers ?? []) {
+      const res = await fetch(
+        `https://api.line.me/v2/bot/user/${m.line_user_id}/richmenu/${managerMenuId}`,
+        { method: 'POST', headers }
       )
+      managerResults.push({ name: m.name, ok: res.ok })
     }
 
-    const createData = await createRes.json() as { richMenuId: string }
-    const richMenuId = createData.richMenuId
-
-    // 3. 全ユーザーにデフォルト設定
-    const setDefaultRes = await fetch(
-      `https://api.line.me/v2/bot/user/all/richmenu/${richMenuId}`,
-      { method: 'POST', headers }
-    )
-
-    if (!setDefaultRes.ok) {
-      const errBody = await setDefaultRes.text()
-      return NextResponse.json(
-        {
-          error: `デフォルト設定失敗: ${setDefaultRes.status}`,
-          detail: errBody,
-          richMenuId,
-        },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ ok: true, richMenuId })
+    return NextResponse.json({
+      ok: true,
+      staff_menu_id: staffMenuId,
+      manager_menu_id: managerMenuId,
+      managers_updated: managerResults,
+    })
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ error: '予期しないエラー', detail: message }, { status: 500 })
+    return NextResponse.json({ error: String(e) }, { status: 500 })
   }
 }
