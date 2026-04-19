@@ -7,8 +7,18 @@ const GOOGLE_REVIEW_URL = GOOGLE_PLACE_ID
   ? `https://search.google.com/local/writereview?placeid=${GOOGLE_PLACE_ID}`
   : 'https://www.google.com/maps/search/人類みなまぜそば'
 
-type Stage = 'select' | 'upload_screenshot' | 'completed'
+// 食べログURL（吹田店）
+const TABELOG_URL = 'https://tabelog.com/osaka/A2701/A270101/27124584/review/'
+
+type Stage = 'select_staff' | 'select_platform' | 'upload_screenshot' | 'completed'
+type Platform = 'google' | 'tabelog' | 'both'
 type Verdict = 'approve' | 'review' | 'reject'
+
+const PLATFORM_INFO: Record<Platform, { label: string; icon: string; bonus: number; color: string; url: string }> = {
+  google:  { label: 'Google',       icon: '🔍', bonus: 100, color: 'bg-red-500',    url: GOOGLE_REVIEW_URL },
+  tabelog: { label: '食べログ',      icon: '🍽', bonus: 100, color: 'bg-orange-500', url: TABELOG_URL },
+  both:    { label: 'どちらも書く',  icon: '🎁', bonus: 200, color: 'bg-purple-500', url: GOOGLE_REVIEW_URL },
+}
 
 export default function ReviewClient({
   staffList, customerLineUserId,
@@ -17,35 +27,37 @@ export default function ReviewClient({
   customerLineUserId: string | null
 }) {
   const [selectedStaff, setSelectedStaff] = useState<{ id: string; name: string } | null>(null)
-  const [stage, setStage] = useState<Stage>('select')
+  const [platform, setPlatform] = useState<Platform | null>(null)
+  const [stage, setStage] = useState<Stage>('select_staff')
   const [reviewId, setReviewId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 「両方」の場合: どちらを先にやっているか
+  const [bothStep, setBothStep] = useState<'google' | 'tabelog'>('google')
 
-  // スクショ関連
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  // 結果
   const [verdict, setVerdict] = useState<Verdict | null>(null)
   const [verdictReason, setVerdictReason] = useState<string>('')
   const [couponCode, setCouponCode] = useState<string | null>(null)
 
-  // リセット
   const handleReset = () => {
-    setSelectedStaff(null)
-    setStage('select')
-    setReviewId(null)
-    setPreviewUrl(null)
-    setError(null)
-    setVerdict(null)
-    setCouponCode(null)
+    setSelectedStaff(null); setPlatform(null); setStage('select_staff')
+    setReviewId(null); setPreviewUrl(null); setError(null)
+    setVerdict(null); setCouponCode(null); setBothStep('google')
   }
 
-  // ① スタッフ選択 → Google開く → スクショ待ち画面へ
-  const handleGoToGoogle = async () => {
-    if (!selectedStaff) return
+  // スタッフ選択 → プラットフォーム選択へ
+  const handleSelectStaff = (staff: { id: string; name: string }) => {
+    setSelectedStaff(staff)
+    setStage('select_platform')
+  }
+
+  // プラットフォーム選択 → 口コミ記録 → サイトを開く
+  const handleSelectPlatform = async (p: Platform) => {
+    setPlatform(p)
     setSubmitting(true)
     setError(null)
     try {
@@ -53,14 +65,17 @@ export default function ReviewClient({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          staff_id: selectedStaff.id,
+          staff_id: selectedStaff!.id === 'nominee' ? null : selectedStaff!.id,
           customer_line_user_id: customerLineUserId,
+          platform: p,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setReviewId(data.review_id)
-      window.open(GOOGLE_REVIEW_URL, '_blank', 'noopener,noreferrer')
+      // サイトを開く（両方の場合はまずGoogle）
+      const openUrl = p === 'tabelog' ? TABELOG_URL : GOOGLE_REVIEW_URL
+      window.open(openUrl, '_blank', 'noopener,noreferrer')
       setStage('upload_screenshot')
     } catch (e) {
       setError((e as Error).message)
@@ -68,20 +83,15 @@ export default function ReviewClient({
     setSubmitting(false)
   }
 
-  // ② 画像選択 → プレビュー + リサイズ
+  // 画像選択
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setError('画像ファイルを選択してください')
-      return
-    }
-
+    if (!file.type.startsWith('image/')) { setError('画像ファイルを選択してください'); return }
     const reader = new FileReader()
     reader.onload = (ev) => {
       const img = new Image()
       img.onload = () => {
-        // リサイズ（最大1200px）
         const MAX = 1200
         let w = img.width, h = img.height
         if (w > MAX || h > MAX) {
@@ -92,8 +102,7 @@ export default function ReviewClient({
         canvas.width = w; canvas.height = h
         const ctx = canvas.getContext('2d')!
         ctx.drawImage(img, 0, 0, w, h)
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
-        setPreviewUrl(dataUrl)
+        setPreviewUrl(canvas.toDataURL('image/jpeg', 0.85))
         setError(null)
       }
       img.src = ev.target?.result as string
@@ -101,25 +110,25 @@ export default function ReviewClient({
     reader.readAsDataURL(file)
   }
 
-  // ③ アップロード → AI判定
+  // スクショアップロード → AI判定
   const handleUpload = async () => {
     if (!previewUrl || !reviewId) return
-    setUploading(true)
-    setError(null)
+    setUploading(true); setError(null)
     try {
+      const currentPlatform = (platform === 'both' && bothStep === 'tabelog') ? 'tabelog' : 'google'
       const res = await fetch('/api/reviews/upload-screenshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           review_id: reviewId,
           image_base64: previewUrl,
+          platform: currentPlatform,
         }),
       })
       const data = await res.json()
       if (!res.ok) {
         if (data.verdict === 'reject') {
-          setVerdict('reject')
-          setVerdictReason(data.reason ?? '画像の検証に失敗しました')
+          setVerdict('reject'); setVerdictReason(data.reason ?? '画像の検証に失敗しました')
           setStage('completed')
         } else {
           throw new Error(data.error ?? 'エラー')
@@ -127,8 +136,16 @@ export default function ReviewClient({
         return
       }
 
-      setVerdict(data.verdict)
-      setVerdictReason(data.reason ?? '')
+      // 「両方書く」の場合: Google完了 → 食べログへ誘導
+      if (platform === 'both' && bothStep === 'google' && data.verdict === 'approve') {
+        setBothStep('tabelog')
+        setPreviewUrl(null)
+        window.open(TABELOG_URL, '_blank', 'noopener,noreferrer')
+        setUploading(false)
+        return
+      }
+
+      setVerdict(data.verdict); setVerdictReason(data.reason ?? '')
       setCouponCode(data.coupon_code ?? null)
       setStage('completed')
     } catch (e) {
@@ -138,7 +155,7 @@ export default function ReviewClient({
   }
 
   // ===== ステージ1：スタッフ選択 =====
-  if (stage === 'select') {
+  if (stage === 'select_staff') {
     return (
       <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50">
         <div className="p-6 text-center">
@@ -150,47 +167,106 @@ export default function ReviewClient({
           <div className="bg-white rounded-2xl shadow p-4">
             <div className="grid grid-cols-2 gap-2">
               {staffList.map(s => (
-                <button key={s.id} onClick={() => setSelectedStaff(s)}
-                  className={`py-4 rounded-xl font-bold text-base transition-all ${
-                    selectedStaff?.id === s.id
-                      ? 'bg-orange-500 text-white ring-4 ring-orange-200'
-                      : 'bg-gray-50 text-gray-700 border border-gray-200'
-                  }`}>
+                <button key={s.id} onClick={() => handleSelectStaff(s)}
+                  className="py-4 rounded-xl font-bold text-base bg-gray-50 text-gray-700 border border-gray-200 hover:bg-orange-50 hover:border-orange-300 transition-all active:scale-95">
                   {s.name}
-                  {selectedStaff?.id === s.id && <span className="block text-xs mt-1">✓</span>}
                 </button>
               ))}
             </div>
-            <button onClick={() => setSelectedStaff({ id: 'nominee', name: '指名なし' })}
-              className={`w-full mt-2 py-3 rounded-xl text-sm ${
-                selectedStaff?.id === 'nominee' ? 'bg-gray-600 text-white' : 'bg-gray-50 text-gray-500 border'
-              }`}>
+            <button onClick={() => handleSelectStaff({ id: 'nominee', name: '指名なし' })}
+              className="w-full mt-2 py-3 rounded-xl text-sm bg-gray-50 text-gray-500 border hover:bg-gray-100">
               わからない / 指名なし
             </button>
           </div>
-          <div className="mt-6">
-            <button onClick={handleGoToGoogle}
-              disabled={!selectedStaff || submitting}
-              className="w-full bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl text-lg shadow-lg">
-              {submitting ? '準備中...' : '⭐ Googleで口コミを書く'}
-            </button>
-          </div>
-          {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
         </div>
       </div>
     )
   }
 
-  // ===== ステージ2：スクショアップロード =====
-  if (stage === 'upload_screenshot') {
+  // ===== ステージ2：プラットフォーム選択 =====
+  if (stage === 'select_platform') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-indigo-50">
+      <div className="min-h-screen bg-gradient-to-b from-orange-50 to-red-50">
+        <div className="p-6 text-center">
+          <p className="text-5xl mb-2">⭐</p>
+          <h1 className="text-xl font-bold text-gray-800">口コミを書いてください</h1>
+          <p className="text-sm text-gray-500 mt-1">どちらのサイトに書きますか？</p>
+        </div>
+        <div className="px-4 pb-8 space-y-3">
+          {/* Google */}
+          <button onClick={() => handleSelectPlatform('google')} disabled={submitting}
+            className="w-full bg-white rounded-2xl shadow p-5 text-left border-2 border-transparent hover:border-red-300 transition-all active:scale-95">
+            <div className="flex items-center gap-4">
+              <span className="text-4xl">🔍</span>
+              <div className="flex-1">
+                <p className="font-bold text-gray-800 text-lg">Google で書く</p>
+                <p className="text-sm text-gray-500">特典: ¥100相当</p>
+              </div>
+              <span className="text-2xl text-gray-300">›</span>
+            </div>
+          </button>
+
+          {/* 食べログ */}
+          <button onClick={() => handleSelectPlatform('tabelog')} disabled={submitting}
+            className="w-full bg-white rounded-2xl shadow p-5 text-left border-2 border-transparent hover:border-orange-300 transition-all active:scale-95">
+            <div className="flex items-center gap-4">
+              <span className="text-4xl">🍽</span>
+              <div className="flex-1">
+                <p className="font-bold text-gray-800 text-lg">食べログ で書く</p>
+                <p className="text-sm text-gray-500">特典: ¥100相当</p>
+              </div>
+              <span className="text-2xl text-gray-300">›</span>
+            </div>
+          </button>
+
+          {/* 両方 */}
+          <button onClick={() => handleSelectPlatform('both')} disabled={submitting}
+            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow p-5 text-left border-2 border-transparent active:scale-95">
+            <div className="flex items-center gap-4">
+              <span className="text-4xl">🎁</span>
+              <div className="flex-1">
+                <p className="font-bold text-white text-lg">両方書く（おトク！）</p>
+                <p className="text-sm text-purple-100">特典: <span className="font-bold text-white">¥200相当</span></p>
+              </div>
+              <span className="text-2xl text-white/60">›</span>
+            </div>
+          </button>
+
+          {submitting && <p className="text-center text-sm text-gray-500">準備中...</p>}
+          {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
+
+          <button onClick={() => setStage('select_staff')} className="block w-full text-gray-400 text-xs underline text-center pt-2">
+            ← スタッフ選択に戻る
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== ステージ3：スクショアップロード =====
+  if (stage === 'upload_screenshot') {
+    const isBothTabelog = platform === 'both' && bothStep === 'tabelog'
+    const currentSiteName = (platform === 'tabelog' || isBothTabelog) ? '食べログ' : 'Google'
+    const currentUrl = (platform === 'tabelog' || isBothTabelog) ? TABELOG_URL : GOOGLE_REVIEW_URL
+    const bgColor = (platform === 'tabelog' || isBothTabelog)
+      ? 'from-orange-50 to-amber-50'
+      : 'from-blue-50 to-indigo-50'
+
+    return (
+      <div className={`min-h-screen bg-gradient-to-b ${bgColor}`}>
         <div className="p-5">
-          {/* ガイド */}
+          {platform === 'both' && (
+            <div className="bg-purple-100 rounded-xl p-3 mb-4 text-center">
+              <p className="text-xs font-bold text-purple-700">
+                {bothStep === 'google' ? '① Google → ② 食べログ の順に書いてください' : '② 食べログを書いてください（最後！）'}
+              </p>
+            </div>
+          )}
+
           <div className="text-center mb-5">
             <p className="text-5xl mb-2">📸</p>
-            <h2 className="text-xl font-bold text-gray-800">口コミのスクショを送ってください</h2>
-            <p className="text-xs text-gray-500 mt-1">{selectedStaff?.name}さんの接客について</p>
+            <h2 className="text-xl font-bold text-gray-800">{currentSiteName}のスクショを送ってください</h2>
+            <p className="text-xs text-gray-500 mt-1">{selectedStaff?.name}さんの接客として記録します</p>
           </div>
 
           {/* 手順 */}
@@ -200,8 +276,8 @@ export default function ReviewClient({
               <div className="flex gap-3 items-start">
                 <span className="flex-shrink-0 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold">1</span>
                 <div>
-                  <p className="font-medium">Google で口コミを投稿する</p>
-                  <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer"
+                  <p className="font-medium">{currentSiteName} で口コミを投稿する</p>
+                  <a href={currentUrl} target="_blank" rel="noopener noreferrer"
                     className="text-xs text-red-500 underline">→ 投稿画面を開く</a>
                 </div>
               </div>
@@ -209,21 +285,17 @@ export default function ReviewClient({
                 <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">2</span>
                 <div>
                   <p className="font-medium">投稿完了画面をスクリーンショット</p>
-                  <p className="text-xs text-gray-500">「投稿しました」等の画面、または自分の口コミが表示されている画面</p>
+                  <p className="text-xs text-gray-500">「投稿しました」等の画面</p>
                 </div>
               </div>
               <div className="flex gap-3 items-start">
                 <span className="flex-shrink-0 w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold">3</span>
-                <div>
-                  <p className="font-medium">下のボタンからスクショを送信</p>
-                </div>
+                <div><p className="font-medium">下のボタンからスクショを送信</p></div>
               </div>
             </div>
           </div>
 
-          {/* アップロードエリア */}
-          <input type="file" ref={fileInputRef} accept="image/*"
-            onChange={handleFileSelect} className="hidden" />
+          <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileSelect} className="hidden" />
 
           {!previewUrl ? (
             <button onClick={() => fileInputRef.current?.click()}
@@ -236,7 +308,7 @@ export default function ReviewClient({
             <div className="bg-white rounded-2xl shadow overflow-hidden">
               <img src={previewUrl} alt="preview" className="w-full max-h-80 object-contain bg-gray-100" />
               <div className="p-3 flex gap-2">
-                <button onClick={() => { setPreviewUrl(null); if(fileInputRef.current) fileInputRef.current.value = '' }}
+                <button onClick={() => { setPreviewUrl(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
                   className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium">撮り直す</button>
                 <button onClick={handleUpload} disabled={uploading}
                   className="flex-[2] bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white py-3 rounded-lg text-sm font-bold">
@@ -246,12 +318,7 @@ export default function ReviewClient({
             </div>
           )}
 
-          {/* エラー */}
-          {error && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>
-          )}
-
-          {/* やり直し */}
+          {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
           <button onClick={handleReset} className="block w-full text-gray-400 text-xs mt-4 underline text-center">
             ↺ 最初からやり直す
           </button>
@@ -260,35 +327,31 @@ export default function ReviewClient({
     )
   }
 
-  // ===== ステージ3：結果表示 =====
+  // ===== ステージ4：結果表示 =====
+  const bonusAmount = platform ? PLATFORM_INFO[platform].bonus : 100
   return (
     <div className={`min-h-screen ${
       verdict === 'approve' ? 'bg-gradient-to-br from-green-50 to-emerald-100'
-      : verdict === 'reject' ? 'bg-gradient-to-br from-red-50 to-orange-50'
+      : verdict === 'reject'  ? 'bg-gradient-to-br from-red-50 to-orange-50'
       : 'bg-gradient-to-br from-amber-50 to-yellow-50'
     }`}>
       <div className="p-6">
-        {/* 承認 */}
         {verdict === 'approve' && (
           <>
             <div className="text-center py-6">
               <p className="text-6xl mb-3">🎉</p>
               <h1 className="text-2xl font-bold text-gray-800">口コミを確認できました！</h1>
-              <p className="text-sm text-gray-600 mt-2">
-                {selectedStaff?.name}さんの接客として記録しました
-              </p>
+              <p className="text-sm text-gray-600 mt-2">{selectedStaff?.name}さんの接客として記録しました</p>
             </div>
             <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
               <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-5 text-white text-center">
                 <p className="text-xs font-semibold opacity-80">口コミ特典</p>
-                <p className="text-2xl font-bold mt-1">ありがとうございます！</p>
+                <p className="text-2xl font-bold mt-1">¥{bonusAmount}相当プレゼント</p>
               </div>
               <div className="p-6">
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-dashed border-green-300 rounded-2xl p-5 text-center">
                   <p className="text-xs text-gray-500">クーポンコード</p>
-                  <p className="text-3xl font-bold text-green-600 tracking-wider my-2 select-all">
-                    {couponCode}
-                  </p>
+                  <p className="text-3xl font-bold text-green-600 tracking-wider my-2 select-all">{couponCode}</p>
                   <p className="text-xs text-gray-500">次回来店時にスタッフへ提示</p>
                 </div>
                 <div className="mt-4 bg-blue-50 rounded-xl p-3 text-xs text-blue-800">
@@ -299,33 +362,23 @@ export default function ReviewClient({
           </>
         )}
 
-        {/* 要手動確認 */}
         {verdict === 'review' && (
           <>
             <div className="text-center py-6">
               <p className="text-6xl mb-3">📩</p>
               <h1 className="text-xl font-bold text-gray-800">確認中です</h1>
-              <p className="text-sm text-gray-600 mt-2">
-                スタッフが確認後、<b>LINEで特典コードをお送りします</b>
-              </p>
+              <p className="text-sm text-gray-600 mt-2">スタッフが確認後、<b>LINEで特典コードをお送りします</b></p>
             </div>
             <div className="bg-white rounded-2xl shadow p-6">
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-center">
                 <p className="font-bold text-green-800 mb-1">📱 この後の流れ</p>
-                <p className="text-xs text-green-700">
-                  スタッフが内容を確認次第、<br />
-                  <b>LINEに特典コードが届きます</b>。<br />
-                  この画面を閉じて大丈夫です。
-                </p>
+                <p className="text-xs text-green-700">スタッフが内容を確認次第、<br /><b>LINEに特典コードが届きます</b>。<br />この画面を閉じて大丈夫です。</p>
               </div>
-              <p className="text-xs text-gray-400 text-center mt-3">
-                通常、当日中にご連絡いたします
-              </p>
+              <p className="text-xs text-gray-400 text-center mt-3">通常、当日中にご連絡いたします</p>
             </div>
           </>
         )}
 
-        {/* 却下 */}
         {verdict === 'reject' && (
           <>
             <div className="text-center py-6">
@@ -336,15 +389,13 @@ export default function ReviewClient({
               <p className="text-sm text-gray-700 mb-4">{verdictReason}</p>
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-800">
                 <p className="font-bold mb-1">📱 もう一度お試しください</p>
-                <p>Google で口コミを投稿した後、投稿完了画面のスクリーンショットを撮影してください。</p>
+                <p>投稿完了画面のスクリーンショットを撮影してください。</p>
               </div>
             </div>
           </>
         )}
 
-        <div className="text-center mt-6 text-sm text-gray-500">
-          またのご来店をお待ちしております 🙌
-        </div>
+        <div className="text-center mt-6 text-sm text-gray-500">またのご来店をお待ちしております 🙌</div>
         <div className="text-center mt-3">
           <button onClick={handleReset} className="text-xs text-gray-400 underline">↺ 最初からやり直す</button>
         </div>
