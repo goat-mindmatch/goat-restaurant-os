@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 import { createServiceClient } from '@/lib/supabase'
 import DashboardNav from '@/components/DashboardNav'
-import ShiftsClient from './ShiftsClient'
+import ShiftsPageClient from './ShiftsPageClient'
 
 const TENANT_ID = process.env.TENANT_ID!
 
@@ -65,11 +65,17 @@ async function getShiftData(year: number, month: number) {
   return { staffList, requestMap, shiftMap, notSubmitted, lastDay: lastDayNum }
 }
 
-export default async function ShiftsPage() {
+export default async function ShiftsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string; month?: string }>
+}) {
+  const params = await searchParams
   const now = new Date()
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  const year = nextMonth.getFullYear()
-  const month = nextMonth.getMonth() + 1
+
+  const year  = Number(params.year)  || nextMonth.getFullYear()
+  const month = Number(params.month) || nextMonth.getMonth() + 1
 
   const data = await getShiftData(year, month)
 
@@ -80,7 +86,7 @@ export default async function ShiftsPage() {
         <p className="text-sm text-gray-500">{year}年{month}月</p>
       </div>
 
-      <ShiftsClient
+      <ShiftsPageClient
         year={year}
         month={month}
         lastDay={data.lastDay}
@@ -90,7 +96,6 @@ export default async function ShiftsPage() {
         notSubmitted={data.notSubmitted}
       />
 
-      {/* ナビゲーション */}
       <DashboardNav current="/dashboard/shifts" />
     </main>
   )

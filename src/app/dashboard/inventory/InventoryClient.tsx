@@ -17,14 +17,35 @@ type InventoryItem = {
 type Supplier = { id: string; name: string }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  food:        '🍜 食材',
-  drink:       '🥤 飲料',
-  consumable:  '🧴 消耗品',
-  other:       '📦 その他',
+  food:       '🍜 食材',
+  drink:      '🥤 飲料',
+  consumable: '🧴 消耗品',
+  other:      '🗃️ その他',
 }
 const CATEGORY_ORDER = ['food', 'drink', 'consumable', 'other']
 
 const UNITS = ['kg', 'g', '本', '個', '袋', '箱', 'L', 'ml', '枚', '缶']
+
+// 在庫バーのパーセント計算（min_stock * 3 が100%）
+function StockBar({ current, min, unit, isLow }: {
+  current: number; min: number; unit: string; isLow: boolean
+}) {
+  const pct = min > 0 ? Math.min(100, Math.round((current / (min * 3)) * 100)) : 50
+  const barColor = isLow ? 'bg-red-400' : pct > 66 ? 'bg-green-400' : 'bg-yellow-400'
+
+  return (
+    <div className="w-full">
+      <div className="relative w-full bg-gray-100 rounded-full h-2 mb-0.5">
+        <div className={`h-2 rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex justify-between text-[10px] text-gray-400">
+        <span>0{unit}</span>
+        {min > 0 && <span className="text-orange-500">発注目安 {min}{unit}</span>}
+        <span>{min > 0 ? min * 3 : '—'}{unit}</span>
+      </div>
+    </div>
+  )
+}
 
 export default function InventoryClient({
   items: initialItems,
@@ -41,6 +62,24 @@ export default function InventoryClient({
   const [msg, setMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // アコーディオン開閉状態（デフォルト: 在庫不足のあるカテゴリのみ展開）
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(() => {
+    const state: Record<string, boolean> = {}
+    for (const cat of CATEGORY_ORDER) {
+      const hasLow = initialItems.some(
+        i => i.category === cat && i.current_stock <= i.min_stock && i.min_stock > 0
+      )
+      state[cat] = hasLow // 在庫不足あり → 展開
+    }
+    return state
+  })
+
+  // 発注モーダル（在庫→発注ワンフロー）
+  const [orderItem, setOrderItem] = useState<InventoryItem | null>(null)
+  const [orderSupplierId, setOrderSupplierId] = useState('')
+  const [orderQty, setOrderQty] = useState('')
+  const [orderSubmitting, setOrderSubmitting] = useState(false)
+
   // 新規追加フォーム
   const [newName, setNewName] = useState('')
   const [newCategory, setNewCategory] = useState('food')
@@ -49,7 +88,11 @@ export default function InventoryClient({
   const [newMin, setNewMin] = useState('')
   const [newSupplierId, setNewSupplierId] = useState('')
 
-  const toast = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 3000) }
+  const toast = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 3500) }
+
+  const toggleCategory = (cat: string) => {
+    setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
+  }
 
   const handleAdd = async () => {
     if (!newName.trim()) return toast('❌ 品目名を入力してください')
@@ -107,6 +150,43 @@ export default function InventoryClient({
     toast('🗑 削除しました')
   }
 
+  // 在庫→発注ワンフロー
+  const openOrderFlow = (item: InventoryItem) => {
+    setOrderItem(item)
+    // デフォルト取引先を設定
+    const matchedSupplier = item.supplier
+      ? suppliers.find(s => s.name === item.supplier!.name)
+      : null
+    setOrderSupplierId(matchedSupplier?.id ?? suppliers[0]?.id ?? '')
+    setOrderQty('')
+  }
+
+  const handleQuickOrder = async () => {
+    if (!orderItem || !orderSupplierId) return
+    const qty = Number(orderQty) || (orderItem.min_stock * 2)
+    setOrderSubmitting(true)
+    const res = await fetch('/api/orders/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        supplier_id: orderSupplierId,
+        delivery_date: (() => {
+          const d = new Date(); d.setDate(d.getDate() + 1)
+          return d.toISOString().split('T')[0]
+        })(),
+        items: [{ name: orderItem.name, quantity: qty, unit: orderItem.unit }],
+        note: `在庫不足による自動発注：残${orderItem.current_stock}${orderItem.unit}`,
+      }),
+    })
+    setOrderSubmitting(false)
+    if (res.ok) {
+      toast(`✅ 「${orderItem.name}」を${qty}${orderItem.unit}発注しました`)
+      setOrderItem(null)
+    } else {
+      toast('❌ 発注に失敗しました。発注ページから手動で入力してください。')
+    }
+  }
+
   // カテゴリ別グループ化
   const grouped = CATEGORY_ORDER
     .map(cat => ({ cat, items: items.filter(i => i.category === cat) }))
@@ -116,6 +196,7 @@ export default function InventoryClient({
 
   return (
     <div className="pb-4">
+      {/* トーストメッセージ */}
       {msg && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-white text-sm font-semibold shadow ${
           msg.startsWith('❌') ? 'bg-red-500' : msg.startsWith('⚠️') ? 'bg-orange-500' : 'bg-gray-900'
@@ -128,14 +209,24 @@ export default function InventoryClient({
       {lowStockItems.length > 0 && (
         <div className="mx-4 mt-4 bg-red-50 border border-red-200 rounded-xl p-4">
           <p className="text-sm font-bold text-red-700 mb-2">⚠️ 在庫不足 — 発注が必要です</p>
-          {lowStockItems.map(i => (
-            <div key={i.id} className="flex justify-between text-sm py-0.5">
-              <span className="text-red-800">{i.name}</span>
-              <span className="text-red-600 font-semibold">
-                残 {i.current_stock}{i.unit} / 目安 {i.min_stock}{i.unit}
-              </span>
-            </div>
-          ))}
+          <div className="space-y-2">
+            {lowStockItems.map(i => (
+              <div key={i.id} className="flex justify-between items-center">
+                <div>
+                  <span className="text-sm text-red-800 font-semibold">{i.name}</span>
+                  <span className="text-xs text-red-500 ml-2">
+                    残 {i.current_stock}{i.unit} / 目安 {i.min_stock}{i.unit}
+                  </span>
+                </div>
+                <button
+                  onClick={() => openOrderFlow(i)}
+                  className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg font-bold"
+                >
+                  発注する →
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -174,12 +265,14 @@ export default function InventoryClient({
               </div>
               <div>
                 <label className="text-xs text-gray-500">現在の在庫</label>
-                <input type="number" inputMode="decimal" value={newStock} onChange={e => setNewStock(e.target.value)}
+                <input type="number" inputMode="decimal" value={newStock}
+                  onChange={e => setNewStock(e.target.value)}
                   placeholder="0" className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
               </div>
               <div>
                 <label className="text-xs text-gray-500">発注目安（残量）</label>
-                <input type="number" inputMode="decimal" value={newMin} onChange={e => setNewMin(e.target.value)}
+                <input type="number" inputMode="decimal" value={newMin}
+                  onChange={e => setNewMin(e.target.value)}
                   placeholder="0" className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
               </div>
             </div>
@@ -201,79 +294,109 @@ export default function InventoryClient({
         )}
       </div>
 
-      {/* カテゴリ別一覧 */}
-      <div className="mx-4 mt-4 space-y-4">
+      {/* カテゴリ別アコーディオン一覧 */}
+      <div className="mx-4 mt-4 space-y-3">
         {grouped.length === 0 ? (
           <div className="bg-white rounded-xl p-8 text-center text-gray-400 text-sm shadow-sm">
-            <p className="text-3xl mb-2">📦</p>
+            <p className="text-3xl mb-2">🗃️</p>
             <p>在庫品目がありません</p>
             <p className="text-xs mt-1">「品目を追加する」から登録してください</p>
           </div>
-        ) : grouped.map(({ cat, items: catItems }) => (
-          <div key={cat}>
-            <h2 className="text-xs font-bold text-gray-500 mb-2">{CATEGORY_LABELS[cat]}</h2>
-            <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100">
-              {catItems.map(item => {
-                const isLow = item.current_stock <= item.min_stock && item.min_stock > 0
-                const stockPct = item.min_stock > 0
-                  ? Math.min(100, Math.round((item.current_stock / (item.min_stock * 3)) * 100))
-                  : 50
-                return (
-                  <div key={item.id} className={`p-4 ${isLow ? 'bg-red-50' : ''}`}>
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className={`font-semibold ${isLow ? 'text-red-800' : 'text-gray-800'}`}>
-                          {isLow && '⚠️ '}{item.name}
-                        </p>
-                        {item.supplier && (
-                          <p className="text-xs text-gray-400">仕入れ: {item.supplier.name}</p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-xl font-bold ${isLow ? 'text-red-600' : 'text-gray-900'}`}>
-                          {item.current_stock}<span className="text-sm font-normal text-gray-500">{item.unit}</span>
-                        </p>
-                        {item.min_stock > 0 && (
-                          <p className="text-xs text-gray-400">目安: {item.min_stock}{item.unit}</p>
-                        )}
-                      </div>
-                    </div>
+        ) : grouped.map(({ cat, items: catItems }) => {
+          const catLowCount = catItems.filter(
+            i => i.current_stock <= i.min_stock && i.min_stock > 0
+          ).length
+          const isOpen = openCategories[cat] ?? false
+          return (
+            <div key={cat} className="bg-white rounded-xl shadow-sm overflow-hidden">
+              {/* カテゴリヘッダー（タップで展開） */}
+              <button
+                onClick={() => toggleCategory(cat)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-gray-700 text-sm">{CATEGORY_LABELS[cat]}</span>
+                  <span className="text-xs text-gray-400">{catItems.length}品目</span>
+                  {catLowCount > 0 && (
+                    <span className="text-[10px] bg-red-100 text-red-600 font-bold px-1.5 py-0.5 rounded-full">
+                      ⚠️ 不足{catLowCount}
+                    </span>
+                  )}
+                </div>
+                <span className="text-gray-300 text-lg">{isOpen ? '▲' : '▼'}</span>
+              </button>
 
-                    {/* 在庫バー */}
-                    <div className="w-full bg-gray-100 rounded-full h-1.5 mb-3">
-                      <div
-                        className={`h-1.5 rounded-full ${isLow ? 'bg-red-400' : 'bg-green-400'}`}
-                        style={{ width: `${stockPct}%` }}
-                      />
-                    </div>
+              {/* 品目リスト */}
+              {isOpen && (
+                <div className="divide-y divide-gray-100">
+                  {catItems.map(item => {
+                    const isLow = item.current_stock <= item.min_stock && item.min_stock > 0
+                    return (
+                      <div key={item.id} className={`p-4 ${isLow ? 'bg-red-50' : ''}`}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className={`font-semibold text-sm ${isLow ? 'text-red-800' : 'text-gray-800'}`}>
+                              {isLow && '⚠️ '}{item.name}
+                            </p>
+                            {item.supplier && (
+                              <p className="text-xs text-gray-400">仕入れ: {item.supplier.name}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-xl font-bold ${isLow ? 'text-red-600' : 'text-gray-900'}`}>
+                              {item.current_stock}
+                              <span className="text-sm font-normal text-gray-500">{item.unit}</span>
+                            </p>
+                          </div>
+                        </div>
 
-                    {/* 操作ボタン */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => { setAdjustItem(item); setAdjustReason('receive'); setAdjustAmount('') }}
-                        className="flex-1 text-xs bg-green-100 text-green-700 font-semibold py-1.5 rounded-lg"
-                      >
-                        ＋ 入荷
-                      </button>
-                      <button
-                        onClick={() => { setAdjustItem(item); setAdjustReason('use'); setAdjustAmount('') }}
-                        className="flex-1 text-xs bg-orange-100 text-orange-700 font-semibold py-1.5 rounded-lg"
-                      >
-                        − 使用
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id, item.name)}
-                        className="px-3 text-xs text-gray-400 border border-gray-200 rounded-lg"
-                      >
-                        削除
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
+                        {/* 在庫バー（数値ラベル付き） */}
+                        <div className="mb-3">
+                          <StockBar
+                            current={item.current_stock}
+                            min={item.min_stock}
+                            unit={item.unit}
+                            isLow={isLow}
+                          />
+                        </div>
+
+                        {/* 操作ボタン */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setAdjustItem(item); setAdjustReason('receive'); setAdjustAmount('') }}
+                            className="flex-1 text-xs bg-green-100 text-green-700 font-semibold py-1.5 rounded-lg"
+                          >
+                            ＋ 入荷
+                          </button>
+                          <button
+                            onClick={() => { setAdjustItem(item); setAdjustReason('use'); setAdjustAmount('') }}
+                            className="flex-1 text-xs bg-orange-100 text-orange-700 font-semibold py-1.5 rounded-lg"
+                          >
+                            − 使用
+                          </button>
+                          {isLow && (
+                            <button
+                              onClick={() => openOrderFlow(item)}
+                              className="flex-1 text-xs bg-red-500 text-white font-bold py-1.5 rounded-lg"
+                            >
+                              発注 →
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDelete(item.id, item.name)}
+                            className="px-3 text-xs text-gray-400 border border-gray-200 rounded-lg"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* 在庫調整モーダル */}
@@ -283,13 +406,17 @@ export default function InventoryClient({
             <h3 className="font-bold text-gray-800 text-lg mb-1">
               {adjustReason === 'use' ? '− 使用量を記録' : '＋ 入荷を記録'}
             </h3>
-            <p className="text-sm text-gray-500 mb-4">{adjustItem.name}（現在: {adjustItem.current_stock}{adjustItem.unit}）</p>
+            <p className="text-sm text-gray-500 mb-4">
+              {adjustItem.name}（現在: {adjustItem.current_stock}{adjustItem.unit}）
+            </p>
 
             <div className="flex gap-2 mb-4">
               {(['receive', 'use', 'adjustment'] as const).map(r => (
                 <button key={r} onClick={() => setAdjustReason(r)}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${
-                    adjustReason === r ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-600 border-gray-200'
+                    adjustReason === r
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white text-gray-600 border-gray-200'
                   }`}>
                   {r === 'receive' ? '入荷' : r === 'use' ? '使用' : '調整'}
                 </button>
@@ -318,6 +445,69 @@ export default function InventoryClient({
                 {loading ? '更新中...' : '記録する'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 発注ワンフローモーダル */}
+      {orderItem && (
+        <div className="fixed inset-0 bg-black/50 z-40 flex items-end" onClick={() => setOrderItem(null)}>
+          <div className="bg-white rounded-t-3xl w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-800 text-lg mb-1">📦 発注する</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              {orderItem.name} — 現在の在庫: {orderItem.current_stock}{orderItem.unit}
+            </p>
+
+            {suppliers.length > 0 ? (
+              <>
+                <div className="mb-3">
+                  <label className="text-xs text-gray-500 mb-1 block">取引先</label>
+                  <select value={orderSupplierId} onChange={e => setOrderSupplierId(e.target.value)}
+                    className="w-full border rounded-xl px-3 py-2.5 bg-white text-sm">
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="mb-4">
+                  <label className="text-xs text-gray-500 mb-1 block">発注数量</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={orderQty}
+                      onChange={e => setOrderQty(e.target.value)}
+                      placeholder={`例: ${orderItem.min_stock * 2}`}
+                      className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-lg text-center font-bold"
+                    />
+                    <span className="text-gray-500 font-medium">{orderItem.unit}</span>
+                  </div>
+                  {orderItem.min_stock > 0 && (
+                    <p className="text-xs text-gray-400 mt-1 text-center">
+                      推奨: {orderItem.min_stock * 2}{orderItem.unit}（目安の2倍）
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setOrderItem(null)}
+                    className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-500 font-semibold">
+                    キャンセル
+                  </button>
+                  <button onClick={handleQuickOrder} disabled={orderSubmitting}
+                    className="flex-[2] py-3 bg-red-500 text-white rounded-xl font-bold disabled:opacity-50">
+                    {orderSubmitting ? '発注中...' : '発注を確定する'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500 mb-4">
+                  取引先が登録されていません。発注ページから登録してください。
+                </p>
+                <a href="/dashboard/orders"
+                  className="bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-sm">
+                  発注ページへ →
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}

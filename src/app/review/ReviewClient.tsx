@@ -35,7 +35,8 @@ export default function ReviewClient({
   // 「両方」の場合: どちらを先にやっているか
   const [bothStep, setBothStep] = useState<'google' | 'tabelog'>('google')
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef   = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
@@ -295,15 +296,32 @@ export default function ReviewClient({
             </div>
           </div>
 
+          {/* ライブラリ選択（通常） */}
           <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileSelect} className="hidden" />
+          {/* カメラ直撮り */}
+          <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
 
           {!previewUrl ? (
-            <button onClick={() => fileInputRef.current?.click()}
-              className="w-full bg-white border-2 border-dashed border-blue-300 rounded-2xl py-10 flex flex-col items-center gap-3 hover:border-blue-500 transition-colors">
-              <span className="text-4xl">🖼️</span>
-              <span className="text-blue-600 font-bold">写真フォルダからスクショを選択</span>
-              <span className="text-xs text-gray-400">撮影済みのスクリーンショットを選んでください</span>
-            </button>
+            <div className="space-y-3">
+              {/* カメラで撮る */}
+              <button onClick={() => cameraInputRef.current?.click()}
+                className="w-full bg-blue-500 text-white rounded-2xl py-5 flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-md">
+                <span className="text-3xl">📷</span>
+                <div className="text-left">
+                  <p className="font-bold text-base">カメラで今すぐ撮る</p>
+                  <p className="text-xs text-blue-100">画面を見ながらスクショを撮影</p>
+                </div>
+              </button>
+              {/* ライブラリから選ぶ */}
+              <button onClick={() => fileInputRef.current?.click()}
+                className="w-full bg-white border-2 border-dashed border-blue-300 rounded-2xl py-5 flex items-center justify-center gap-3 hover:border-blue-400 transition-colors active:scale-95">
+                <span className="text-3xl">🖼️</span>
+                <div className="text-left">
+                  <p className="font-bold text-base text-blue-600">ライブラリから選ぶ</p>
+                  <p className="text-xs text-gray-400">撮影済みのスクリーンショット</p>
+                </div>
+              </button>
+            </div>
           ) : (
             <div className="bg-white rounded-2xl shadow overflow-hidden">
               <img src={previewUrl} alt="preview" className="w-full max-h-80 object-contain bg-gray-100" />

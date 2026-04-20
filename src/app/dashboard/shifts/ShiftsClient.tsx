@@ -23,14 +23,13 @@ type Props = {
   month: number
   lastDay: number
   staffList: StaffRow[]
-  // 希望提出マップ (day 番号 → staff_id[])
   requestMap: Record<number, string[]>
-  // 確定シフトマップ (day 番号 → staff_id[])
   shiftMap: Record<number, string[]>
   notSubmitted: StaffRow[]
+  onMonthChange?: (year: number, month: number) => void
 }
 
-export default function ShiftsClient({ year, month, lastDay, staffList, requestMap, shiftMap, notSubmitted }: Props) {
+export default function ShiftsClient({ year, month, lastDay, staffList, requestMap, shiftMap, notSubmitted, onMonthChange }: Props) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
   const [dayDetail, setDayDetail] = useState<StaffDetailRow[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -160,18 +159,20 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
       )}
 
       {/* サマリーカード */}
-      <div className="mx-4 mt-3 grid grid-cols-3 gap-3">
+      <div className="mx-4 mt-3 grid grid-cols-2 gap-3">
         <div className="bg-white rounded-xl p-3 shadow-sm text-center">
-          <p className="text-xs text-gray-400">提出済み</p>
-          <p className="text-xl font-bold text-green-600">{staffList.length - notSubmitted.length}<span className="text-xs font-normal text-gray-400">/{staffList.length}</span></p>
+          <p className="text-xs text-gray-400">シフト提出済み</p>
+          <p className="text-xl font-bold text-green-600">
+            {staffList.length - notSubmitted.length}
+            <span className="text-xs font-normal text-gray-400">/{staffList.length}名</span>
+          </p>
         </div>
         <div className="bg-white rounded-xl p-3 shadow-sm text-center">
           <p className="text-xs text-gray-400">確定済み日数</p>
-          <p className="text-xl font-bold text-blue-600">{Object.keys(shiftMap).length}<span className="text-xs font-normal text-gray-400">/{lastDay}</span></p>
-        </div>
-        <div className="bg-white rounded-xl p-3 shadow-sm text-center">
-          <p className="text-xs text-gray-400">対象月</p>
-          <p className="text-xl font-bold text-gray-800">{month}月</p>
+          <p className="text-xl font-bold text-blue-600">
+            {Object.keys(shiftMap).length}
+            <span className="text-xs font-normal text-gray-400">/{lastDay}日</span>
+          </p>
         </div>
       </div>
 
@@ -185,6 +186,31 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
           {broadcasting ? '送信中...' : `📢 確定シフトを全員にLINE通知`}
         </button>
       </div>
+
+      {/* 月切替ナビゲーション */}
+      {onMonthChange && (
+        <div className="mx-4 mt-3 flex items-center justify-between bg-white rounded-xl shadow-sm px-4 py-3">
+          <button
+            onClick={() => {
+              const prev = new Date(year, month - 2, 1)
+              onMonthChange(prev.getFullYear(), prev.getMonth() + 1)
+            }}
+            className="text-gray-500 font-bold text-lg px-2 active:scale-90 transition-transform"
+          >
+            ‹
+          </button>
+          <p className="font-bold text-gray-800">{year}年 {month}月</p>
+          <button
+            onClick={() => {
+              const next = new Date(year, month, 1)
+              onMonthChange(next.getFullYear(), next.getMonth() + 1)
+            }}
+            className="text-gray-500 font-bold text-lg px-2 active:scale-90 transition-transform"
+          >
+            ›
+          </button>
+        </div>
+      )}
 
       {/* カレンダーグリッド */}
       <div className="mx-4 mt-4">

@@ -30,6 +30,7 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
   const [uploading, setUploading] = useState(false)
   const [uploadMessage, setUploadMessage] = useState<string | null>(null)
   const [showManual, setShowManual] = useState(false)
+  const [manualStep, setManualStep] = useState(1) // 1=日付, 2=店内, 3=デリバリー, 4=コスト
 
   // 手動入力フォーム
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
@@ -239,121 +240,177 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
           ))}
         </div>
         <div className="mt-3 border-t pt-3">
-          <button onClick={() => setShowManual(!showManual)}
+          <button onClick={() => { setShowManual(!showManual); setManualStep(1) }}
             className="w-full py-3 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700">
             ✍️ 手動入力
           </button>
         </div>
       </div>
 
-      {/* 手動入力フォーム */}
+      {/* 手動入力フォーム（ステッパー形式） */}
       {showManual && (
-        <div className="mx-4 mt-3 bg-white rounded-xl p-4 shadow-sm space-y-4">
-          <p className="text-sm font-semibold text-gray-700">売上手動入力</p>
-
-          <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-sm" />
-
-          {/* 店内 */}
-          <div className="bg-gray-50 rounded-xl p-3">
-            <p className="text-xs font-semibold text-gray-600 mb-2">🏠 店内合計</p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div>
-                <label className="text-xs text-gray-400">売上合計</label>
-                <input type="number" inputMode="numeric" placeholder="¥" value={storeSales} onChange={e => setStoreSales(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
+        <div className="mx-4 mt-3 bg-white rounded-xl p-4 shadow-sm">
+          {/* ステップインジケーター */}
+          <div className="flex items-center gap-1 mb-4">
+            {[1, 2, 3, 4].map(s => (
+              <div key={s} className="flex-1 flex flex-col items-center gap-0.5">
+                <div className={`w-full h-1.5 rounded-full ${s <= manualStep ? 'bg-blue-500' : 'bg-gray-200'}`} />
+                <p className={`text-[10px] ${s === manualStep ? 'text-blue-600 font-bold' : 'text-gray-300'}`}>
+                  {s === 1 ? '日付' : s === 2 ? '店内' : s === 3 ? '配達' : 'コスト'}
+                </p>
               </div>
-              <div>
-                <label className="text-xs text-gray-400">注文数合計</label>
-                <input type="number" inputMode="numeric" placeholder="件" value={storeOrders} onChange={e => setStoreOrders(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
-              </div>
-            </div>
-            {/* 昼夜別（任意） */}
-            <p className="text-xs text-gray-400 mb-1">内訳（任意）</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-yellow-50 rounded-lg p-2">
-                <p className="text-xs font-semibold text-yellow-700 mb-1">☀️ 昼</p>
-                <input type="number" inputMode="numeric" placeholder="¥" value={lunchSales} onChange={e => setLunchSales(e.target.value)}
-                  className="w-full border rounded-lg px-2 py-1.5 text-sm mb-1" />
-                <input type="number" inputMode="numeric" placeholder="件" value={lunchOrders} onChange={e => setLunchOrders(e.target.value)}
-                  className="w-full border rounded-lg px-2 py-1.5 text-sm" />
-              </div>
-              <div className="bg-indigo-50 rounded-lg p-2">
-                <p className="text-xs font-semibold text-indigo-700 mb-1">🌙 夜</p>
-                <input type="number" inputMode="numeric" placeholder="¥" value={dinnerSales} onChange={e => setDinnerSales(e.target.value)}
-                  className="w-full border rounded-lg px-2 py-1.5 text-sm mb-1" />
-                <input type="number" inputMode="numeric" placeholder="件" value={dinnerOrders} onChange={e => setDinnerOrders(e.target.value)}
-                  className="w-full border rounded-lg px-2 py-1.5 text-sm" />
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* Uber Eats */}
-          <div className="bg-green-50 rounded-xl p-3">
-            <p className="text-xs font-semibold text-green-700 mb-2">🟢 Uber Eats</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs text-gray-400">売上</label>
-                <input type="number" inputMode="numeric" placeholder="¥" value={uberSales} onChange={e => setUberSales(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
+          {/* Step 1: 日付 */}
+          {manualStep === 1 && (
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-gray-800">📅 対象日を選択</p>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-lg text-center font-bold" />
+              <button onClick={() => setManualStep(2)}
+                className="w-full bg-blue-500 text-white font-bold py-3 rounded-xl">
+                次へ →
+              </button>
+            </div>
+          )}
+
+          {/* Step 2: 店内売上 */}
+          {manualStep === 2 && (
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-gray-800">🏠 店内売上（{date}）</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-gray-400">売上合計</label>
+                  <input type="number" inputMode="numeric" placeholder="¥" value={storeSales}
+                    onChange={e => setStoreSales(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2.5 text-sm mt-0.5" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">注文数</label>
+                  <input type="number" inputMode="numeric" placeholder="件" value={storeOrders}
+                    onChange={e => setStoreOrders(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2.5 text-sm mt-0.5" />
+                </div>
               </div>
-              <div>
-                <label className="text-xs text-gray-400">注文数</label>
-                <input type="number" inputMode="numeric" placeholder="件" value={uberOrders} onChange={e => setUberOrders(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
+              <p className="text-xs text-gray-400">内訳（任意）</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-yellow-50 rounded-xl p-3">
+                  <p className="text-xs font-semibold text-yellow-700 mb-1.5">☀️ 昼</p>
+                  <input type="number" inputMode="numeric" placeholder="¥" value={lunchSales}
+                    onChange={e => setLunchSales(e.target.value)}
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm mb-1.5" />
+                  <input type="number" inputMode="numeric" placeholder="件" value={lunchOrders}
+                    onChange={e => setLunchOrders(e.target.value)}
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                <div className="bg-indigo-50 rounded-xl p-3">
+                  <p className="text-xs font-semibold text-indigo-700 mb-1.5">🌙 夜</p>
+                  <input type="number" inputMode="numeric" placeholder="¥" value={dinnerSales}
+                    onChange={e => setDinnerSales(e.target.value)}
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm mb-1.5" />
+                  <input type="number" inputMode="numeric" placeholder="件" value={dinnerOrders}
+                    onChange={e => setDinnerOrders(e.target.value)}
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setManualStep(1)}
+                  className="flex-1 border border-gray-200 text-gray-500 font-semibold py-3 rounded-xl text-sm">
+                  ← 戻る
+                </button>
+                <button onClick={() => setManualStep(3)}
+                  className="flex-[2] bg-blue-500 text-white font-bold py-3 rounded-xl text-sm">
+                  次へ →
+                </button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* ロケットなう */}
-          <div className="bg-orange-50 rounded-xl p-3">
-            <p className="text-xs font-semibold text-orange-700 mb-2">🚀 ロケットなう</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs text-gray-400">売上</label>
-                <input type="number" inputMode="numeric" placeholder="¥" value={rocketnowSales} onChange={e => setRocketnowSales(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
+          {/* Step 3: デリバリー */}
+          {manualStep === 3 && (
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-gray-800">🛵 デリバリー売上（{date}）</p>
+              <div className="bg-green-50 rounded-xl p-3">
+                <p className="text-xs font-semibold text-green-700 mb-2">🟢 Uber Eats</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="number" inputMode="numeric" placeholder="¥ 売上" value={uberSales}
+                    onChange={e => setUberSales(e.target.value)}
+                    className="border rounded-lg px-3 py-2 text-sm" />
+                  <input type="number" inputMode="numeric" placeholder="件 注文" value={uberOrders}
+                    onChange={e => setUberOrders(e.target.value)}
+                    className="border rounded-lg px-3 py-2 text-sm" />
+                </div>
               </div>
-              <div>
-                <label className="text-xs text-gray-400">注文数</label>
-                <input type="number" inputMode="numeric" placeholder="件" value={rocketnowOrders} onChange={e => setRocketnowOrders(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
+              <div className="bg-orange-50 rounded-xl p-3">
+                <p className="text-xs font-semibold text-orange-700 mb-2">🚀 ロケットなう</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="number" inputMode="numeric" placeholder="¥ 売上" value={rocketnowSales}
+                    onChange={e => setRocketnowSales(e.target.value)}
+                    className="border rounded-lg px-3 py-2 text-sm" />
+                  <input type="number" inputMode="numeric" placeholder="件 注文" value={rocketnowOrders}
+                    onChange={e => setRocketnowOrders(e.target.value)}
+                    className="border rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div className="bg-red-50 rounded-xl p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-xs font-semibold text-red-700">🔴 menu</p>
+                  <span className="text-[10px] bg-red-100 text-red-500 px-2 py-0.5 rounded-full">申請準備中</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="number" inputMode="numeric" placeholder="¥ 売上" value={menuSales}
+                    onChange={e => setMenuSales(e.target.value)}
+                    className="border rounded-lg px-3 py-2 text-sm" />
+                  <input type="number" inputMode="numeric" placeholder="件 注文" value={menuOrders}
+                    onChange={e => setMenuOrders(e.target.value)}
+                    className="border rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setManualStep(2)}
+                  className="flex-1 border border-gray-200 text-gray-500 font-semibold py-3 rounded-xl text-sm">
+                  ← 戻る
+                </button>
+                <button onClick={() => setManualStep(4)}
+                  className="flex-[2] bg-blue-500 text-white font-bold py-3 rounded-xl text-sm">
+                  次へ →
+                </button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* menu（将来用） */}
-          <div className="bg-red-50 rounded-xl p-3">
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-xs font-semibold text-red-700">🔴 menu</p>
-              <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full">申請準備中</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
+          {/* Step 4: コスト → 保存 */}
+          {manualStep === 4 && (
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-gray-800">💰 コスト入力（任意）</p>
               <div>
-                <label className="text-xs text-gray-400">売上</label>
-                <input type="number" inputMode="numeric" placeholder="¥" value={menuSales} onChange={e => setMenuSales(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
+                <label className="text-xs text-gray-500">食材費（円）</label>
+                <input type="number" inputMode="numeric" placeholder="¥" value={foodCost}
+                  onChange={e => setFoodCost(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2.5 text-sm mt-0.5" />
               </div>
-              <div>
-                <label className="text-xs text-gray-400">注文数</label>
-                <input type="number" inputMode="numeric" placeholder="件" value={menuOrders} onChange={e => setMenuOrders(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
+              {/* 入力サマリー */}
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+                <p className="font-semibold text-gray-700 mb-1">入力内容の確認</p>
+                <p>📅 {date}</p>
+                {storeSales && <p>🏠 店内: ¥{Number(storeSales).toLocaleString()}（{storeOrders}件）</p>}
+                {uberSales && <p>🟢 Uber: ¥{Number(uberSales).toLocaleString()}</p>}
+                {rocketnowSales && <p>🚀 ロケットなう: ¥{Number(rocketnowSales).toLocaleString()}</p>}
+                {foodCost && <p>🥩 食材費: ¥{Number(foodCost).toLocaleString()}</p>}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setManualStep(3)}
+                  className="flex-1 border border-gray-200 text-gray-500 font-semibold py-3 rounded-xl text-sm">
+                  ← 戻る
+                </button>
+                <button onClick={handleManualSave} disabled={saving}
+                  className="flex-[2] bg-green-500 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50">
+                  {saving ? '保存中...' : '✅ 保存する'}
+                </button>
               </div>
             </div>
-          </div>
-
-          {/* 食材費 */}
-          <div>
-            <label className="text-xs text-gray-500">食材費（任意）</label>
-            <input type="number" inputMode="numeric" placeholder="¥" value={foodCost} onChange={e => setFoodCost(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-0.5" />
-          </div>
-
-          <button onClick={handleManualSave} disabled={saving}
-            className="w-full bg-blue-500 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50">
-            {saving ? '保存中...' : '保存する'}
-          </button>
+          )}
         </div>
       )}
 
