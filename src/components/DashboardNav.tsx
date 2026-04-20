@@ -22,6 +22,7 @@ const MORE_ITEMS = [
   { label: '給与計算',   href: '/dashboard/payroll',   icon: '💴' },
   { label: '発注管理',   href: '/dashboard/orders',    icon: '📦' },
   { label: '口コミ管理', href: '/dashboard/reviews',   icon: '⭐' },
+  { label: 'スタッフ',   href: '/dashboard/staff',     icon: '👥' },
   { label: 'レシート',   href: '/dashboard/receipts',  icon: '🧾' },
   { label: '設定',       href: '/dashboard/settings',  icon: '⚙️' },
 ]
