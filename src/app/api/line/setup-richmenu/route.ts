@@ -41,7 +41,6 @@ const STAFF_RICH_MENU = {
         type: 'uri',
         label: 'シフト希望提出',
         uri: `${BASE_URL}/shift-form?uid={userId}`,
-        altUri: { desktop: `${BASE_URL}/shift-form?uid={userId}` },
       },
     },
     // 下段左: 口コミ誘導（お客様に見せる）
@@ -51,7 +50,6 @@ const STAFF_RICH_MENU = {
         type: 'uri',
         label: '口コミを書く',
         uri: `${BASE_URL}/review?uid={userId}`,
-        altUri: { desktop: `${BASE_URL}/review?uid={userId}` },
       },
     },
     // 下段中: 発注依頼
@@ -61,7 +59,6 @@ const STAFF_RICH_MENU = {
         type: 'uri',
         label: '発注依頼',
         uri: `${BASE_URL}/order-form?uid={userId}`,
-        altUri: { desktop: `${BASE_URL}/order-form?uid={userId}` },
       },
     },
     // 下段右: シフト確認
@@ -93,7 +90,6 @@ const MANAGER_RICH_MENU = {
         type: 'uri',
         label: 'PL確認',
         uri: `${BASE_URL}/dashboard/pl`,
-        altUri: { desktop: `${BASE_URL}/dashboard/pl` },
       },
     },
     // 上段右: シフト確認・修正
@@ -103,7 +99,6 @@ const MANAGER_RICH_MENU = {
         type: 'uri',
         label: 'シフト確認',
         uri: `${BASE_URL}/dashboard/shifts`,
-        altUri: { desktop: `${BASE_URL}/dashboard/shifts` },
       },
     },
     // 下段左: 人件費率リアルタイム
@@ -118,7 +113,6 @@ const MANAGER_RICH_MENU = {
         type: 'uri',
         label: '発注状況',
         uri: `${BASE_URL}/dashboard/orders`,
-        altUri: { desktop: `${BASE_URL}/dashboard/orders` },
       },
     },
     // 下段右: スタッフ評価・ダッシュボード
@@ -128,7 +122,6 @@ const MANAGER_RICH_MENU = {
         type: 'uri',
         label: 'ダッシュボード',
         uri: `${BASE_URL}/dashboard`,
-        altUri: { desktop: `${BASE_URL}/dashboard` },
       },
     },
   ],

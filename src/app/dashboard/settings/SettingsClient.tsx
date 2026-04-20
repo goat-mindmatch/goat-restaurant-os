@@ -386,9 +386,15 @@ function LineTab() {
     setToast(null)
     try {
       const res = await fetch('/api/line/setup-richmenu', { method: 'POST' })
-      const d = await res.json() as { ok?: boolean; error?: string }
-      if (res.ok && d.ok) setToast({ msg: '✅ リッチメニューを設定しました！LINEアプリで確認してください', type: 'success' })
-      else                 setToast({ msg: `❌ 設定に失敗しました: ${d.error ?? '不明なエラー'}`, type: 'error' })
+      const d = await res.json() as { ok?: boolean; error?: string; managers_updated?: { name: string; ok: boolean }[] }
+      if (res.ok && d.ok) {
+        const managerInfo = d.managers_updated && d.managers_updated.length > 0
+          ? `（経営者メニュー設定: ${d.managers_updated.map(m => m.name).join('・')}）`
+          : ''
+        setToast({ msg: `✅ リッチメニューを設定しました！LINEアプリで確認してください ${managerInfo}`, type: 'success' })
+      } else {
+        setToast({ msg: `❌ 設定に失敗しました: ${d.error ?? '不明なエラー'}`, type: 'error' })
+      }
     } catch (e) {
       setToast({ msg: `❌ ${e instanceof Error ? e.message : '不明なエラー'}`, type: 'error' })
     } finally {
@@ -399,8 +405,18 @@ function LineTab() {
   return (
     <div>
       {toast && <Toast msg={toast.msg} type={toast.type} />}
+
+      {/* 事前確認 */}
+      <div className="mb-4 bg-blue-50 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+        <p className="font-semibold">📋 設定前チェックリスト</p>
+        <p>① Vercelの環境変数に <code className="bg-blue-100 px-1 rounded">LINE_STAFF_CHANNEL_ACCESS_TOKEN</code> が設定済みか</p>
+        <p>② LINE Official Account Managerでリッチメニューの画像がアップロード済みか</p>
+        <p>③ スタッフがLINEを友だち追加済みか</p>
+      </div>
+
       <p className="text-sm text-gray-600 mb-4">
-        スタッフ用LINEのリッチメニュー（操作パネル）をAPIで自動設定します。
+        スタッフ用LINEのリッチメニュー（操作パネル）を自動設定します。
+        スタッフ全員に6ボタンメニュー、経営者にはダッシュボードリンク付きメニューが設定されます。
       </p>
       <button
         onClick={setup}
@@ -409,12 +425,23 @@ function LineTab() {
       >
         {loading ? '設定中...' : '📱 LINEリッチメニューを設定する'}
       </button>
-      <div className="mt-4">
-        <p className="text-xs font-semibold text-gray-600 mb-2">現在のボタン</p>
-        <div className="flex flex-wrap gap-1">
-          {['出勤', '退勤', 'シフト希望', '発注依頼', 'シフト確認', 'ヘルプ'].map(label => (
-            <span key={label} className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">{label}</span>
-          ))}
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <div>
+          <p className="text-xs font-semibold text-gray-600 mb-1">スタッフ用ボタン</p>
+          <div className="flex flex-wrap gap-1">
+            {['出勤', '退勤', 'シフト希望', '口コミ誘導', '発注依頼', 'シフト確認'].map(label => (
+              <span key={label} className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">{label}</span>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-gray-600 mb-1">経営者用ボタン</p>
+          <div className="flex flex-wrap gap-1">
+            {['売上確認', 'PL確認', 'シフト確認', '人件費率', '発注状況', 'ダッシュボード'].map(label => (
+              <span key={label} className="bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded-full">{label}</span>
+            ))}
+          </div>
         </div>
       </div>
     </div>

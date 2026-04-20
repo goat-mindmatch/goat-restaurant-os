@@ -37,6 +37,7 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
   const [newSupName, setNewSupName] = useState('')
   const [newSupContact, setNewSupContact] = useState('')
   const [sendText, setSendText] = useState<string | null>(null)
+  const [sendResult, setSendResult] = useState<{ email_sent: boolean; supplier_email: string | null; contact_method: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [showNewOrder, setShowNewOrder] = useState(false)
 
@@ -98,17 +99,30 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
     setSubmittingNew(false)
   }
 
-  // 発注送付テキスト生成
+  // 発注送付テキスト生成 + メール自動送信
   const sendOrder = async (orderId: string) => {
+    toast('📤 発注メッセージを作成中...')
     const res = await fetch('/api/orders/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ order_id: orderId }),
     })
     if (res.ok) {
-      const data = await res.json()
+      const data = await res.json() as {
+        message: string
+        email_sent: boolean
+        line_notified: boolean
+        supplier: { name: string; email: string | null; contact_method: string }
+      }
       setSendText(data.message)
+      setSendResult({
+        email_sent: data.email_sent,
+        supplier_email: data.supplier?.email ?? null,
+        contact_method: data.supplier?.contact_method ?? 'line',
+      })
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'sent' } : o))
+    } else {
+      toast('❌ メッセージ作成に失敗しました')
     }
   }
 
@@ -374,29 +388,45 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
         )}
       </div>
 
-      {/* コピペ用テキストモーダル */}
+      {/* 発注メッセージモーダル */}
       {sendText && (
         <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4"
-          onClick={() => setSendText(null)}>
+          onClick={() => { setSendText(null); setSendResult(null) }}>
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b flex justify-between items-center">
               <div>
                 <h3 className="font-bold text-gray-800">📤 発注メッセージ</h3>
-                <p className="text-xs text-gray-400">このテキストをコピーして業者さんに送ってください</p>
+                {sendResult?.email_sent ? (
+                  <p className="text-xs text-green-600 font-semibold mt-0.5">
+                    ✅ {sendResult.supplier_email} へメール送信済み
+                  </p>
+                ) : sendResult?.supplier_email && sendResult.contact_method !== 'line' ? (
+                  <p className="text-xs text-red-500 mt-0.5">
+                    ⚠️ メール送信失敗 — 下記をコピーして送ってください
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    コピーして業者さんに送ってください（LINE・メール・電話いずれでもOK）
+                  </p>
+                )}
               </div>
-              <button onClick={() => setSendText(null)} className="text-gray-400 text-2xl">×</button>
+              <button onClick={() => { setSendText(null); setSendResult(null) }} className="text-gray-400 text-2xl">×</button>
             </div>
             <div className="p-4">
               <pre className="bg-gray-50 rounded-xl p-4 text-sm whitespace-pre-wrap font-sans leading-relaxed">{sendText}</pre>
             </div>
             <div className="p-4 border-t flex gap-2">
-              <button onClick={copyToClipboard}
-                className="flex-1 bg-blue-500 text-white font-bold py-3 rounded-xl">
-                📋 コピーする
+              {!sendResult?.email_sent && (
+                <button onClick={copyToClipboard}
+                  className="flex-1 bg-blue-500 text-white font-bold py-3 rounded-xl">
+                  📋 コピーする
+                </button>
+              )}
+              <button onClick={() => { setSendText(null); setSendResult(null) }}
+                className={`${sendResult?.email_sent ? 'flex-1 bg-green-500 text-white' : 'px-4 bg-gray-100 text-gray-600'} font-bold py-3 rounded-xl`}>
+                {sendResult?.email_sent ? '✅ 閉じる' : '閉じる'}
               </button>
-              <button onClick={() => setSendText(null)}
-                className="px-4 bg-gray-100 rounded-xl text-gray-600">閉じる</button>
             </div>
           </div>
         </div>

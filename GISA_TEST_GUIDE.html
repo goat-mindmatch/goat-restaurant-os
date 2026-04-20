@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GOAT Restaurant OS — テスト手順書</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ヘッダー */
+    .hero {
+      background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+      color: white;
+      padding: 48px 24px 40px;
+      text-align: center;
+    }
+    .hero h1 { font-size: 26px; font-weight: 800; margin-bottom: 8px; }
+    .hero p  { font-size: 14px; opacity: 0.85; }
+    .hero .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      margin-top: 12px;
+    }
+
+    /* 目次 */
+    .toc {
+      background: white;
+      margin: 20px 16px;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .toc h2 { font-size: 13px; color: #888; margin-bottom: 12px; font-weight: 600; letter-spacing: 0.05em; }
+    .toc a  { display: block; color: #ff6b35; text-decoration: none; font-size: 14px; font-weight: 600; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+    .toc a:last-child { border-bottom: none; }
+    .toc a:hover { color: #e55a2b; }
+
+    /* セクション */
+    .section {
+      margin: 24px 16px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .section-icon {
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .section-header h2 { font-size: 18px; font-weight: 800; }
+    .section-header p  { font-size: 12px; color: #888; margin-top: 2px; }
+
+    /* カード */
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card p { font-size: 14px; color: #444; margin-bottom: 8px; }
+    .card p:last-child { margin-bottom: 0; }
+
+    /* テストステップ */
+    .steps { list-style: none; }
+    .steps li {
+      display: flex;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f5f5f5;
+      font-size: 14px;
+    }
+    .steps li:last-child { border-bottom: none; }
+    .step-num {
+      width: 24px; height: 24px;
+      background: #ff6b35;
+      color: white;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-text { flex: 1; }
+    .step-expect {
+      font-size: 12px;
+      color: #22c55e;
+      font-weight: 600;
+      margin-top: 3px;
+    }
+    .step-warn {
+      font-size: 12px;
+      color: #f59e0b;
+      font-weight: 600;
+      margin-top: 3px;
+    }
+
+    /* ステータスバッジ */
+    .badge-done    { background: #dcfce7; color: #166534; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .badge-test    { background: #fef9c3; color: #854d0e; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .badge-next    { background: #e0f2fe; color: #0369a1; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .badge-caution { background: #fee2e2; color: #991b1b; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+
+    /* 機能サマリーテーブル */
+    .feature-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .feature-table th {
+      background: #f5f5f7;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 11px;
+      color: #888;
+      font-weight: 600;
+    }
+    .feature-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: top;
+    }
+    .feature-table tr:last-child td { border-bottom: none; }
+
+    /* ロードマップ */
+    .roadmap-item {
+      display: flex;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .roadmap-item:last-child { border-bottom: none; }
+    .roadmap-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+    .dot-done    { background: #22c55e; }
+    .dot-next    { background: #3b82f6; }
+    .dot-future  { background: #d1d5db; }
+    .roadmap-title { font-size: 14px; font-weight: 700; }
+    .roadmap-desc  { font-size: 12px; color: #888; margin-top: 3px; }
+
+    /* 注意ボックス */
+    .alert {
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+    .alert-warn    { background: #fffbeb; border-left: 4px solid #f59e0b; }
+    .alert-info    { background: #eff6ff; border-left: 4px solid #3b82f6; }
+    .alert-success { background: #f0fdf4; border-left: 4px solid #22c55e; }
+    .alert strong  { display: block; font-weight: 700; margin-bottom: 4px; }
+
+    /* URL表示 */
+    .url-box {
+      background: #1d1d1f;
+      color: #a3e635;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-family: 'SF Mono', 'Courier New', monospace;
+      font-size: 13px;
+      word-break: break-all;
+      margin: 8px 0;
+    }
+
+    /* フッター */
+    footer {
+      text-align: center;
+      padding: 32px 16px;
+      color: #888;
+      font-size: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .hero { padding: 64px 40px 56px; }
+      .hero h1 { font-size: 32px; }
+      .section, .toc { margin: 24px auto; max-width: 720px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ヒーロー -->
+<div class="hero">
+  <h1>🍜 GOAT Restaurant OS</h1>
+  <p>テスト手順書 &amp; 実装ロードマップ</p>
+  <div class="badge">作成日：2026-04-20 ／ 対象バージョン：d8b1690</div>
+</div>
+
+<!-- 目次 -->
+<div class="toc">
+  <h2>目次</h2>
+  <a href="#status">① 現在の状態（何ができるか）</a>
+  <a href="#tests">② テスト手順（画面ごと）</a>
+  <a href="#known-issues">③ 既知の注意点</a>
+  <a href="#roadmap">④ 今後の実装ロードマップ</a>
+</div>
+
+
+<!-- =========================================
+     セクション1：現在の状態
+     ========================================= -->
+<div class="section" id="status">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fff3e0;">📊</div>
+    <div>
+      <h2>① 現在の状態</h2>
+      <p>何ができるようになっているか</p>
+    </div>
+  </div>
+
+  <div class="alert alert-success">
+    <strong>✅ 本番URL（Vercel）</strong>
+    <div class="url-box">https://goat-restaurant-os.vercel.app</div>
+    Supabaseマイグレーションv6適用済み。全17コミット反映済み。
+  </div>
+
+  <div class="card">
+    <h3>🗺️ 実装済み機能一覧</h3>
+    <table class="feature-table">
+      <thead>
+        <tr>
+          <th>ページ</th>
+          <th>主な機能</th>
+          <th>状態</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>ホーム</strong></td>
+          <td>本日売上・FL比率・週次グラフ・AIコメント・出勤状況（アコーディオン）</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>注文管理</strong></td>
+          <td>リアルタイム注文・提供完了・5秒キャンセル取消・圏外エラーバナー</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>売上入力</strong></td>
+          <td>4ステップフォーム（日付→店内→デリバリー→コスト）・確認サマリー</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>PL損益</strong></td>
+          <td>今月の手残りを大バナー表示・FL比率バー・Excel出力</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>在庫管理</strong></td>
+          <td>カテゴリ折りたたみ・在庫バー・発注ボタン（数量・取引先選択）</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>シフト管理</strong></td>
+          <td>月ナビ・希望確認・確定・LINE全員通知＋<strong>勤怠手動修正（新）</strong></td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>給与計算</strong></td>
+          <td>勤務時間自動計算・深夜手当・口コミボーナス・賄いボーナス・CSV出力</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>口コミ管理</strong></td>
+          <td>スタッフ別ランキング・誘導/申告/検証済の3段階・Google連携</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>レシート</strong></td>
+          <td>LINE画像→Claude OCR→経費自動登録・スタッフ別集計</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>発注管理</strong></td>
+          <td>発注履歴・取引先管理・LINEまたはメール送信</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>設定（新）</strong></td>
+          <td>店舗名・月次目標変更 ／ スタッフ追加・時給編集・退職処理 ／ LINE設定</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>ナビ（新）</strong></td>
+          <td>「もっと」ドロワーで全11ページに即アクセス</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>口コミ誘導（顧客）</strong></td>
+          <td>スタッフ選択→Google/食べログ選択→2段階検証→特典</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+        <tr>
+          <td><strong>モバイルオーダー（顧客）</strong></td>
+          <td>QRコード→メニュー選択→注文→厨房に即通知</td>
+          <td><span class="badge-done">実装済</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- =========================================
+     セクション2：テスト手順
+     ========================================= -->
+<div class="section" id="tests">
+  <div class="section-header">
+    <div class="section-icon" style="background:#e8f5e9;">🧪</div>
+    <div>
+      <h2>② テスト手順</h2>
+      <p>画面ごとの確認手順と期待する動作</p>
+    </div>
+  </div>
+
+  <div class="alert alert-info">
+    <strong>📱 テスト環境について</strong>
+    スマートフォン（iPhone推奨）で本番URLを開いてテストしてください。
+    PCブラウザでも確認できますが、モバイル表示での確認が最優先です。
+  </div>
+
+
+  <!-- テスト1：ナビゲーション -->
+  <div class="card">
+    <h3>🗂️ T-01：ナビゲーション「もっと」ドロワー <span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          ダッシュボードを開き、画面下のボトムナビ右端「⋯ もっと」をタップする
+          <div class="step-expect">✅ グレーのシートが下から滑り上がり、7つのアイコングリッドが表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          グリッド内の「給与計算」「在庫管理」「口コミ管理」をそれぞれタップして画面が開くか確認
+          <div class="step-expect">✅ 各ページに遷移する</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          ドロワーが開いている状態で、グリッド外（暗い部分）をタップする
+          <div class="step-expect">✅ ドロワーが閉じる</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-text">
+          現在開いているページと同じアイコンをドロワーで確認する
+          <div class="step-expect">✅ そのアイコンだけオレンジ色になっている</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+
+  <!-- テスト2：ホームダッシュボード -->
+  <div class="card">
+    <h3>🏠 T-02：ホームダッシュボード <span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <code>/dashboard</code> を開く。「本日の売上」が最上部に表示されているか確認
+          <div class="step-expect">✅ 売上合計・達成率・店内/デリバリー内訳が表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          右上の小さいテキストが「HH:MM:SS 更新」と表示されているか確認
+          <div class="step-expect">✅ 時刻が表示される（データがない日は「--」でもOK）</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          「月次FL管理」「人件費管理」「本日の出勤状況」の各タイトル横の「▲▼」をタップ
+          <div class="step-expect">✅ セクションが折りたたみ・展開できる</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-text">
+          「本日の出勤状況」セクションの一番下「✏️ 打刻を手動修正する →」をタップ
+          <div class="step-expect">✅ シフト管理ページに遷移する</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+
+  <!-- テスト3：PL損益 -->
+  <div class="card">
+    <h3>📊 T-03：PL損益 <span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <code>/dashboard/pl</code> を開く
+          <div class="step-expect">✅ 画面上部に「今月の手残り」が大きいグラデーションバナーで表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          バナー下に「利益率○○%」のバーが表示されているか確認
+          <div class="step-expect">✅ 利益率に応じて緑/赤でバーが表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          「Excel出力」ボタンをタップ
+          <div class="step-expect">✅ ファイルがダウンロードされる（または共有シートが開く）</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+
+  <!-- テスト4：売上入力 -->
+  <div class="card">
+    <h3>💹 T-04：売上入力（4ステップフォーム）<span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <code>/dashboard/sales</code> を開く
+          <div class="step-expect">✅「ステップ 1/4：日付」が表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          日付を選択して「次へ」→ 店内売上を入力して「次へ」→ デリバリー売上を入力して「次へ」→ コスト入力
+          <div class="step-expect">✅ 各ステップでプログレスバーが進む</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          最後のステップで「確認サマリー」が表示されているか確認
+          <div class="step-expect">✅ 入力した内容が一覧で表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-text">
+          「保存する」をタップ
+          <div class="step-expect">✅ 成功メッセージが表示され、ホームに戻る</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+
+  <!-- テスト5：在庫管理 -->
+  <div class="card">
+    <h3>🗃️ T-05：在庫管理 <span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <code>/dashboard/inventory</code> を開く
+          <div class="step-expect">✅ カテゴリ別に折りたたみセクションが表示される。在庫不足カテゴリだけ最初から開いている</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          在庫バーの下に「0kg ← 発注目安○kg → ○kg」の数値が表示されているか確認
+          <div class="step-expect">✅ 在庫量に応じて緑/黄/赤のバーが表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          在庫不足アイテムの「発注する →」ボタンをタップ
+          <div class="step-expect">✅ 数量・取引先を選べるモーダルが開く</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+
+  <!-- テスト6：シフト管理 + 勤怠修正 -->
+  <div class="card">
+    <h3>📅 T-06：シフト管理 ＋ 勤怠手動修正（新機能）<span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <code>/dashboard/shifts</code> を開く
+          <div class="step-expect">✅「‹ 2025年○月 ›」のナビゲーションが表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          月ナビの「‹」「›」をタップして前月・翌月に切り替える
+          <div class="step-expect">✅ URLが変わり、カレンダーが切り替わる</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          ページを一番下までスクロールし、「✏️ 勤怠手動修正」セクションを確認
+          <div class="step-expect">✅ 日付選択フィールドと「○月○日の打刻データなし」または一覧が表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-text">
+          「＋ 打刻を追加する（打刻忘れ）」をタップ → スタッフを選択 → 出勤時刻を選択 → 「追加する」
+          <div class="step-expect">✅「✅ 追加しました」のトーストが表示され、一覧に追加される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">5</div>
+        <div class="step-text">
+          追加された打刻をタップ → 時刻を変更 → 「保存」
+          <div class="step-expect">✅「✅ 修正しました」が表示され、「手動」ラベルが付いている</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+
+  <!-- テスト7：設定（新機能） -->
+  <div class="card">
+    <h3>⚙️ T-07：設定ページ（新機能） <span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <code>/dashboard/settings</code> を開く
+          <div class="step-expect">✅「店舗設定」「スタッフ管理」「LINE設定」の3タブが表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          「店舗設定」タブ：月次売上目標の数値を変更（例：3000000 → 3500000）→「💾 保存する」をタップ
+          <div class="step-expect">✅「✅ 保存しました」が表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          「スタッフ管理」タブ：「＋ スタッフを追加する」→ 名前・時給を入力 →「追加する」
+          <div class="step-expect">✅ 一覧に追加したスタッフが表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-text">
+          追加したスタッフをタップ → 時給を変更 →「保存」
+          <div class="step-expect">✅「✅ 更新しました」が表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">5</div>
+        <div class="step-text">
+          追加したスタッフの編集画面で「退職」ボタンをタップ
+          <div class="step-expect">✅ 在籍一覧から消え、「退職済み（1名）」の折りたたみに移動する</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+
+  <!-- テスト8：給与計算 -->
+  <div class="card">
+    <h3>💴 T-08：給与計算 <span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <code>/dashboard/payroll</code> を開く
+          <div class="step-expect">✅ スタッフ一覧と給与集計が表示される（勤務データがあれば金額が入っている）</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          スタッフをタップして詳細を確認（基本給・深夜手当・交通費・口コミボーナスの内訳）
+          <div class="step-expect">✅ 内訳の合計が「給与合計」と一致している</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          「CSV出力」ボタンをタップ
+          <div class="step-expect">✅ ファイルがダウンロードされる</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-text">
+          月ナビで前月に切り替えて、データが切り替わるか確認
+          <div class="step-expect">✅ 前月の勤怠データで再集計される</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+
+  <!-- テスト9：口コミ誘導フロー -->
+  <div class="card">
+    <h3>⭐ T-09：口コミ誘導フロー（顧客向け）<span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          スタッフLINEに「口コミテスト」と送信 → 短縮URLが届く
+          <div class="step-expect">✅ URLが届く</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          URLを開く → スタッフを選択 →「⭐ Googleで口コミを書く」または「🍽️ 食べログで口コミを書く」をタップ
+          <div class="step-expect">✅ カメラで撮る / ライブラリから選ぶ の2ボタンが表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          口コミを書いた後「✅ 書きました」をタップ
+          <div class="step-expect">✅ 検証コードの入力画面が表示される（特典はまだ出ない）</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-text">
+          スタッフLINEに「検証」と送信 → 検証ページでコードを入力・承認
+          <div class="step-expect">✅ 口コミ管理ページの「検証済み」カウントが+1される</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+
+  <!-- テスト10：注文管理 -->
+  <div class="card">
+    <h3>🍜 T-10：注文管理（リアルタイム）<span class="badge-test">要テスト</span></h3>
+    <ul class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <code>/dashboard/menu-orders</code> を開く
+          <div class="step-expect">✅ 右上に「最終更新：○秒前」が表示されている</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-text">
+          テスト注文を入れて（別スマホでQR注文、またはテストデータ投入）、自動で一覧に反映されるか確認
+          <div class="step-expect">✅ 数秒以内に注文が表示される</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-text">
+          「提供完了」ボタンをタップ
+          <div class="step-expect">✅ 5秒間「元に戻す」ボタンが表示され、その後一覧から消える</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+</div>
+
+
+<!-- =========================================
+     セクション3：既知の注意点
+     ========================================= -->
+<div class="section" id="known-issues">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fff3e0;">⚠️</div>
+    <div>
+      <h2>③ 既知の注意点</h2>
+      <p>テスト時に引っかかりやすいポイント</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="alert alert-warn">
+      <strong>⚠️ 店舗設定：テナントIDについて</strong>
+      「設定 → 店舗設定」の保存は、SupabaseのTENANT_IDがUUID形式（Vercelの環境変数に設定済み）であれば動作します。
+      「保存に失敗しました」と出た場合は、Vercelの環境変数 <code>TENANT_ID</code> の値を確認してください。
+    </div>
+
+    <div class="alert alert-warn">
+      <strong>⚠️ 勤怠修正：work_minutesは自動計算</strong>
+      DBの仕様で <code>work_minutes</code> は <code>clock_in</code> と <code>clock_out</code> から自動計算されます。
+      退勤時刻を入力していない（勤務中）場合、労働時間は表示されません。
+    </div>
+
+    <div class="alert alert-warn">
+      <strong>⚠️ Vercel Hobbyプラン：cronは1日1回</strong>
+      毎日23:30に日次レポート生成・LINE送信が実行されます。
+      リアルタイムではなく翌朝の確認になります。
+    </div>
+
+    <div class="alert alert-info">
+      <strong>ℹ️ ローカル開発環境について</strong>
+      手元で動かす場合は <code>.env.local</code> が必要です。
+      Vercelダッシュボード → Settings → Environment Variables から全変数を確認・コピーできます。
+    </div>
+  </div>
+</div>
+
+
+<!-- =========================================
+     セクション4：ロードマップ
+     ========================================= -->
+<div class="section" id="roadmap">
+  <div class="section-header">
+    <div class="section-icon" style="background:#e3f2fd;">🚀</div>
+    <div>
+      <h2>④ 今後の実装ロードマップ</h2>
+      <p>優先度順に並べた次のアクション</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🔴 優先度：高（現場で詰まってる課題）</h3>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-next"></div>
+      <div>
+        <div class="roadmap-title">Vercel GitHub自動連携</div>
+        <div class="roadmap-desc">毎回 <code>npx vercel --prod</code> せず、git push だけで本番反映されるよう設定。Vercelダッシュボードで「Connect Git Repository」を押すだけ。</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-next"></div>
+      <div>
+        <div class="roadmap-title">Supabase RLSの有効化（セキュリティ）</div>
+        <div class="roadmap-desc">現在はservice keyでRLSをバイパスしている状態。本格運用前にRow Level Securityを有効化してテナントデータの分離を保証する必要がある。</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-next"></div>
+      <div>
+        <div class="roadmap-title">売上データの自動取り込み</div>
+        <div class="roadmap-desc">Uber Eats・ロケットなう等のCSVを自動でインポートする仕組み。手動入力の負担を週1回のCSVアップロードに削減。（Excel/CSVアップロードは既存実装あり）</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:16px;">🟡 優先度：中（品質向上）</h3>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-future"></div>
+      <div>
+        <div class="roadmap-title">多店舗対応（マルチテナント）</div>
+        <div class="roadmap-desc">現在は1店舗固定（TENANT_ID環境変数）。2店舗目に展開する際にログイン → 店舗選択のフローが必要。</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-future"></div>
+      <div>
+        <div class="roadmap-title">スタッフ向けアプリ画面の整備</div>
+        <div class="roadmap-desc">現在スタッフはLINEで操作。打刻・シフト希望をWebからも行えるようにする（LINEが使えない状況の対応）。</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-future"></div>
+      <div>
+        <div class="roadmap-title">週次・月次サマリーレポートのLINE配信</div>
+        <div class="roadmap-desc">現在は毎日のレポートのみ。週・月のまとめを自動でオーナーLINEに送信する機能。</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-future"></div>
+      <div>
+        <div class="roadmap-title">onboarding（導入ページ）の更新</div>
+        <div class="roadmap-desc"><code>/onboarding</code> のページが古い状態。現在の機能に合わせた操作マニュアルに更新する。</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:16px;">🔵 優先度：低（将来の拡張）</h3>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-future"></div>
+      <div>
+        <div class="roadmap-title">食材コスト自動計算（レシピ管理）</div>
+        <div class="roadmap-desc">メニューごとの原価を登録し、注文数×原価でFLコストを自動計算する機能。</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-future"></div>
+      <div>
+        <div class="roadmap-title">Instagram/X 自動投稿（SNSエージェンシー連携）</div>
+        <div class="roadmap-desc">GOATのSNSエージェンシー事業と連携。日次売上データをもとにAIが投稿文を生成・自動投稿。</div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot dot-future"></div>
+      <div>
+        <div class="roadmap-title">売上予測AI</div>
+        <div class="roadmap-desc">過去データ・天気・曜日・イベントをもとに翌日売上を予測。仕込み量の最適化に活用。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- テストチェックリスト -->
+  <div class="card">
+    <h3>✅ テスト完了チェックリスト</h3>
+    <p style="font-size:13px;color:#888;margin-bottom:12px;">テスト後にこちらで進捗管理してください</p>
+    <table class="feature-table">
+      <thead><tr><th>テストID</th><th>項目</th><th>結果</th></tr></thead>
+      <tbody>
+        <tr><td>T-01</td><td>ナビ「もっと」ドロワー</td><td>□ OK　□ NG</td></tr>
+        <tr><td>T-02</td><td>ホームダッシュボード</td><td>□ OK　□ NG</td></tr>
+        <tr><td>T-03</td><td>PL損益</td><td>□ OK　□ NG</td></tr>
+        <tr><td>T-04</td><td>売上入力（4ステップ）</td><td>□ OK　□ NG</td></tr>
+        <tr><td>T-05</td><td>在庫管理</td><td>□ OK　□ NG</td></tr>
+        <tr><td>T-06</td><td>勤怠手動修正</td><td>□ OK　□ NG</td></tr>
+        <tr><td>T-07</td><td>設定（店舗・スタッフ・LINE）</td><td>□ OK　□ NG</td></tr>
+        <tr><td>T-08</td><td>給与計算</td><td>□ OK　□ NG</td></tr>
+        <tr><td>T-09</td><td>口コミ誘導フロー</td><td>□ OK　□ NG</td></tr>
+        <tr><td>T-10</td><td>注文管理（リアルタイム）</td><td>□ OK　□ NG</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<footer>
+  GOAT Restaurant OS — Test Guide v1.0<br>
+  作成：GOAT Agent（Claude Sonnet 4.6）／ 2026-04-20<br>
+  対象バージョン：<code>d8b1690</code> ／ 本番URL：goat-restaurant-os.vercel.app
+</footer>
+
+</body>
+</html>

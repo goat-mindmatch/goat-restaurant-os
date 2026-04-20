@@ -37,7 +37,7 @@ async function sendEmail(to: string, subject: string, text: string): Promise<boo
   }
 }
 
-/** 発注メッセージ本文を生成 */
+/** 発注メッセージ本文を生成（ビジネス文書形式） */
 function buildOrderMessage(
   tenantName: string,
   supplierName: string,
@@ -46,23 +46,45 @@ function buildOrderMessage(
   totalAmount: number | null,
   note: string | null,
 ): string {
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('ja-JP', {
+    year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
+    timeZone: 'Asia/Tokyo',
+  })
+
   const itemList = items.map(it => {
-    const price = it.unit_price ? `（@¥${it.unit_price.toLocaleString()}）` : ''
-    return `・${it.name}　${it.quantity}${it.unit}${price}`
+    const price = it.unit_price ? `　（@¥${it.unit_price.toLocaleString()}）` : ''
+    return `　・${it.name}　${it.quantity}${it.unit}${price}`
   }).join('\n')
 
-  const delivery = deliveryDate ? `\n配達希望日: ${deliveryDate}` : ''
-  const total = totalAmount ? `\n\n合計金額: ¥${totalAmount.toLocaleString()}` : ''
-  const noteText = note ? `\n\n備考: ${note}` : ''
+  const deliveryLine = deliveryDate
+    ? `\n配達希望日：${deliveryDate.replace(/-/g, '年').replace(/-/, '月') + '日'}\n`
+    : ''
+  const totalLine = totalAmount
+    ? `\nご請求合計：¥${totalAmount.toLocaleString()}（税込）\n`
+    : ''
+  const noteLine = note ? `\n【備考】\n${note}\n` : ''
 
-  return `【発注のお願い】
-${tenantName}より、下記の通り発注させていただきます。
+  return `${supplierName} 御中
 
-━━━━━━━━━━━━━━
+お世話になっております。
+${tenantName}でございます。
+
+下記の通り、発注をお願いできますでしょうか。
+お手数をおかけいたしますが、ご確認・ご手配のほどよろしくお願いいたします。
+
+━━━━━━━━━━━━━━━━━━━━
+【発注内容】
 ${itemList}
-━━━━━━━━━━━━━━${delivery}${total}${noteText}
+━━━━━━━━━━━━━━━━━━━━
+${deliveryLine}${totalLine}${noteLine}
+発注日：${dateStr}
 
-お手数ですが、ご確認のほどよろしくお願いいたします。`
+以上、どうぞよろしくお願いいたします。
+
+──────────────────────
+${tenantName}
+──────────────────────`
 }
 
 export async function POST(req: NextRequest) {

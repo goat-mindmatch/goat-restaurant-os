@@ -206,7 +206,7 @@ export default function MenuOrdersClient({
   }, [])
 
   useEffect(() => {
-    const pollId    = setInterval(poll, 20000)
+    const pollId    = setInterval(poll, 10000)
     const secondsId = setInterval(() => setSecondsSince(s => s + 1), 1000)
     return () => {
       clearInterval(pollId)

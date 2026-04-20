@@ -394,10 +394,25 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
               <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
                 <p className="font-semibold text-gray-700 mb-1">入力内容の確認</p>
                 <p>📅 {date}</p>
-                {storeSales && <p>🏠 店内: ¥{Number(storeSales).toLocaleString()}（{storeOrders}件）</p>}
-                {uberSales && <p>🟢 Uber: ¥{Number(uberSales).toLocaleString()}</p>}
-                {rocketnowSales && <p>🚀 ロケットなう: ¥{Number(rocketnowSales).toLocaleString()}</p>}
+                {storeSales && (
+                  <p>🏠 店内: ¥{Number(storeSales).toLocaleString()}
+                    {storeOrders ? `（${storeOrders}件）` : ''}
+                    {lunchSales ? ` ☀️昼¥${Number(lunchSales).toLocaleString()}` : ''}
+                    {dinnerSales ? ` 🌙夜¥${Number(dinnerSales).toLocaleString()}` : ''}
+                  </p>
+                )}
+                {uberSales && <p>🟢 Uber Eats: ¥{Number(uberSales).toLocaleString()}{uberOrders ? `（${uberOrders}件）` : ''}</p>}
+                {rocketnowSales && <p>🚀 ロケットなう: ¥{Number(rocketnowSales).toLocaleString()}{rocketnowOrders ? `（${rocketnowOrders}件）` : ''}</p>}
+                {menuSales && <p>🔴 menu: ¥{Number(menuSales).toLocaleString()}{menuOrders ? `（${menuOrders}件）` : ''}</p>}
                 {foodCost && <p>🥩 食材費: ¥{Number(foodCost).toLocaleString()}</p>}
+                <p className="font-semibold text-gray-800 border-t pt-1 mt-1">
+                  合計: ¥{(
+                    (Number(storeSales) || 0) +
+                    (Number(uberSales) || 0) +
+                    (Number(rocketnowSales) || 0) +
+                    (Number(menuSales) || 0)
+                  ).toLocaleString()}
+                </p>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setManualStep(3)}
