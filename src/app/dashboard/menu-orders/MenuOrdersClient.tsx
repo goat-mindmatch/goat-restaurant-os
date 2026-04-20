@@ -178,8 +178,35 @@ export default function MenuOrdersClient({
   const newOrderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const undoTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
   const undoCountRef     = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 直近5分の注文タイムスタンプ（件数カウント用）
+  const recentOrderTimesRef = useRef<number[]>([])
+  const [pollInterval, setPollInterval] = useState(20000)
 
-  // ポーリング（20秒）
+  /**
+   * ダイナミックポーリング間隔を計算
+   * - 直近5分の注文数 × 時間帯で決定
+   *   ≥5件 → 5秒（激混み）
+   *   ≥2件 → 10秒（混み）
+   *   ピーク時間帯（11-14 / 17-21）かつ0件 → 20秒
+   *   オフピーク 0件 → 45秒
+   */
+  const calcInterval = useCallback((): number => {
+    const now = Date.now()
+    const fiveMin = 5 * 60 * 1000
+    // 5分以内の注文だけ残す
+    recentOrderTimesRef.current = recentOrderTimesRef.current.filter(t => now - t < fiveMin)
+    const recentCount = recentOrderTimesRef.current.length
+
+    if (recentCount >= 5) return 5000
+    if (recentCount >= 2) return 10000
+
+    const hour = new Date().getHours()
+    const isPeak = (hour >= 11 && hour < 14) || (hour >= 17 && hour < 21)
+    return isPeak ? 20000 : 45000
+  }, [])
+
+  // ポーリング（ダイナミック間隔）
   const poll = useCallback(async () => {
     try {
       const res = await fetch('/api/menu/orders')
@@ -193,6 +220,9 @@ export default function MenuOrdersClient({
         const prevIds = new Set(prev.map(o => o.id))
         const newItems = fetched.filter(o => !prevIds.has(o.id))
         if (newItems.length > 0) {
+          // 新着注文のタイムスタンプを記録（ダイナミック調整用）
+          const now = Date.now()
+          recentOrderTimesRef.current.push(...newItems.map(() => now))
           if (newOrderTimerRef.current) clearTimeout(newOrderTimerRef.current)
           setNewOrderToast(true)
           newOrderTimerRef.current = setTimeout(() => setNewOrderToast(false), 3000)
@@ -205,17 +235,33 @@ export default function MenuOrdersClient({
     }
   }, [])
 
+  // ダイナミックポーリングループ（setInterval ではなく setTimeout を再帰的に使う）
   useEffect(() => {
-    const pollId    = setInterval(poll, 10000)
+    let cancelled = false
+
+    const tick = async () => {
+      if (cancelled) return
+      await poll()
+      const next = calcInterval()
+      setPollInterval(next)
+      if (!cancelled) {
+        pollTimerRef.current = setTimeout(tick, next)
+      }
+    }
+
+    // 初回は即座に実行
+    tick()
     const secondsId = setInterval(() => setSecondsSince(s => s + 1), 1000)
+
     return () => {
-      clearInterval(pollId)
+      cancelled = true
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
       clearInterval(secondsId)
       if (newOrderTimerRef.current) clearTimeout(newOrderTimerRef.current)
       if (undoTimerRef.current)     clearTimeout(undoTimerRef.current)
       if (undoCountRef.current)     clearInterval(undoCountRef.current)
     }
-  }, [poll])
+  }, [poll, calcInterval])
 
   // Undoセット（5秒カウントダウン）
   const startUndo = (orderId: string, type: 'served' | 'cancel', order: CustomerOrder) => {
@@ -289,9 +335,20 @@ export default function MenuOrdersClient({
         </div>
       )}
 
-      {/* 最終更新時刻バー */}
+      {/* 最終更新時刻バー（ダイナミック間隔を表示） */}
       <div className="flex justify-between items-center text-xs text-gray-400 px-1">
-        <span>🔄 20秒ごと自動更新</span>
+        <span className={
+          pollInterval <= 5000  ? 'text-red-500 font-semibold' :
+          pollInterval <= 10000 ? 'text-orange-500 font-semibold' :
+          'text-gray-400'
+        }>
+          🔄 {
+            pollInterval <= 5000  ? '5秒更新（激混み）' :
+            pollInterval <= 10000 ? '10秒更新（混み）' :
+            pollInterval <= 20000 ? '20秒更新（ピーク帯）' :
+            '45秒更新（待機中）'
+          }
+        </span>
         <span className={connectionError ? 'text-red-400' : ''}>
           {connectionError ? '⚠️ 更新停止中' : `最終更新: ${updatedText}`}
         </span>
