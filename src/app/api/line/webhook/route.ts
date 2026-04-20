@@ -89,13 +89,19 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '本日の売上', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '本日の売上', '売上入力', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb as any).from('line_sessions').delete().eq('line_user_id', userId)
   } else {
-    // メニュー以外 → シフト希望入力待ちチェック（旧テキスト式フロー用）
+    // 売上入力フロー（数字入力中）
+    const salesSession = await getSalesSession(userId)
+    if (salesSession) {
+      await handleSalesInput(userId, text, salesSession)
+      return
+    }
+    // シフト希望入力待ちチェック
     const shiftSession = await getShiftSession(userId)
     if (shiftSession === 'awaiting_shift_dates') {
       await handleShiftDatesInput(userId, text)
@@ -141,6 +147,9 @@ async function handleEvent(event: LineEvent) {
       break
     case '本日の売上':
       await handleTodaySales(userId)
+      break
+    case '売上入力':
+      await handleSalesInputStart(userId)
       break
     case '経営メニューへ切替':
       await handleMenuSwitch(userId, 'manager')
@@ -980,6 +989,160 @@ async function handleTodaySales(lineUserId: string) {
     monthLine +
     `\n\n詳細はダッシュボードで確認できます👇\nhttps://goat-restaurant-os.vercel.app/dashboard`
   )
+}
+
+// ================================
+// 売上入力フロー（経営者向け）
+// ================================
+
+type SalesMeta = {
+  date: string
+  store_sales?: number
+  uber_sales?: number
+  rocketnow_sales?: number
+}
+
+// セッション取得
+async function getSalesSession(lineUserId: string): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+  const { data } = await db.from('line_sessions')
+    .select('state')
+    .eq('line_user_id', lineUserId)
+    .in('state', ['awaiting_sales_store', 'awaiting_sales_uber', 'awaiting_sales_rocketnow'])
+    .single()
+  return data ? data.state : null
+}
+
+// フロー開始
+async function handleSalesInputStart(lineUserId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+
+  // 経営者チェック
+  const { data: staff } = await db.from('staff')
+    .select('role').eq('tenant_id', TENANT_ID).eq('line_user_id', lineUserId).single()
+  if (!staff || staff.role !== 'manager') {
+    await sendLineMessage(lineUserId, '⚠️ このコマンドは経営者専用です。')
+    return
+  }
+
+  const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
+    .toISOString().split('T')[0]
+
+  // セッション作成
+  await db.from('line_sessions').upsert({
+    line_user_id: lineUserId,
+    state: 'awaiting_sales_store',
+    meta: JSON.stringify({ date: today }),
+    created_at: new Date().toISOString(),
+  })
+
+  const dateLabel = today.replace(/-/g, '/').slice(5) // "04/20"
+  await sendLineMessage(lineUserId,
+    `📝 ${dateLabel}の売上を入力します\n\n` +
+    `━━━━━━━━━━━━\n` +
+    `①店内売上（円）を入力してください\n\n` +
+    `例：85000\n` +
+    `ない場合は「0」\n` +
+    `━━━━━━━━━━━━\n` +
+    `❌ キャンセルは「キャンセル」`)
+}
+
+// 数値入力処理
+async function handleSalesInput(lineUserId: string, text: string, state: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+
+  if (text === 'キャンセル') {
+    await db.from('line_sessions').delete().eq('line_user_id', lineUserId)
+    await sendLineMessage(lineUserId, '❌ 売上入力をキャンセルしました。')
+    return
+  }
+
+  // 数字以外はエラー
+  const num = parseInt(text.replace(/[,，¥￥円]/g, ''), 10)
+  if (isNaN(num) || num < 0) {
+    await sendLineMessage(lineUserId,
+      '⚠️ 数字で入力してください（例：85000）\nキャンセルは「キャンセル」')
+    return
+  }
+
+  // セッションからmeta取得
+  const { data: sessionData } = await db.from('line_sessions')
+    .select('meta').eq('line_user_id', lineUserId).single()
+  const meta: SalesMeta = sessionData?.meta ? JSON.parse(sessionData.meta) : { date: new Date().toISOString().split('T')[0] }
+
+  if (state === 'awaiting_sales_store') {
+    meta.store_sales = num
+    await db.from('line_sessions').update({
+      state: 'awaiting_sales_uber',
+      meta: JSON.stringify(meta),
+    }).eq('line_user_id', lineUserId)
+
+    await sendLineMessage(lineUserId,
+      `✅ 店内売上：¥${num.toLocaleString()}\n\n` +
+      `━━━━━━━━━━━━\n` +
+      `②Uber Eats売上（円）は？\n\n` +
+      `例：32000\nなければ「0」\n` +
+      `━━━━━━━━━━━━`)
+
+  } else if (state === 'awaiting_sales_uber') {
+    meta.uber_sales = num
+    await db.from('line_sessions').update({
+      state: 'awaiting_sales_rocketnow',
+      meta: JSON.stringify(meta),
+    }).eq('line_user_id', lineUserId)
+
+    await sendLineMessage(lineUserId,
+      `✅ Uber Eats：¥${num.toLocaleString()}\n\n` +
+      `━━━━━━━━━━━━\n` +
+      `③ロケットなう売上（円）は？\n\n` +
+      `例：12000\nなければ「0」\n` +
+      `━━━━━━━━━━━━`)
+
+  } else if (state === 'awaiting_sales_rocketnow') {
+    meta.rocketnow_sales = num
+
+    // セッション削除
+    await db.from('line_sessions').delete().eq('line_user_id', lineUserId)
+
+    // 集計
+    const storeSales     = meta.store_sales     ?? 0
+    const uberSales      = meta.uber_sales      ?? 0
+    const rocketnowSales = meta.rocketnow_sales ?? 0
+    const deliverySales  = uberSales + rocketnowSales
+    const totalSales     = storeSales + deliverySales
+
+    // daily_sales に保存
+    const { error } = await db.from('daily_sales').upsert({
+      tenant_id:        TENANT_ID,
+      date:             meta.date,
+      store_sales:      storeSales,
+      uber_sales:       uberSales,
+      rocketnow_sales:  rocketnowSales,
+      delivery_sales:   deliverySales,
+      total_sales:      totalSales,
+      data_source:      'line',
+      updated_at:       new Date().toISOString(),
+    }, { onConflict: 'tenant_id,date' })
+
+    if (error) {
+      await sendLineMessage(lineUserId, `⚠️ 保存に失敗しました。\n${error.message}`)
+      return
+    }
+
+    const dateLabel = meta.date.replace(/-/g, '/').slice(5)
+    await sendLineMessage(lineUserId,
+      `✅ ${dateLabel}の売上を保存しました！\n\n` +
+      `━━━━━━━━━━━━\n` +
+      `🏪 店内：¥${storeSales.toLocaleString()}\n` +
+      `🛵 Uber：¥${uberSales.toLocaleString()}\n` +
+      `🚀 ロケットなう：¥${rocketnowSales.toLocaleString()}\n` +
+      `━━━━━━━━━━━━\n` +
+      `💴 合計：¥${totalSales.toLocaleString()}\n\n` +
+      `ダッシュボードに反映されました👇\nhttps://goat-restaurant-os.vercel.app/dashboard`)
+  }
 }
 
 // ================================
