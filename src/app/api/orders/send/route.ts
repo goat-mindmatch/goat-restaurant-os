@@ -12,11 +12,18 @@ import { createServiceClient } from '@/lib/supabase'
 
 const TENANT_ID = process.env.TENANT_ID!
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY
-const FROM_EMAIL = process.env.FROM_EMAIL ?? 'order@goat-restaurant-os.vercel.app'
+const FROM_EMAIL = process.env.FROM_EMAIL ?? ''
 
 /** SendGrid REST API 経由でメール送信 */
-async function sendEmail(to: string, subject: string, text: string): Promise<boolean> {
-  if (!SENDGRID_API_KEY) return false
+async function sendEmail(
+  to: string, subject: string, text: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!SENDGRID_API_KEY) {
+    return { ok: false, error: 'SENDGRID_API_KEY が Vercel 環境変数に未設定' }
+  }
+  if (!FROM_EMAIL) {
+    return { ok: false, error: 'FROM_EMAIL が Vercel 環境変数に未設定' }
+  }
   try {
     const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
@@ -26,14 +33,16 @@ async function sendEmail(to: string, subject: string, text: string): Promise<boo
       },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: to }] }],
-        from: { email: FROM_EMAIL, name: '人類みなまぜそば' },
+        from: { email: FROM_EMAIL },
         subject,
         content: [{ type: 'text/plain', value: text }],
       }),
     })
-    return res.status === 202
-  } catch {
-    return false
+    if (res.status === 202) return { ok: true }
+    const detail = await res.text()
+    return { ok: false, error: `SendGrid ${res.status}: ${detail}` }
+  } catch (e) {
+    return { ok: false, error: String(e) }
   }
 }
 
@@ -124,12 +133,15 @@ export async function POST(req: NextRequest) {
     }
 
     let emailSent = false
+    let emailError: string | null = null
     let lineSent = false
 
     // メール送信（email or both）
     if (supplierEmail && (contactMethod === 'email' || contactMethod === 'both')) {
       const subject = `【発注】${order.supplier_name} 宛 — ${new Date().toLocaleDateString('ja-JP')}`
-      emailSent = await sendEmail(supplierEmail, subject, message)
+      const result = await sendEmail(supplierEmail, subject, message)
+      emailSent = result.ok
+      emailError = result.error ?? null
     }
 
     // 管理者にLINE通知（常に実施）
@@ -160,6 +172,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       message,
       email_sent: emailSent,
+      email_error: emailError,
       line_notified: lineSent,
       supplier: {
         name: order.supplier_name,

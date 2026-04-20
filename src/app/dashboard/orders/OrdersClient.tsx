@@ -39,7 +39,7 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
   const [newSupEmail, setNewSupEmail]         = useState('')
   const [newSupContactMethod, setNewSupContactMethod] = useState<'line' | 'email' | 'both'>('line')
   const [sendText, setSendText] = useState<string | null>(null)
-  const [sendResult, setSendResult] = useState<{ email_sent: boolean; supplier_email: string | null; contact_method: string } | null>(null)
+  const [sendResult, setSendResult] = useState<{ email_sent: boolean; email_error?: string | null; supplier_email: string | null; contact_method: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [showNewOrder, setShowNewOrder] = useState(false)
 
@@ -122,12 +122,14 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
       const data = await res.json() as {
         message: string
         email_sent: boolean
+        email_error?: string | null
         line_notified: boolean
         supplier: { name: string; email: string | null; contact_method: string }
       }
       setSendText(data.message)
       setSendResult({
         email_sent: data.email_sent,
+        email_error: data.email_error ?? null,
         supplier_email: data.supplier?.email ?? null,
         contact_method: data.supplier?.contact_method ?? 'line',
       })
@@ -468,7 +470,11 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
                 <h3 className="font-bold text-gray-800">📤 発注メッセージ</h3>
                 {sendResult?.email_sent ? (
                   <p className="text-xs text-green-600 font-semibold mt-0.5">
-                    ✅ {sendResult.supplier_email} へメール送信済み
+                    ✅ {sendResult.supplier_email} へ自動送信しました
+                  </p>
+                ) : sendResult?.email_error ? (
+                  <p className="text-xs text-red-500 mt-0.5">
+                    ⚠️ メール未送信: {sendResult.email_error}
                   </p>
                 ) : sendResult?.supplier_email && sendResult.contact_method !== 'line' ? (
                   <p className="text-xs text-red-500 mt-0.5">

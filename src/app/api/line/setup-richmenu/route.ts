@@ -50,7 +50,7 @@ const STAFF_RICH_MENU = {
       action: {
         type: 'uri',
         label: 'シフト希望提出',
-        uri: `${BASE_URL}/shift-form?uid={userId}`,
+        uri: `${BASE_URL}/shift-form`,
       },
     },
     // 下段左: 口コミ誘導（お客様に見せる）
@@ -59,7 +59,7 @@ const STAFF_RICH_MENU = {
       action: {
         type: 'uri',
         label: '口コミを書く',
-        uri: `${BASE_URL}/review?uid={userId}`,
+        uri: `${BASE_URL}/review`,
       },
     },
     // 下段中: 発注依頼
@@ -68,7 +68,7 @@ const STAFF_RICH_MENU = {
       action: {
         type: 'uri',
         label: '発注依頼',
-        uri: `${BASE_URL}/order-form?uid={userId}`,
+        uri: `${BASE_URL}/order-form`,
       },
     },
     // 下段右: シフト確認
