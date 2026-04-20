@@ -260,6 +260,13 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
             ))
           )}
         </div>
+        {/* 手動打刻修正リンク */}
+        <a
+          href="/dashboard/shifts"
+          className="mt-2 w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-orange-500 py-1 transition-colors"
+        >
+          ✏️ 打刻を手動修正する →
+        </a>
       </Section>
 
       {/* クイックリンク */}

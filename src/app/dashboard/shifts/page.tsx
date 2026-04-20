@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 import { createServiceClient } from '@/lib/supabase'
 import DashboardNav from '@/components/DashboardNav'
 import ShiftsPageClient from './ShiftsPageClient'
+import AttendanceClient from './AttendanceClient'
 
 const TENANT_ID = process.env.TENANT_ID!
 
@@ -95,6 +96,9 @@ export default async function ShiftsPage({
         shiftMap={data.shiftMap}
         notSubmitted={data.notSubmitted}
       />
+
+      {/* 勤怠手動修正（打刻忘れ対応） */}
+      <AttendanceClient staffList={data.staffList} />
 
       <DashboardNav current="/dashboard/shifts" />
     </main>
