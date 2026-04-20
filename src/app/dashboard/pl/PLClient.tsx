@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 type PLData = {
   month: string
   revenue: {
     store: number
     delivery: number
+    table: number
     total: number
   }
   costs: {
@@ -24,6 +26,8 @@ type PLData = {
   operatingProfit: number
   flRatio: number | null
   expenses: ExpenseRow[]
+  payrollBreakdown: Array<{ name: string; total: number }>
+  laborSource: 'manual' | 'payroll' | 'none'
 }
 
 type ExpenseRow = {
@@ -74,8 +78,24 @@ function BarRow({ label, amount, total, color }: { label: string; amount: number
   )
 }
 
-export default function PLClient({ data }: { data: PLData }) {
+export default function PLClient({ data, currentMonth }: { data: PLData; currentMonth: string }) {
+  const router = useRouter()
   const [showExpenses, setShowExpenses] = useState(false)
+  const [showPayroll, setShowPayroll] = useState(false)
+
+  // 月ナビゲーション
+  const prevMonth = () => {
+    const [y, m] = data.month.split('-').map(Number)
+    const d = new Date(y, m - 2, 1)
+    router.push(`/dashboard/pl?month=${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+  const nextMonth = () => {
+    const [y, m] = data.month.split('-').map(Number)
+    const d = new Date(y, m, 1)
+    const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    if (next <= currentMonth) router.push(`/dashboard/pl?month=${next}`)
+  }
+  const isCurrentMonth = data.month === currentMonth
   const [addForm, setAddForm] = useState(false)
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -135,6 +155,25 @@ export default function PLClient({ data }: { data: PLData }) {
   return (
     <div className="pb-28">
 
+      {/* 月ナビゲーション */}
+      <div className="mx-4 mt-4 flex items-center justify-between bg-white rounded-xl px-4 py-3 shadow-sm">
+        <button
+          onClick={prevMonth}
+          className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-lg active:scale-95 transition-transform"
+        >‹</button>
+        <div className="text-center">
+          <p className="text-base font-bold text-gray-900">{data.month}</p>
+          {isCurrentMonth && (
+            <p className="text-[10px] text-orange-500 font-semibold">今月</p>
+          )}
+        </div>
+        <button
+          onClick={nextMonth}
+          disabled={isCurrentMonth}
+          className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-lg disabled:opacity-30 active:scale-95 transition-transform"
+        >›</button>
+      </div>
+
       {/* ═══════════════════════════════════════════
           ★ 今月の手残り（最優先表示）
       ═══════════════════════════════════════════ */}
@@ -181,9 +220,14 @@ export default function PLClient({ data }: { data: PLData }) {
         <div className="bg-white rounded-xl p-4 shadow-sm col-span-2">
           <p className="text-xs text-gray-400">売上合計</p>
           <p className="text-3xl font-bold text-gray-900">¥{data.revenue.total.toLocaleString()}</p>
-          <div className="flex gap-3 mt-1 text-xs text-gray-500">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-gray-500">
             <span>店内 ¥{data.revenue.store.toLocaleString()}</span>
             <span>デリバリー ¥{data.revenue.delivery.toLocaleString()}</span>
+            {data.revenue.table > 0 && (
+              <span className="text-orange-600 font-semibold">
+                テーブル注文 ¥{data.revenue.table.toLocaleString()}
+              </span>
+            )}
           </div>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm">
@@ -206,7 +250,40 @@ export default function PLClient({ data }: { data: PLData }) {
       <div className="mx-4 mt-4 bg-white rounded-xl shadow-sm p-4">
         <h2 className="text-sm font-bold text-gray-700 mb-3">費用内訳</h2>
         <BarRow label="食材費 (F)" amount={data.costs.food}      total={data.revenue.total} color="bg-orange-400" />
-        <BarRow label="人件費 (L)" amount={data.costs.labor}     total={data.revenue.total} color="bg-blue-400" />
+        <div>
+          <BarRow label="人件費 (L)" amount={data.costs.labor}   total={data.revenue.total} color="bg-blue-400" />
+          {/* 人件費ソース バッジ */}
+          <div className="flex items-center gap-2 mb-1">
+            {data.laborSource === 'payroll' && (
+              <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                📊 給与システムより自動計算
+              </span>
+            )}
+            {data.laborSource === 'manual' && (
+              <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-semibold">
+                ✏️ 手入力値を使用
+              </span>
+            )}
+            {data.payrollBreakdown.length > 0 && (
+              <button
+                onClick={() => setShowPayroll(!showPayroll)}
+                className="text-[10px] text-blue-600 underline"
+              >
+                {showPayroll ? '▲ 閉じる' : '▼ スタッフ別'}
+              </button>
+            )}
+          </div>
+          {showPayroll && data.payrollBreakdown.length > 0 && (
+            <div className="bg-blue-50 rounded-lg px-3 py-2 mb-2 space-y-1">
+              {data.payrollBreakdown.map(p => (
+                <div key={p.name} className="flex justify-between text-xs text-blue-800">
+                  <span>{p.name}</span>
+                  <span className="font-semibold">¥{p.total.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <BarRow label="光熱費"     amount={data.costs.utility}   total={data.revenue.total} color="bg-yellow-400" />
         <BarRow label="消耗品"     amount={data.costs.consumable} total={data.revenue.total} color="bg-green-400" />
         <BarRow label="家賃・固定費"
@@ -224,6 +301,9 @@ export default function PLClient({ data }: { data: PLData }) {
           <PLRow label="売上合計" amount={data.revenue.total} bold />
           <PLRow label="  └ 店内売上"      amount={data.revenue.store}    sub />
           <PLRow label="  └ デリバリー売上" amount={data.revenue.delivery} sub />
+          {data.revenue.table > 0 && (
+            <PLRow label="  └ テーブル注文" amount={data.revenue.table} sub />
+          )}
           <div className="border-t border-dashed my-2" />
           <PLRow label="食材費"     amount={-data.costs.food} />
           <PLRow label="人件費"     amount={-data.costs.labor} />

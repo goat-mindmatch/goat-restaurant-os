@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         .lte('date', lastDay)
         .order('date'),
       db.from('fixed_costs')
-        .select('category, amount, label')
+        .select('category, amount, name')
         .eq('tenant_id', TENANT_ID)
         .eq('is_active', true),
     ])
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
       ['', '', ''],
       ['【固定費】', '', ''],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ...fixedCosts.map((f: any) => [`  ${f.label ?? f.category}`, f.amount, '']),
+      ...fixedCosts.map((f: any) => [`  ${f.name ?? f.category}`, f.amount, '']),
       ['固定費合計', fixedTotal, ''],
       ['', '', ''],
       ['営業利益', operatingProfit, `${totalSales > 0 ? Math.round((operatingProfit / totalSales) * 100) : 0}%`],
