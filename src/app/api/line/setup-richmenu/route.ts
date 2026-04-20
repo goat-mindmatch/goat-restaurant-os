@@ -53,14 +53,10 @@ const STAFF_RICH_MENU = {
         uri: `${BASE_URL}/shift-form`,
       },
     },
-    // 下段左: 口コミ誘導（お客様に見せる）
+    // 下段左: 経営メニューへ切り替え（経営者のみ有効）
     {
       bounds: { x: C[0], y: R[1], width: W[0], height: H },
-      action: {
-        type: 'uri',
-        label: '口コミを書く',
-        uri: `${BASE_URL}/review`,
-      },
+      action: { type: 'message', label: '経営メニューへ', text: '経営メニューへ切替' },
     },
     // 下段中: 発注依頼
     {
@@ -111,10 +107,10 @@ const MANAGER_RICH_MENU = {
         uri: `${BASE_URL}/dashboard/shifts`,
       },
     },
-    // 下段左: 人件費率リアルタイム
+    // 下段左: スタッフメニューへ切り替え
     {
       bounds: { x: C[0], y: R[1], width: W[0], height: H },
-      action: { type: 'message', label: '人件費率', text: '人件費率' },
+      action: { type: 'message', label: 'スタッフメニューへ', text: 'スタッフメニューへ切替' },
     },
     // 下段中: 発注状況確認
     {

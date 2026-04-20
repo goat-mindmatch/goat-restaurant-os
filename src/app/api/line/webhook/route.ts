@@ -89,7 +89,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '経営メニューへ切替', 'スタッフメニューへ切替']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,6 +138,12 @@ async function handleEvent(event: LineEvent) {
     case 'クーポン':
       await sendLineMessage(userId,
         `🔍 クーポン検証ページです。\n\nお客様の検証コードを入力して承認してください👇\nhttps://goat-restaurant-os.vercel.app/verify?uid=${userId}\n\n💡 ブックマークしておくと便利です。`)
+      break
+    case '経営メニューへ切替':
+      await handleMenuSwitch(userId, 'manager')
+      break
+    case 'スタッフメニューへ切替':
+      await handleMenuSwitch(userId, 'staff')
       break
     case '管理メニュー':
       await handleAdminMenu(userId)
@@ -786,6 +792,62 @@ JSONのみを返してください。前後の説明は不要です。`,
       lineUserId,
       '⚠️ レシードの読み取りに失敗しました。\n再度送信するか、手動でダッシュボードから入力してください。'
     )
+  }
+}
+
+// ================================
+// リッチメニュー切り替え
+// ================================
+async function handleMenuSwitch(lineUserId: string, to: 'staff' | 'manager') {
+  const token = process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN!
+  const h = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+
+  // ユーザーのroleを確認
+  const { data: staff } = await db.from('staff')
+    .select('name, role')
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId)
+    .single()
+
+  // 経営者以外が「経営メニューへ」を押した場合は弾く
+  if (to === 'manager' && staff?.role !== 'manager') {
+    await sendLineMessage(lineUserId,
+      '⚠️ このメニューは経営者専用です。\nご不明な場合は管理者にお問い合わせください。')
+    return
+  }
+
+  // メニュー一覧からIDを取得
+  const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers: h })
+  if (!listRes.ok) {
+    await sendLineMessage(lineUserId, '⚠️ メニューの切り替えに失敗しました。')
+    return
+  }
+  const listData = await listRes.json() as { richmenus: { richMenuId: string; name: string }[] }
+  const menus = listData.richmenus ?? []
+
+  const targetName = to === 'manager' ? 'GOAT Manager Menu v2' : 'GOAT Staff Menu v3'
+  const targetMenu = menus.find(m => m.name === targetName)
+
+  if (!targetMenu) {
+    await sendLineMessage(lineUserId, '⚠️ メニューが見つかりませんでした。管理者に設定を依頼してください。')
+    return
+  }
+
+  // 個人のメニューを切り替え
+  const switchRes = await fetch(
+    `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${targetMenu.richMenuId}`,
+    { method: 'POST', headers: h }
+  )
+
+  if (switchRes.ok) {
+    const label = to === 'manager' ? '経営者' : 'スタッフ'
+    const name = staff?.name ? `${staff.name}さん、` : ''
+    await sendLineMessage(lineUserId,
+      `✅ ${name}${label}メニューに切り替えました！\nLINEを一度閉じて開き直すと反映されます。`)
+  } else {
+    await sendLineMessage(lineUserId, '⚠️ メニューの切り替えに失敗しました。時間をおいて再度お試しください。')
   }
 }
 
