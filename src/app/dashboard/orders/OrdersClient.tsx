@@ -34,8 +34,10 @@ const STATUS_LABEL: Record<string, { text: string; color: string }> = {
 export default function OrdersClient({ orders: initialOrders, suppliers }: { orders: Order[]; suppliers: Supplier[] }) {
   const [orders, setOrders] = useState(initialOrders)
   const [showSupplierForm, setShowSupplierForm] = useState(false)
-  const [newSupName, setNewSupName] = useState('')
-  const [newSupContact, setNewSupContact] = useState('')
+  const [newSupName, setNewSupName]           = useState('')
+  const [newSupContact, setNewSupContact]     = useState('')
+  const [newSupEmail, setNewSupEmail]         = useState('')
+  const [newSupContactMethod, setNewSupContactMethod] = useState<'line' | 'email' | 'both'>('line')
   const [sendText, setSendText] = useState<string | null>(null)
   const [sendResult, setSendResult] = useState<{ email_sent: boolean; supplier_email: string | null; contact_method: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -61,12 +63,21 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
     const res = await fetch('/api/suppliers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newSupName, contact_type: 'line', contact_value: newSupContact }),
+      body: JSON.stringify({
+        name:           newSupName.trim(),
+        contact_type:   newSupContactMethod,
+        contact_value:  newSupContact.trim(),
+        email:          newSupEmail.trim() || null,
+        contact_method: newSupContactMethod,
+      }),
     })
     if (res.ok) {
-      setNewSupName(''); setNewSupContact('')
+      setNewSupName(''); setNewSupContact(''); setNewSupEmail(''); setNewSupContactMethod('line')
       toast('✅ 取引先を追加しました')
       setTimeout(() => window.location.reload(), 600)
+    } else {
+      const d = await res.json() as { error?: string }
+      toast(`❌ ${d.error ?? '追加に失敗しました'}`)
     }
   }
 
@@ -365,23 +376,81 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
           </button>
         </div>
         {showSupplierForm && (
-          <div className="space-y-2 mb-3 pb-3 border-b">
-            <input type="text" placeholder="業者名" value={newSupName} onChange={e => setNewSupName(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm" />
-            <input type="text" placeholder="LINE ID / 電話番号" value={newSupContact} onChange={e => setNewSupContact(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm" />
+          <div className="space-y-3 mb-3 pb-3 border-b">
+            {/* 業者名 */}
+            <div>
+              <label className="text-xs text-gray-500 mb-0.5 block">業者名 <span className="text-red-400">*</span></label>
+              <input type="text" placeholder="例：○○食品" value={newSupName} onChange={e => setNewSupName(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+
+            {/* 連絡方法 */}
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">連絡方法</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(['line', 'email', 'both'] as const).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setNewSupContactMethod(m)}
+                    className={`py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                      newSupContactMethod === m
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-white text-gray-500 border-gray-200'
+                    }`}
+                  >
+                    {m === 'line' ? '💬 LINE' : m === 'email' ? '📧 メール' : '両方'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* LINE ID / 電話番号（LINE・両方の場合） */}
+            {(newSupContactMethod === 'line' || newSupContactMethod === 'both') && (
+              <div>
+                <label className="text-xs text-gray-500 mb-0.5 block">LINE ID / 電話番号</label>
+                <input type="text" placeholder="例：@supplier123 / 06-XXXX-XXXX" value={newSupContact}
+                  onChange={e => setNewSupContact(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              </div>
+            )}
+
+            {/* メールアドレス（メール・両方の場合） */}
+            {(newSupContactMethod === 'email' || newSupContactMethod === 'both') && (
+              <div>
+                <label className="text-xs text-gray-500 mb-0.5 block">メールアドレス <span className="text-red-400">*</span></label>
+                <input type="email" placeholder="例：contact@supplier.co.jp" value={newSupEmail}
+                  onChange={e => setNewSupEmail(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                <p className="text-[10px] text-green-600 mt-0.5">✉️ 発注時にメールが自動送信されます</p>
+              </div>
+            )}
+
             <button onClick={addSupplier}
-              className="w-full bg-blue-500 text-white text-sm font-bold py-2 rounded-lg">追加する</button>
+              className="w-full bg-blue-500 text-white text-sm font-bold py-2.5 rounded-lg disabled:opacity-50"
+              disabled={!newSupName.trim() || ((newSupContactMethod === 'email' || newSupContactMethod === 'both') && !newSupEmail.trim())}>
+              追加する
+            </button>
           </div>
         )}
+
         {suppliers.length === 0 ? (
           <p className="text-xs text-gray-400">まだ取引先がありません</p>
         ) : (
-          <div className="space-y-1">
-            {suppliers.map(s => (
-              <div key={s.id} className="flex justify-between text-sm py-1">
-                <span className="font-medium text-gray-700">{s.name}</span>
-                <span className="text-xs text-gray-400">{s.contact_value}</span>
+          <div className="divide-y divide-gray-50">
+            {suppliers.map((s: Supplier) => (
+              <div key={s.id} className="flex justify-between items-center py-2.5">
+                <div>
+                  <span className="text-sm font-medium text-gray-700">{s.name}</span>
+                  <div className="flex gap-1 mt-0.5">
+                    {(s.contact_type === 'line' || s.contact_type === 'both') && s.contact_value && (
+                      <span className="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded">💬 LINE</span>
+                    )}
+                    {(s.contact_type === 'email' || s.contact_type === 'both') && (
+                      <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">📧 メール</span>
+                    )}
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400 truncate max-w-[120px]">{s.contact_value}</span>
               </div>
             ))}
           </div>

@@ -48,12 +48,14 @@ export async function POST(req: NextRequest) {
     } else {
       // 新規
       const { error } = await db.from('suppliers').insert({
-        tenant_id: TENANT_ID,
-        name: body.name,
-        contact_type: body.contact_type ?? 'line',
-        contact_value: body.contact_value ?? '',
-        note: body.note ?? '',
-        is_active: true,
+        tenant_id:      TENANT_ID,
+        name:           String(body.name).trim(),
+        contact_type:   body.contact_type   ?? 'line',
+        contact_value:  body.contact_value  ?? '',
+        email:          body.email          ?? null,
+        contact_method: body.contact_method ?? 'line',
+        note:           body.note           ?? '',
+        is_active:      true,
       })
       if (error) throw error
     }

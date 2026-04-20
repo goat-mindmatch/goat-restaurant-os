@@ -18,25 +18,35 @@ const TENANT_ID = process.env.TENANT_ID!
 // ===========================
 // スタッフ用リッチメニュー（6ボタン）
 // ===========================
+// ========================================
+// 座標計算: 2500 × 1686 を 3×2 グリッドに分割
+//   列幅: 834 + 833 + 833 = 2500  ✓
+//   行高: 843 + 843       = 1686  ✓
+// ========================================
+const C = [0, 834, 1667]       // 各列の x 座標
+const W = [834, 833, 833]       // 各列の幅
+const R = [0, 843]              // 各行の y 座標
+const H = 843                   // 行の高さ（共通）
+
 const STAFF_RICH_MENU = {
   size: { width: 2500, height: 1686 },
   selected: true,
-  name: 'GOAT Staff Menu v2',
+  name: 'GOAT Staff Menu v3',
   chatBarText: 'スタッフメニュー',
   areas: [
     // 上段左: 出勤
     {
-      bounds: { x: 0, y: 0, width: 833, height: 843 },
+      bounds: { x: C[0], y: R[0], width: W[0], height: H },
       action: { type: 'message', label: '出勤打刻', text: '出勤' },
     },
     // 上段中: 退勤
     {
-      bounds: { x: 834, y: 0, width: 833, height: 843 },
+      bounds: { x: C[1], y: R[0], width: W[1], height: H },
       action: { type: 'message', label: '退勤打刻', text: '退勤' },
     },
     // 上段右: シフト希望提出
     {
-      bounds: { x: 1668, y: 0, width: 833, height: 843 },
+      bounds: { x: C[2], y: R[0], width: W[2], height: H },
       action: {
         type: 'uri',
         label: 'シフト希望提出',
@@ -45,7 +55,7 @@ const STAFF_RICH_MENU = {
     },
     // 下段左: 口コミ誘導（お客様に見せる）
     {
-      bounds: { x: 0, y: 843, width: 833, height: 843 },
+      bounds: { x: C[0], y: R[1], width: W[0], height: H },
       action: {
         type: 'uri',
         label: '口コミを書く',
@@ -54,7 +64,7 @@ const STAFF_RICH_MENU = {
     },
     // 下段中: 発注依頼
     {
-      bounds: { x: 834, y: 843, width: 833, height: 843 },
+      bounds: { x: C[1], y: R[1], width: W[1], height: H },
       action: {
         type: 'uri',
         label: '発注依頼',
@@ -63,7 +73,7 @@ const STAFF_RICH_MENU = {
     },
     // 下段右: シフト確認
     {
-      bounds: { x: 1668, y: 843, width: 833, height: 843 },
+      bounds: { x: C[2], y: R[1], width: W[2], height: H },
       action: { type: 'message', label: 'シフト確認', text: 'シフト確認' },
     },
   ],
@@ -80,12 +90,12 @@ const MANAGER_RICH_MENU = {
   areas: [
     // 上段左: 本日の売上確認
     {
-      bounds: { x: 0, y: 0, width: 833, height: 843 },
+      bounds: { x: C[0], y: R[0], width: W[0], height: H },
       action: { type: 'message', label: '売上確認', text: '本日の売上' },
     },
     // 上段中: PL・損益確認
     {
-      bounds: { x: 834, y: 0, width: 833, height: 843 },
+      bounds: { x: C[1], y: R[0], width: W[1], height: H },
       action: {
         type: 'uri',
         label: 'PL確認',
@@ -94,7 +104,7 @@ const MANAGER_RICH_MENU = {
     },
     // 上段右: シフト確認・修正
     {
-      bounds: { x: 1668, y: 0, width: 833, height: 843 },
+      bounds: { x: C[2], y: R[0], width: W[2], height: H },
       action: {
         type: 'uri',
         label: 'シフト確認',
@@ -103,12 +113,12 @@ const MANAGER_RICH_MENU = {
     },
     // 下段左: 人件費率リアルタイム
     {
-      bounds: { x: 0, y: 843, width: 833, height: 843 },
+      bounds: { x: C[0], y: R[1], width: W[0], height: H },
       action: { type: 'message', label: '人件費率', text: '人件費率' },
     },
     // 下段中: 発注状況確認
     {
-      bounds: { x: 834, y: 843, width: 833, height: 843 },
+      bounds: { x: C[1], y: R[1], width: W[1], height: H },
       action: {
         type: 'uri',
         label: '発注状況',
@@ -117,7 +127,7 @@ const MANAGER_RICH_MENU = {
     },
     // 下段右: スタッフ評価・ダッシュボード
     {
-      bounds: { x: 1668, y: 843, width: 833, height: 843 },
+      bounds: { x: C[2], y: R[1], width: W[2], height: H },
       action: {
         type: 'uri',
         label: 'ダッシュボード',
