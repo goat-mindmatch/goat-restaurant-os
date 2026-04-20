@@ -503,89 +503,42 @@ function LineTab() {
     <div className="space-y-4">
       {toast && <Toast msg={toast.msg} type={toast.type} />}
 
-      {/* STEP 1: リッチメニュー作成 */}
+      {/* メニュー更新（画像を選ぶだけで全部自動） */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
-          <p className="text-xs font-bold text-gray-600">STEP 1　ボタン構成を作る</p>
-        </div>
-        <div className="p-4">
-          <p className="text-xs text-gray-500 mb-3">
-            LINEにスタッフ用・経営者用の6ボタンメニューを登録します。
-            画像なしの状態で作成されるので、次のSTEP 2で画像を設定してください。
-          </p>
-          <button
-            onClick={setup}
-            disabled={setupLoading}
-            className="w-full bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
-          >
-            {setupLoading ? '作成中...' : '📱 リッチメニューを作成する'}
-          </button>
-        </div>
-      </div>
-
-      {/* STEP 2: 画像アップロード */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
-          <p className="text-xs font-bold text-gray-600">STEP 2　画像をアップロードする</p>
+        <div className="bg-green-500 px-4 py-2">
+          <p className="text-xs font-bold text-white">🖼 画像を選ぶだけで自動反映</p>
         </div>
         <div className="p-4 space-y-3">
           <p className="text-xs text-gray-500">
-            JPEG または PNG、2500×1686px 推奨。STEP 1 完了後に設定してください。
+            画像を選ぶと「メニュー再作成→画像アップ→全員に反映」を自動で行います。
+            完了後にLINEを閉じて再起動すると新しい画像が表示されます。
           </p>
 
           {/* スタッフ用 */}
           <div className="border border-gray-100 rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-sm font-semibold text-gray-700">👤 スタッフ用メニュー</p>
-                <p className="text-[10px] text-gray-400">出勤 / 退勤 / シフト / 口コミ / 発注 / シフト確認</p>
-              </div>
-            </div>
+            <p className="text-sm font-semibold text-gray-700 mb-1">👤 スタッフ用メニュー</p>
+            <p className="text-[10px] text-gray-400 mb-2">出勤 / 退勤 / シフト / 経営メニューへ / 発注 / シフト確認</p>
             <button
               onClick={() => handleFileSelect('staff')}
               disabled={uploadingStaff}
-              className="w-full border-2 border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50 text-gray-500 hover:text-green-600 text-sm font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50"
+              className="w-full border-2 border-dashed border-green-300 hover:border-green-500 hover:bg-green-50 text-green-600 text-sm font-bold py-3 rounded-xl transition-colors disabled:opacity-50"
             >
-              {uploadingStaff ? 'アップロード中...' : '🖼 画像を選択してアップロード'}
+              {uploadingStaff ? '⏳ 処理中（少々お待ちください）...' : '🖼 スタッフ用の画像を選ぶ'}
             </button>
           </div>
 
           {/* 経営者用 */}
           <div className="border border-gray-100 rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-sm font-semibold text-gray-700">👑 経営者用メニュー</p>
-                <p className="text-[10px] text-gray-400">売上 / PL / シフト / 人件費 / 発注 / ダッシュボード</p>
-              </div>
-            </div>
+            <p className="text-sm font-semibold text-gray-700 mb-1">👑 経営者用メニュー</p>
+            <p className="text-[10px] text-gray-400 mb-2">売上 / PL / シフト / スタッフメニューへ / 発注 / ダッシュボード</p>
             <button
               onClick={() => handleFileSelect('manager')}
               disabled={uploadingManager}
-              className="w-full border-2 border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50 text-gray-500 hover:text-green-600 text-sm font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50"
+              className="w-full border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 text-blue-600 text-sm font-bold py-3 rounded-xl transition-colors disabled:opacity-50"
             >
-              {uploadingManager ? 'アップロード中...' : '🖼 画像を選択してアップロード'}
+              {uploadingManager ? '⏳ 処理中（少々お待ちください）...' : '🖼 経営者用の画像を選ぶ'}
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* STEP 2.5: デフォルト設定（画像アップロード後に実行） */}
-      <div className="bg-white rounded-xl border-2 border-orange-300 overflow-hidden">
-        <div className="bg-orange-50 px-4 py-2 border-b border-orange-200">
-          <p className="text-xs font-bold text-orange-700">⚡ STEP 2 完了後に必ず実行　スタッフに表示させる</p>
-        </div>
-        <div className="p-4">
-          <p className="text-xs text-gray-500 mb-3">
-            画像アップロードが終わったら、このボタンを押してメニューをLINEユーザーに紐付けます。
-            これをしないとLINEアプリに何も表示されません。
-          </p>
-          <button
-            onClick={setDefault}
-            disabled={settingDefault}
-            className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-bold py-3 rounded-xl transition-colors text-sm"
-          >
-            {settingDefault ? '設定中...' : '🔗 全スタッフにメニューを表示させる'}
-          </button>
         </div>
       </div>
 
