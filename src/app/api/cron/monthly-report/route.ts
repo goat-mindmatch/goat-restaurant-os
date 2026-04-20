@@ -13,17 +13,21 @@ import { sendLineMessage } from '@/lib/line-staff'
 
 const TENANT_ID = process.env.TENANT_ID!
 
-async function runReport() {
+// year/month を指定可能（省略時は先月）
+async function runReport(year?: number, month?: number) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any
 
-  // 先月の期間を計算
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const firstDay  = lastMonth.toISOString().split('T')[0]
-  const lastDay   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0]
-  const monthLabel = `${lastMonth.getFullYear()}年${lastMonth.getMonth() + 1}月`
+
+  // 指定がなければ先月
+  const targetYear  = year  ?? (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear())
+  const targetMonth = month ?? (now.getMonth() === 0 ? 12 : now.getMonth())
+
+  const firstDay = `${targetYear}-${String(targetMonth).padStart(2,'0')}-01`
+  const lastDay  = new Date(targetYear, targetMonth, 0).toISOString().split('T')[0]
+  const monthLabel = `${targetYear}年${targetMonth}月`
 
   // 売上データ取得
   const { data: salesRows } = await db.from('daily_sales')
@@ -105,11 +109,15 @@ async function runReport() {
   return NextResponse.json({ ok: true, month: monthLabel, sent_to: results })
 }
 
-export async function POST() {
-  return runReport()
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({})) as { year?: number; month?: number }
+  return runReport(body.year, body.month)
 }
 
-// ブラウザ手動テスト用（GETでも動く）
-export async function GET() {
-  return runReport()
+// ブラウザ手動テスト用: GET /api/cron/monthly-report?year=2026&month=4
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const year  = searchParams.get('year')  ? Number(searchParams.get('year'))  : undefined
+  const month = searchParams.get('month') ? Number(searchParams.get('month')) : undefined
+  return runReport(year, month)
 }
