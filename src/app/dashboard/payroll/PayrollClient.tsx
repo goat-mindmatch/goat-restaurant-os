@@ -9,7 +9,6 @@ type Attendance = {
 }
 
 const REVIEW_BONUS_PER = 100
-const MEAL_BONUS = 500 // 賄いボーナス1食あたり
 
 function calcLateNightMinutes(clockIn: string | null, clockOut: string | null): number {
   if (!clockIn || !clockOut) return 0
@@ -34,8 +33,6 @@ export default function PayrollClient({
   onMonthChange: (year: number, month: number) => void
 }) {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null)
-  // 賄いボーナス（スタッフID → 食数）
-  const [mealCounts, setMealCounts] = useState<Record<string, number>>({})
   // 給与確定済みスタッフ
   const [paidStaff, setPaidStaff] = useState<Set<string>>(new Set())
   // 編集中の時給・交通費
@@ -58,25 +55,22 @@ export default function PayrollClient({
       const transportTotal = totalDays * transport
       const reviewCount = reviewCountMap[staff.id] ?? 0
       const reviewBonus = reviewCount * REVIEW_BONUS_PER
-      const mealCount = mealCounts[staff.id] ?? 0
-      const mealBonus = mealCount * MEAL_BONUS
-      const totalPay = basePay + lateNightPremium + transportTotal + reviewBonus + mealBonus
+      const totalPay = basePay + lateNightPremium + transportTotal + reviewBonus
       return {
         staff, wage, transport,
         totalDays, totalMinutes, totalHours, lateNightHours,
         basePay, lateNightPremium, transportTotal,
         reviewCount, reviewBonus,
-        mealCount, mealBonus,
         totalPay, att: myAtt,
       }
     })
-  }, [staffList, attendance, reviewCountMap, mealCounts, editingWage, editingTransport])
+  }, [staffList, attendance, reviewCountMap, editingWage, editingTransport])
 
   const grandTotal    = summaries.reduce((s, x) => s + x.totalPay, 0)
   const grandBase     = summaries.reduce((s, x) => s + x.basePay, 0)
   const grandLateNight = summaries.reduce((s, x) => s + x.lateNightPremium, 0)
   const grandTransport = summaries.reduce((s, x) => s + x.transportTotal, 0)
-  const grandBonus    = summaries.reduce((s, x) => s + x.reviewBonus + x.mealBonus, 0)
+  const grandBonus    = summaries.reduce((s, x) => s + x.reviewBonus, 0)
 
   // 時給・交通費を保存
   const saveWage = async (staffId: string) => {
@@ -95,11 +89,11 @@ export default function PayrollClient({
   }
 
   const downloadCSV = () => {
-    const header = ['氏名', '時給', '勤務日数', '総労働時間', '深夜時間', '基本給', '深夜手当', '交通費', '口コミ件数', '口コミボーナス', '賄い食数', '賄いボーナス', '給与合計', '支払い状況']
+    const header = ['氏名', '時給', '勤務日数', '総労働時間', '深夜時間', '基本給', '深夜手当', '交通費', '口コミ件数', '口コミボーナス', '給与合計', '支払い状況']
     const rows = summaries.map(s => [
       s.staff.name, s.wage, s.totalDays, s.totalHours.toFixed(1), s.lateNightHours.toFixed(1),
       s.basePay, s.lateNightPremium, s.transportTotal,
-      s.reviewCount, s.reviewBonus, s.mealCount, s.mealBonus, s.totalPay,
+      s.reviewCount, s.reviewBonus, s.totalPay,
       paidStaff.has(s.staff.id) ? '支払い済み' : '未払い',
     ])
     const bom = '\uFEFF'
@@ -154,7 +148,7 @@ export default function PayrollClient({
           <p className="text-lg font-bold text-blue-600">¥{grandTransport.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-xl p-3 shadow-sm text-center">
-          <p className="text-[10px] text-gray-400">口コミ+賄い</p>
+          <p className="text-[10px] text-gray-400">口コミボーナス</p>
           <p className="text-lg font-bold text-green-600">¥{grandBonus.toLocaleString()}</p>
         </div>
       </div>
@@ -186,24 +180,12 @@ export default function PayrollClient({
                   {s.lateNightPremium > 0 && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">深夜 ¥{s.lateNightPremium.toLocaleString()}</span>}
                   {s.transportTotal > 0 && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">交通費 ¥{s.transportTotal.toLocaleString()}</span>}
                   {s.reviewBonus > 0 && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded">口コミ {s.reviewCount}件 ¥{s.reviewBonus.toLocaleString()}</span>}
-                  {s.mealBonus > 0 && <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded">賄い {s.mealCount}食 ¥{s.mealBonus.toLocaleString()}</span>}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">{s.totalDays}日 / {s.totalHours.toFixed(1)}h（うち深夜{s.lateNightHours.toFixed(1)}h）</p>
               </button>
 
-              {/* 賄い・支払い操作 */}
+              {/* 支払い操作 */}
               <div className="px-4 pb-3 flex gap-2 items-center">
-                {/* 賄いカウント */}
-                <div className="flex items-center gap-1 bg-orange-50 rounded-lg px-2 py-1">
-                  <span className="text-xs text-orange-700 font-semibold">🍱</span>
-                  <button onClick={() => setMealCounts(p => ({ ...p, [s.staff.id]: Math.max(0, (p[s.staff.id] ?? 0) - 1) }))}
-                    className="w-6 h-6 rounded text-orange-700 font-bold text-base leading-none">−</button>
-                  <span className="text-sm font-bold text-orange-700 w-5 text-center">{mealCounts[s.staff.id] ?? 0}</span>
-                  <button onClick={() => setMealCounts(p => ({ ...p, [s.staff.id]: (p[s.staff.id] ?? 0) + 1 }))}
-                    className="w-6 h-6 rounded text-orange-700 font-bold text-base leading-none">＋</button>
-                  <span className="text-[10px] text-orange-500">賄い</span>
-                </div>
-
                 {/* 支払い確定 */}
                 <button
                   onClick={() => setPaidStaff(p => {
@@ -228,7 +210,7 @@ export default function PayrollClient({
       {/* 計算式説明 */}
       <div className="mx-4 mt-4 bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800">
         <p className="font-bold mb-1">💡 計算式</p>
-        <p>給与 =（勤務時間×時給）+（22時以降×時給×0.25）+ 交通費 + 口コミボーナス（1件¥{REVIEW_BONUS_PER}）+ 賄いボーナス（1食¥{MEAL_BONUS}）</p>
+        <p>給与 =（勤務時間×時給）+（22時以降×時給×0.25）+ 交通費 + 口コミボーナス（1件¥{REVIEW_BONUS_PER}）</p>
       </div>
 
       {/* 勤務詳細モーダル */}

@@ -30,6 +30,10 @@ export default function SalesFormClient({
   const [lunchSales,     setLunchSales]     = useState(String(existing?.lunch_sales     ?? ''))
   const [dinnerSales,    setDinnerSales]    = useState(String(existing?.dinner_sales    ?? ''))
   const [foodCost,       setFoodCost]       = useState(String(existing?.food_cost       ?? ''))
+  const [cashSales,      setCashSales]      = useState('')
+  const [cardSales,      setCardSales]      = useState('')
+  const [qrSales,        setQrSales]        = useState('')
+  const [paymentOpen,    setPaymentOpen]    = useState(false)
 
   const [saving,   setSaving]   = useState(false)
   const [done,     setDone]     = useState(false)
@@ -58,6 +62,9 @@ export default function SalesFormClient({
           lunch_sales:      lunchSales  ? n(lunchSales)  : undefined,
           dinner_sales:     dinnerSales ? n(dinnerSales) : undefined,
           food_cost:        foodCost    ? n(foodCost)    : undefined,
+          cash_sales:       cashSales   ? n(cashSales)   : undefined,
+          card_sales:       cardSales   ? n(cardSales)   : undefined,
+          qr_sales:         qrSales     ? n(qrSales)     : undefined,
         }),
       })
       if (!res.ok) {
@@ -124,6 +131,58 @@ export default function SalesFormClient({
                 onChange={e => setStoreSales(e.target.value)}
               />
             </div>
+            {/* 決済方法内訳 */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setPaymentOpen(v => !v)}
+                className="w-full flex items-center justify-between text-xs text-gray-500 font-semibold py-1"
+              >
+                <span>決済方法内訳（任意）</span>
+                <span>{paymentOpen ? '▲' : '▼'}</span>
+              </button>
+              {paymentOpen && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-[11px] text-gray-400">現金＋カード＋QR = 店内売上の合計になるよう入力してください（任意）</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-400">現金（円）</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        className="w-full border border-gray-200 rounded-xl px-2 py-2 text-sm mt-0.5"
+                        placeholder="0"
+                        value={cashSales}
+                        onChange={e => setCashSales(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400">カード（円）</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        className="w-full border border-gray-200 rounded-xl px-2 py-2 text-sm mt-0.5"
+                        placeholder="0"
+                        value={cardSales}
+                        onChange={e => setCardSales(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400">QR/PayPay</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        className="w-full border border-gray-200 rounded-xl px-2 py-2 text-sm mt-0.5"
+                        placeholder="0"
+                        value={qrSales}
+                        onChange={e => setQrSales(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-400">うちランチ（任意）</label>
