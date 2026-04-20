@@ -14,10 +14,11 @@ const TENANT_ID = process.env.TENANT_ID!
 export default async function MenuPage({
   searchParams,
 }: {
-  searchParams: Promise<{ table?: string }>
+  searchParams: Promise<{ table?: string; lang?: string }>
 }) {
-  const { table } = await searchParams
+  const { table, lang } = await searchParams
   const tableNumber = Number(table)
+  const language = (lang === 'en' || lang === 'zh') ? lang : 'ja'
 
   if (!table || isNaN(tableNumber) || tableNumber < 1) {
     return (
@@ -37,10 +38,10 @@ export default async function MenuPage({
   const db = createServiceClient() as any
   const { data: items } = await db
     .from('menu_items')
-    .select('id, name, description, price, category, image_url, sort_order')
+    .select('id, name, description, price, category, image_url, sort_order, name_en, name_zh, description_en, description_zh')
     .eq('tenant_id', TENANT_ID)
     .eq('is_available', true)
     .order('sort_order')
 
-  return <MenuClient tableNumber={tableNumber} items={items ?? []} />
+  return <MenuClient tableNumber={tableNumber} items={items ?? []} initialLang={language} />
 }

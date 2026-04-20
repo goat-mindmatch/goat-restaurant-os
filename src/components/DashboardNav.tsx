@@ -17,6 +17,7 @@ const MAIN_NAV = [
 ]
 
 const MORE_ITEMS = [
+  { label: 'テーブル管理', href: '/dashboard/tables',   icon: '🪑' },
   { label: 'PL損益',     href: '/dashboard/pl',        icon: '📊' },
   { label: '在庫管理',   href: '/dashboard/inventory', icon: '🗃️' },
   { label: '給与計算',   href: '/dashboard/payroll',   icon: '💴' },

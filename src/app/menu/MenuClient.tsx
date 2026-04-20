@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 
+type Lang = 'ja' | 'en' | 'zh'
+
 type MenuItem = {
   id: string
   name: string
@@ -9,27 +11,108 @@ type MenuItem = {
   price: number
   category: string
   image_url: string | null
+  name_en: string | null
+  name_zh: string | null
+  description_en: string | null
+  description_zh: string | null
+}
+
+const LANG_LABELS: Record<Lang, string> = { ja: '🇯🇵 日本語', en: '🇺🇸 EN', zh: '🇨🇳 中文' }
+
+const CATEGORY_LABELS_I18N: Record<Lang, Record<string, string>> = {
+  ja: { main: '麺メニュー', topping: 'トッピング', side: 'サイドメニュー', drink: 'ドリンク', other: 'その他' },
+  en: { main: 'Noodles', topping: 'Toppings', side: 'Sides', drink: 'Drinks', other: 'Others' },
+  zh: { main: '面类', topping: '配料', side: '小食', drink: '饮品', other: '其他' },
+}
+
+const UI_TEXT: Record<Lang, Record<string, string>> = {
+  ja: {
+    table: 'テーブル',
+    addCart: '追加',
+    confirmOrder: '注文を確認する',
+    orderConfirm: '注文内容の確認',
+    memo: 'スタッフへのメモ（アレルギー等）',
+    memoPlaceholder: '例: 麺かため、ネギ抜きなど',
+    payment: 'お支払い方法',
+    cash: '💵 現金（レジ払い）',
+    paypay: '📱 PayPay',
+    paypayNote: '※ PayPay決済は注文後、スタッフがQRコードをお持ちします',
+    total: '合計',
+    submitOrder: '✅ 注文を確定する',
+    ordering: '注文中...',
+    thankYou: 'ご注文ありがとうございます！',
+    thankYouSub: 'スタッフがすぐに調理を開始します',
+    orderContent: 'ご注文内容',
+    cashNote: '💵 お会計はレジにてお支払いください',
+  },
+  en: {
+    table: 'Table',
+    addCart: 'Add',
+    confirmOrder: 'View Order',
+    orderConfirm: 'Order Summary',
+    memo: 'Notes (allergies, etc.)',
+    memoPlaceholder: 'e.g., extra firm noodles, no green onions',
+    payment: 'Payment Method',
+    cash: '💵 Cash (pay at register)',
+    paypay: '📱 PayPay',
+    paypayNote: '* Staff will bring a PayPay QR code after your order.',
+    total: 'Total',
+    submitOrder: '✅ Place Order',
+    ordering: 'Ordering...',
+    thankYou: 'Thank you for your order!',
+    thankYouSub: 'Staff will begin preparing your food soon.',
+    orderContent: 'Order Details',
+    cashNote: '💵 Please pay at the register.',
+  },
+  zh: {
+    table: '桌号',
+    addCart: '添加',
+    confirmOrder: '查看订单',
+    orderConfirm: '订单确认',
+    memo: '备注（过敏等）',
+    memoPlaceholder: '例如：面条硬一点，不要葱',
+    payment: '支付方式',
+    cash: '💵 现金（收银台付款）',
+    paypay: '📱 PayPay',
+    paypayNote: '※ 下单后工作人员会带PayPay二维码过来',
+    total: '合计',
+    submitOrder: '✅ 确认下单',
+    ordering: '下单中...',
+    thankYou: '感谢您的订单！',
+    thankYouSub: '工作人员马上开始为您准备。',
+    orderContent: '订单内容',
+    cashNote: '💵 请在收银台结账。',
+  },
 }
 
 type CartItem = MenuItem & { quantity: number }
-
-const CATEGORY_LABELS: Record<string, string> = {
-  main: '麺メニュー',
-  topping: 'トッピング',
-  side: 'サイドメニュー',
-  drink: 'ドリンク',
-  other: 'その他',
-}
 
 const CATEGORY_ORDER = ['main', 'topping', 'side', 'drink', 'other']
 
 export default function MenuClient({
   tableNumber,
   items,
+  initialLang = 'ja',
 }: {
   tableNumber: number
   items: MenuItem[]
+  initialLang?: Lang
 }) {
+  const [lang, setLang] = useState<Lang>(initialLang)
+  const t = UI_TEXT[lang]
+  const catLabels = CATEGORY_LABELS_I18N[lang]
+
+  // 言語に応じた表示名取得
+  const itemName = (item: MenuItem) =>
+    (lang === 'en' && item.name_en) ? item.name_en :
+    (lang === 'zh' && item.name_zh) ? item.name_zh :
+    item.name
+
+  const itemDesc = (item: MenuItem) =>
+    (lang === 'en' && item.description_en) ? item.description_en :
+    (lang === 'zh' && item.description_zh) ? item.description_zh :
+    item.description
+
   const [cart, setCart] = useState<CartItem[]>([])
   const [showCart, setShowCart] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'paypay'>('cash')
@@ -90,23 +173,23 @@ export default function MenuClient({
       <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-sm w-full">
           <p className="text-6xl mb-4">🍜</p>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">ご注文ありがとうございます！</h2>
-          <p className="text-gray-500 text-sm mb-6">スタッフがすぐに調理を開始します</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t.thankYou}</h2>
+          <p className="text-gray-500 text-sm mb-6">{t.thankYouSub}</p>
 
           <div className="bg-gray-50 rounded-2xl p-4 mb-6 text-left">
-            <p className="text-xs text-gray-400 mb-2">ご注文内容</p>
+            <p className="text-xs text-gray-400 mb-2">{t.orderContent}</p>
             {cart.map(item => (
               <div key={item.id} className="flex justify-between text-sm py-1">
-                <span className="text-gray-700">{item.name} × {item.quantity}</span>
+                <span className="text-gray-700">{itemName(item)} × {item.quantity}</span>
                 <span className="font-semibold">¥{(item.price * item.quantity).toLocaleString()}</span>
               </div>
             ))}
             <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-bold">
-              <span>合計</span>
+              <span>{t.total}</span>
               <span>¥{totalAmount.toLocaleString()}</span>
             </div>
             <p className="text-xs text-gray-400 mt-2">
-              {paymentMethod === 'cash' ? '💵 お会計はレジにてお支払いください' : '📱 PayPay でのお支払い'}
+              {paymentMethod === 'cash' ? t.cashNote : t.paypay}
             </p>
           </div>
 
@@ -127,8 +210,26 @@ export default function MenuClient({
     <div className="min-h-screen bg-gray-50 pb-32">
       {/* ヘッダー */}
       <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white px-4 py-6">
-        <h1 className="text-2xl font-bold">🍜 人類みなまぜそば</h1>
-        <p className="text-orange-100 text-sm mt-0.5">テーブル {tableNumber}番</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">🍜 人類みなまぜそば</h1>
+            <p className="text-orange-100 text-sm mt-0.5">{t.table} {tableNumber}</p>
+          </div>
+          {/* 言語切り替え */}
+          <div className="flex flex-col gap-1 mt-1">
+            {(['ja', 'en', 'zh'] as Lang[]).map(l => (
+              <button
+                key={l}
+                onClick={() => setLang(l)}
+                className={`text-xs px-2 py-1 rounded-lg font-semibold transition-colors ${
+                  lang === l ? 'bg-white text-orange-600' : 'bg-white/20 text-white'
+                }`}
+              >
+                {LANG_LABELS[l]}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* メニューリスト */}
@@ -136,17 +237,26 @@ export default function MenuClient({
         {grouped.map(({ cat, items: catItems }) => (
           <section key={cat}>
             <h2 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wide">
-              {CATEGORY_LABELS[cat] ?? cat}
+              {catLabels[cat] ?? cat}
             </h2>
             <div className="space-y-2">
               {catItems.map(item => {
                 const cartItem = cart.find(c => c.id === item.id)
                 return (
                   <div key={item.id} className="bg-white rounded-2xl shadow-sm p-4 flex items-center justify-between">
+                    {/* 画像（あれば） */}
+                    {item.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.image_url}
+                        alt={itemName(item)}
+                        className="w-16 h-16 rounded-xl object-cover mr-3 flex-shrink-0"
+                      />
+                    )}
                     <div className="flex-1 min-w-0 mr-3">
-                      <p className="font-bold text-gray-900">{item.name}</p>
-                      {item.description && (
-                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.description}</p>
+                      <p className="font-bold text-gray-900">{itemName(item)}</p>
+                      {itemDesc(item) && (
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{itemDesc(item)}</p>
                       )}
                       <p className="text-orange-600 font-bold mt-1">¥{item.price.toLocaleString()}</p>
                     </div>
@@ -168,7 +278,7 @@ export default function MenuClient({
                         onClick={() => addToCart(item)}
                         className="flex-shrink-0 bg-orange-500 text-white font-bold px-4 py-2 rounded-xl text-sm"
                       >
-                        追加
+                        {t.addCart}
                       </button>
                     )}
                   </div>
@@ -189,7 +299,7 @@ export default function MenuClient({
             <span className="bg-white/20 text-white text-sm font-bold w-7 h-7 rounded-full flex items-center justify-center">
               {totalCount}
             </span>
-            <span>注文を確認する</span>
+            <span>{t.confirmOrder}</span>
             <span>¥{totalAmount.toLocaleString()}</span>
           </button>
         </div>
@@ -204,10 +314,10 @@ export default function MenuClient({
           >
             <div className="sticky top-0 bg-white px-4 py-4 border-b border-gray-100">
               <div className="flex justify-between items-center">
-                <h2 className="text-lg font-bold text-gray-900">注文内容の確認</h2>
+                <h2 className="text-lg font-bold text-gray-900">{t.orderConfirm}</h2>
                 <button onClick={() => setShowCart(false)} className="text-gray-400 text-2xl">×</button>
               </div>
-              <p className="text-sm text-gray-500 mt-0.5">テーブル {tableNumber}番</p>
+              <p className="text-sm text-gray-500 mt-0.5">{t.table} {tableNumber}</p>
             </div>
 
             {/* 注文リスト */}
@@ -235,19 +345,19 @@ export default function MenuClient({
 
             {/* メモ */}
             <div className="px-4 pb-3">
-              <label className="text-xs text-gray-500">スタッフへのメモ（アレルギー等）</label>
+              <label className="text-xs text-gray-500">{t.memo}</label>
               <input
                 type="text"
                 value={note}
                 onChange={e => setNote(e.target.value)}
-                placeholder="例: 麺かため、ネギ抜きなど"
+                placeholder={t.memoPlaceholder}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mt-1"
               />
             </div>
 
             {/* 支払方法 */}
             <div className="px-4 pb-3">
-              <p className="text-xs text-gray-500 mb-2">お支払い方法</p>
+              <p className="text-xs text-gray-500 mb-2">{t.payment}</p>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setPaymentMethod('cash')}
@@ -257,7 +367,7 @@ export default function MenuClient({
                       : 'border-gray-200 text-gray-600'
                   }`}
                 >
-                  💵 現金（レジ払い）
+                  {t.cash}
                 </button>
                 <button
                   onClick={() => setPaymentMethod('paypay')}
@@ -267,12 +377,12 @@ export default function MenuClient({
                       : 'border-gray-200 text-gray-600'
                   }`}
                 >
-                  📱 PayPay
+                  {t.paypay}
                 </button>
               </div>
               {paymentMethod === 'paypay' && (
                 <p className="text-xs text-gray-400 mt-2 bg-gray-50 rounded-lg p-2">
-                  ※ PayPay決済は注文後、スタッフがQRコードをお持ちします
+                  {t.paypayNote}
                 </p>
               )}
             </div>
@@ -280,7 +390,7 @@ export default function MenuClient({
             {/* 合計・注文ボタン */}
             <div className="px-4 pb-8">
               <div className="flex justify-between items-center mb-4 text-lg font-bold">
-                <span>合計</span>
+                <span>{t.total}</span>
                 <span className="text-orange-600">¥{totalAmount.toLocaleString()}</span>
               </div>
               <button
@@ -288,7 +398,7 @@ export default function MenuClient({
                 disabled={ordering}
                 className="w-full bg-orange-500 text-white font-bold py-4 rounded-2xl text-base disabled:opacity-50"
               >
-                {ordering ? '注文中...' : '✅ 注文を確定する'}
+                {ordering ? t.ordering : t.submitOrder}
               </button>
             </div>
           </div>

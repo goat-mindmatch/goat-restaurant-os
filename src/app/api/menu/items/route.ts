@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest) {
   const db = createServiceClient() as any
 
   const { data: items } = await db.from('menu_items')
-    .select('id, name, description, price, category, image_url, sort_order, is_available')
+    .select('id, name, description, price, category, image_url, sort_order, is_available, name_en, name_zh, description_en, description_zh')
     .eq('tenant_id', TENANT_ID)
     .order('sort_order')
 
