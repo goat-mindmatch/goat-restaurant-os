@@ -89,7 +89,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '経営メニューへ切替', 'スタッフメニューへ切替']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -144,6 +144,10 @@ async function handleEvent(event: LineEvent) {
       break
     case 'スタッフメニューへ切替':
       await handleMenuSwitch(userId, 'staff')
+      break
+    case 'メニュー更新':
+    case 'メニューリセット':
+      await handleMenuReset(userId)
       break
     case '管理メニュー':
       await handleAdminMenu(userId)
@@ -793,6 +797,53 @@ JSONのみを返してください。前後の説明は不要です。`,
       '⚠️ レシードの読み取りに失敗しました。\n再度送信するか、手動でダッシュボードから入力してください。'
     )
   }
+}
+
+// ================================
+// リッチメニュー強制リセット（ユーザー単位）
+// ================================
+async function handleMenuReset(lineUserId: string) {
+  const token = process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN!
+  const h = { Authorization: `Bearer ${token}` }
+
+  // 1. 現在のメニューリンクを解除
+  await fetch(
+    `https://api.line.me/v2/bot/user/${lineUserId}/richmenu`,
+    { method: 'DELETE', headers: h }
+  )
+
+  // 2. スタッフメニューIDを取得
+  const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers: h })
+  if (!listRes.ok) {
+    await sendLineMessage(lineUserId, '⚠️ メニューのリセットに失敗しました。')
+    return
+  }
+  const listData = await listRes.json() as { richmenus: { richMenuId: string; name: string }[] }
+
+  // roleに応じてスタッフ or 経営者メニューを選択
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+  const { data: staff } = await db.from('staff')
+    .select('name, role').eq('tenant_id', TENANT_ID).eq('line_user_id', lineUserId).single()
+
+  const isManager = staff?.role === 'manager'
+  const targetName = isManager ? 'GOAT Manager Menu v2' : 'GOAT Staff Menu v3'
+  const targetMenu = listData.richmenus.find(m => m.name === targetName)
+
+  if (!targetMenu) {
+    await sendLineMessage(lineUserId, '⚠️ メニューが見つかりません。管理者に設定を依頼してください。')
+    return
+  }
+
+  // 3. 再リンク
+  await fetch(
+    `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${targetMenu.richMenuId}`,
+    { method: 'POST', headers: h }
+  )
+
+  const label = isManager ? '経営者' : 'スタッフ'
+  await sendLineMessage(lineUserId,
+    `✅ ${label}メニューをリセットしました！\nLINEを完全に閉じて（ホーム画面でアプリを上にスワイプ）\nもう一度開いてください。`)
 }
 
 // ================================
