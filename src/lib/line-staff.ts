@@ -186,6 +186,36 @@ export async function sendCouponFlex(
   }
 }
 
+// 汎用 Flex Message 送信
+export async function sendFlexMessage(
+  userId: string,
+  altText: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  flexContents: Record<string, any>
+) {
+  const res = await fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      to: userId,
+      messages: [
+        {
+          type: 'flex',
+          altText,
+          contents: flexContents,
+        },
+      ],
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`LINE flex error: ${err}`)
+  }
+}
+
 // リッチメニュー用テンプレート（ボタン文言）
 export const RICH_MENU_ACTIONS = {
   CLOCK_IN:        '出勤',

@@ -89,6 +89,67 @@ type CartItem = MenuItem & { quantity: number }
 
 const CATEGORY_ORDER = ['main', 'topping', 'side', 'drink', 'other']
 
+/* ─── スタッフ呼び出しボタンエリア ─── */
+function CallButtons({ tableNumber }: { tableNumber: number }) {
+  const [calling, setCalling] = useState<string | null>(null)
+  const [toast, setToast] = useState(false)
+
+  const handleCall = async (callType: 'staff' | 'water' | 'bill') => {
+    setCalling(callType)
+    try {
+      await fetch('/api/tables/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_number: tableNumber, call_type: callType }),
+      })
+      setToast(true)
+      setTimeout(() => setToast(false), 3000)
+    } catch {
+      // ベストエフォート：失敗しても無視
+    } finally {
+      setCalling(null)
+    }
+  }
+
+  return (
+    <div className="px-4 pb-6 pt-2">
+      {/* トースト */}
+      {toast && (
+        <div className="mb-3 bg-green-500 text-white text-sm font-bold px-4 py-3 rounded-xl text-center">
+          ✅ スタッフが向かいます！
+        </div>
+      )}
+      <p className="text-xs text-gray-400 font-semibold text-center mb-2">スタッフを呼ぶ</p>
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={() => handleCall('staff')}
+          disabled={calling !== null}
+          className="flex flex-col items-center py-3 px-2 rounded-2xl bg-blue-500 text-white font-bold text-xs disabled:opacity-50 active:scale-95 transition-transform shadow-sm"
+        >
+          <span className="text-xl mb-1">{calling === 'staff' ? '⏳' : '🙋'}</span>
+          スタッフを呼ぶ
+        </button>
+        <button
+          onClick={() => handleCall('water')}
+          disabled={calling !== null}
+          className="flex flex-col items-center py-3 px-2 rounded-2xl bg-cyan-400 text-white font-bold text-xs disabled:opacity-50 active:scale-95 transition-transform shadow-sm"
+        >
+          <span className="text-xl mb-1">{calling === 'water' ? '⏳' : '💧'}</span>
+          お水をください
+        </button>
+        <button
+          onClick={() => handleCall('bill')}
+          disabled={calling !== null}
+          className="flex flex-col items-center py-3 px-2 rounded-2xl bg-green-500 text-white font-bold text-xs disabled:opacity-50 active:scale-95 transition-transform shadow-sm"
+        >
+          <span className="text-xl mb-1">{calling === 'bill' ? '⏳' : '💳'}</span>
+          お会計をお願いします
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function MenuClient({
   tableNumber,
   items,
@@ -170,7 +231,7 @@ export default function MenuClient({
   // 注文完了画面
   if (ordered) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white flex flex-col items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-sm w-full">
           <p className="text-6xl mb-4">🍜</p>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">{t.thankYou}</h2>
@@ -196,6 +257,11 @@ export default function MenuClient({
           {orderId && (
             <p className="text-xs text-gray-300">注文番号: {orderId.slice(-8).toUpperCase()}</p>
           )}
+        </div>
+
+        {/* 注文完了後もスタッフ呼び出しボタンを表示 */}
+        <div className="w-full max-w-sm mt-4">
+          <CallButtons tableNumber={tableNumber} />
         </div>
       </div>
     )
@@ -287,6 +353,11 @@ export default function MenuClient({
             </div>
           </section>
         ))}
+      </div>
+
+      {/* スタッフ呼び出しエリア（注文ボタン上部に固定表示） */}
+      <div className="mt-6">
+        <CallButtons tableNumber={tableNumber} />
       </div>
 
       {/* カートバー（固定） */}

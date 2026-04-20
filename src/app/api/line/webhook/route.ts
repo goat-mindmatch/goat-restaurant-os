@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
-import { sendLineMessage, sendQuickReply } from '@/lib/line-staff'
+import { sendLineMessage, sendQuickReply, sendFlexMessage } from '@/lib/line-staff'
 
 const CHANNEL_SECRET = process.env.LINE_STAFF_CHANNEL_SECRET!
 // TENANT_ID にはUUID（b78c555f-47c9-4552-bdaf-28656814c1f9）を直接設定
@@ -402,7 +402,8 @@ async function handleClockOut(lineUserId: string) {
     clock_out: nowTime,
   }).eq('id', existing2.id)
 
-  await sendLineMessage(lineUserId, `✅ ${staff.name}さん、退勤打刻しました！\n退勤: ${nowTime}\n\nお疲れ様でした！ゆっくり休んでください😊`)
+  // 退勤後ハイライトを送信
+  await sendClockOutHighlight(lineUserId, staff, existing2.clock_in!, nowTime, today)
 }
 
 // ================================
@@ -1180,6 +1181,220 @@ async function handleAdminMenu(lineUserId: string) {
     '管理メニューを開きます。\n管理者パスワードをテキストで送ってください。',
     [] // パスワード入力はテキストメッセージで受け取る
   )
+}
+
+// ================================
+// 退勤後ハイライト Flex Message
+// ================================
+async function sendClockOutHighlight(
+  lineUserId: string,
+  staff: { id: string; name: string },
+  clockInTime: string,
+  clockOutTime: string,
+  today: string
+) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createServiceClient() as any
+    const tenantId = await getTenantId()
+
+    // 勤務時間計算（HH:MM → 分）
+    function toMinutes(hhmm: string): number {
+      const [h, m] = hhmm.split(':').map(Number)
+      return (h ?? 0) * 60 + (m ?? 0)
+    }
+    const inMin  = toMinutes(clockInTime)
+    const outMin = toMinutes(clockOutTime)
+    const workMin = Math.max(0, outMin - inMin)
+    const workHours   = Math.floor(workMin / 60)
+    const workMinutes = workMin % 60
+
+    // 今日の口コミ数
+    const { data: todayReviews } = await db
+      .from('review_submissions')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('staff_id', staff.id)
+      .eq('verified', true)
+      .gte('created_at', `${today}T00:00:00`)
+      .lte('created_at', `${today}T23:59:59`)
+    const todayReviewCount: number = (todayReviews ?? []).length
+
+    // 今月の注文数（orders テーブル）
+    const monthStart = today.slice(0, 7) + '-01'
+    const { data: todayOrders } = await db
+      .from('orders')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .gte('created_at', `${today}T00:00:00`)
+      .lte('created_at', `${today}T23:59:59`)
+    const todayOrderCount: number = (todayOrders ?? []).length
+
+    // 今月の EXP 計算
+    const { data: monthAttendance } = await db
+      .from('attendance')
+      .select('date, clock_in')
+      .eq('tenant_id', tenantId)
+      .eq('staff_id', staff.id)
+      .gte('date', monthStart)
+      .lte('date', today)
+    const workDays: number = (monthAttendance ?? []).length
+    const clockInDays: number = (monthAttendance ?? []).filter(
+      (a: { clock_in: string | null }) => a.clock_in
+    ).length
+
+    const { data: monthReviews } = await db
+      .from('review_submissions')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('staff_id', staff.id)
+      .eq('verified', true)
+      .gte('created_at', `${monthStart}T00:00:00`)
+      .lte('created_at', `${today}T23:59:59`)
+    const monthReviewCount: number = (monthReviews ?? []).length
+
+    const exp   = workDays * 50 + monthReviewCount * 150
+    const level = Math.floor(exp / 1000) + 1
+
+    // 遅刻ゼロフラグ（今月の出勤全てにclock_inがある）
+    const noLate = workDays > 0 && workDays === clockInDays
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const flexContents: Record<string, any> = {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#1E40AF',
+        paddingAll: '16px',
+        contents: [
+          {
+            type: 'text',
+            text: '🌟 今日もお疲れ様！',
+            color: '#ffffff',
+            weight: 'bold',
+            size: 'xl',
+          },
+          {
+            type: 'text',
+            text: `${staff.name}さん · 退勤 ${clockOutTime}`,
+            color: '#BFDBFE',
+            size: 'sm',
+            margin: 'xs',
+          },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '16px',
+        spacing: 'md',
+        contents: [
+          {
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              { type: 'text', text: '🪑 担当テーブル', size: 'sm', color: '#555555', flex: 3 },
+              {
+                type: 'text',
+                text: `${todayOrderCount}組`,
+                size: 'sm',
+                weight: 'bold',
+                color: '#1a1a1a',
+                flex: 2,
+                align: 'end',
+              },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              { type: 'text', text: '⏱️ 勤務時間', size: 'sm', color: '#555555', flex: 3 },
+              {
+                type: 'text',
+                text: `${workHours}時間${workMinutes}分`,
+                size: 'sm',
+                weight: 'bold',
+                color: '#1a1a1a',
+                flex: 2,
+                align: 'end',
+              },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              { type: 'text', text: '⭐ 獲得口コミ', size: 'sm', color: '#555555', flex: 3 },
+              {
+                type: 'text',
+                text: `${todayReviewCount}件`,
+                size: 'sm',
+                weight: 'bold',
+                color: todayReviewCount > 0 ? '#DC2626' : '#1a1a1a',
+                flex: 2,
+                align: 'end',
+              },
+            ],
+          },
+          { type: 'separator' },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              { type: 'text', text: '🎮 今月のEXP', size: 'sm', color: '#555555', flex: 3 },
+              {
+                type: 'text',
+                text: `${exp.toLocaleString()} (Lv.${level})`,
+                size: 'sm',
+                weight: 'bold',
+                color: '#EA580C',
+                flex: 2,
+                align: 'end',
+              },
+            ],
+          },
+          ...(noLate
+            ? [{
+                type: 'text',
+                text: '⚡ 今月遅刻ゼロ継続中！',
+                size: 'xs',
+                color: '#059669',
+                align: 'end' as const,
+              }]
+            : []),
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '12px',
+        contents: [
+          {
+            type: 'button',
+            style: 'secondary',
+            action: {
+              type: 'uri',
+              label: '📅 シフトを確認',
+              uri: 'https://goat-restaurant-os.vercel.app/dashboard/shifts',
+            },
+            height: 'sm',
+          },
+        ],
+      },
+    }
+
+    await sendFlexMessage(
+      lineUserId,
+      `🌟 ${staff.name}さん、お疲れ様でした！ 今日のEXP: +${todayReviewCount * 150 + 50}`,
+      flexContents
+    )
+  } catch (e) {
+    // ハイライト送信失敗は打刻処理に影響させない
+    console.error('ClockOut highlight error:', e)
+  }
 }
 
 // ================================

@@ -18,6 +18,7 @@ const MAIN_NAV = [
 
 const MORE_ITEMS = [
   { label: 'テーブル管理', href: '/dashboard/tables',   icon: '🪑' },
+  { label: '仕込みタスク', href: '/dashboard/tasks',    icon: '📋' },
   { label: '厨房ディスプレイ', href: '/kitchen',        icon: '👨‍🍳' },
   { label: 'PL損益',     href: '/dashboard/pl',        icon: '📊' },
   { label: '在庫管理',   href: '/dashboard/inventory', icon: '🗃️' },
@@ -25,10 +26,15 @@ const MORE_ITEMS = [
   { label: '発注管理',   href: '/dashboard/orders',    icon: '📦' },
   { label: 'メニュー管理', href: '/dashboard/menu-management', icon: '🍽️' },
   { label: '口コミ管理', href: '/dashboard/reviews',          icon: '⭐' },
+  { label: 'スタッフRPG', href: '/dashboard/rpg',              icon: '⚔️' },
   { label: 'スタッフ評価', href: '/dashboard/staff-performance', icon: '📈' },
-  { label: 'スタッフ',   href: '/dashboard/staff',            icon: '👥' },
-  { label: 'レシート',   href: '/dashboard/receipts',  icon: '🧾' },
-  { label: '設定',       href: '/dashboard/settings',  icon: '⚙️' },
+  { label: 'スタッフ',   href: '/dashboard/staff',             icon: '👥' },
+  { label: 'メニュー分析', href: '/dashboard/menu-engineering', icon: '🧮' },
+  { label: '混雑予測',   href: '/dashboard/forecast',          icon: '🔮' },
+  { label: 'SNS投稿',   href: '/dashboard/sns',                icon: '📱' },
+  { label: 'ロイヤルティ', href: '/dashboard/loyalty',         icon: '🎁' },
+  { label: 'レシート',   href: '/dashboard/receipts',          icon: '🧾' },
+  { label: '設定',       href: '/dashboard/settings',          icon: '⚙️' },
 ]
 
 export default function DashboardNav({ current }: { current: string }) {

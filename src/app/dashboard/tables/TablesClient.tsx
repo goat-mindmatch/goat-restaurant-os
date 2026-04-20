@@ -2,6 +2,91 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
+/* ─── テーブル呼び出し型 ─── */
+type TableCall = {
+  id: string
+  table_number: number
+  table_name: string | null
+  call_type: 'staff' | 'water' | 'bill'
+  status: 'pending' | 'responded'
+  created_at: string
+}
+
+const CALL_TYPE_LABEL: Record<string, string> = {
+  staff: '🙋 スタッフ呼び出し',
+  water: '💧 お水',
+  bill:  '💳 お会計',
+}
+
+/* ─── 呼び出し通知バナー ─── */
+function CallNotificationBanner() {
+  const [calls, setCalls] = useState<TableCall[]>([])
+  const [responding, setResponding] = useState<string | null>(null)
+
+  const fetchCalls = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tables/call?status=pending')
+      if (!res.ok) return
+      const data = await res.json()
+      if (Array.isArray(data)) setCalls(data)
+    } catch {
+      // ネットワークエラーは無視
+    }
+  }, [])
+
+  // 初回 + 30秒ごとにポーリング
+  useEffect(() => {
+    fetchCalls()
+    const id = setInterval(fetchCalls, 30000)
+    return () => clearInterval(id)
+  }, [fetchCalls])
+
+  const handleRespond = async (callId: string) => {
+    setResponding(callId)
+    try {
+      const res = await fetch('/api/tables/call', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: callId }),
+      })
+      if (res.ok) {
+        setCalls(prev => prev.filter(c => c.id !== callId))
+      }
+    } finally {
+      setResponding(null)
+    }
+  }
+
+  if (calls.length === 0) return null
+
+  return (
+    <div className="mx-4 mt-4 space-y-2">
+      {calls.map(call => (
+        <div
+          key={call.id}
+          className="bg-red-50 border border-red-300 rounded-2xl px-4 py-3 flex items-center justify-between"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-800">
+              🔔 テーブル{call.table_number}番{call.table_name ? `（${call.table_name}）` : ''} から {CALL_TYPE_LABEL[call.call_type] ?? call.call_type} の呼び出し！
+            </p>
+            <p className="text-xs text-red-500 mt-0.5">
+              {new Date(call.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+          <button
+            onClick={() => handleRespond(call.id)}
+            disabled={responding === call.id}
+            className="ml-3 flex-shrink-0 bg-red-500 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50 active:scale-95 transition-transform"
+          >
+            {responding === call.id ? '処理中...' : '対応済み'}
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 type OrderItem = { id: string; name: string; price: number; quantity: number }
 
 type TableOrder = {
@@ -468,6 +553,9 @@ export default function TablesClient({ initialTables }: { initialTables: TableDa
           {toast}
         </div>
       )}
+
+      {/* 呼び出し通知バナー */}
+      <CallNotificationBanner />
 
       {/* 詳細モーダル */}
       {selected && (
