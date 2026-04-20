@@ -80,5 +80,47 @@ export async function GET() {
     results.webhook_info   = r.ok ? await r.json() : await r.text()
   } catch (e) { results.webhook_error = String(e) }
 
+  // 7. デフォルト設定POSTを実際に試してレスポンスを確認
+  const staffMenuForTest = (results.richmenus as { richMenuId: string; name: string }[] ?? [])
+    .find(m => m.name === 'GOAT Staff Menu v3')
+
+  if (staffMenuForTest) {
+    try {
+      // Content-Typeなし（修正版）
+      const r1 = await fetch(
+        `https://api.line.me/v2/bot/richmenu/default/${staffMenuForTest.richMenuId}`,
+        { method: 'POST', headers: h }
+      )
+      const body1 = await r1.text()
+      results.post_default_test = {
+        status: r1.status,
+        ok: r1.ok,
+        body: body1,
+        menu_id: staffMenuForTest.richMenuId,
+      }
+    } catch (e) { results.post_default_test_error = String(e) }
+
+    // 全ユーザー紐付けも試す
+    try {
+      const r2 = await fetch(
+        `https://api.line.me/v2/bot/user/all/richmenu/${staffMenuForTest.richMenuId}`,
+        { method: 'POST', headers: h }
+      )
+      const body2 = await r2.text()
+      results.post_all_users_test = {
+        status: r2.status,
+        ok: r2.ok,
+        body: body2,
+      }
+    } catch (e) { results.post_all_users_test_error = String(e) }
+  }
+
+  // 8. デフォルト設定後に再取得して反映確認
+  try {
+    const r = await fetch('https://api.line.me/v2/bot/richmenu/default', { headers: h })
+    results.default_after_post_status = r.status
+    results.default_after_post = r.ok ? await r.json() : await r.text()
+  } catch (e) { results.default_after_post_error = String(e) }
+
   return NextResponse.json(results, { status: 200 })
 }
