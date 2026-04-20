@@ -21,8 +21,8 @@ export async function GET() {
     const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers })
     const listData = await listRes.json() as { richmenus?: { richMenuId: string; name: string; selected: boolean }[] }
 
-    // デフォルトリッチメニュー
-    const defaultRes = await fetch('https://api.line.me/v2/bot/user/all/richmenu', { headers })
+    // デフォルトリッチメニュー（新規フォロワー向けのデフォルト設定）
+    const defaultRes = await fetch('https://api.line.me/v2/bot/richmenu/default', { headers })
     const defaultData = defaultRes.ok ? await defaultRes.json() as { richMenuId?: string } : {}
 
     // 各メニューの画像有無チェック（HEADリクエスト）

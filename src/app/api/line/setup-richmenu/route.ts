@@ -189,10 +189,19 @@ export async function POST() {
     }
     const { richMenuId: managerMenuId } = await managerCreateRes.json() as { richMenuId: string }
 
-    // 4. スタッフメニューを全ユーザーのデフォルトに設定
-    await fetch(`https://api.line.me/v2/bot/user/all/richmenu/${staffMenuId}`, {
-      method: 'POST', headers,
-    })
+    // 4a. スタッフメニューを「新規フォロワーのデフォルト」に設定
+    const setDefaultRes = await fetch(
+      `https://api.line.me/v2/bot/richmenu/default/${staffMenuId}`,
+      { method: 'POST', headers }
+    )
+    const setDefaultOk = setDefaultRes.ok
+
+    // 4b. 既存の全フォロワーにもスタッフメニューを紐付け
+    const setAllRes = await fetch(
+      `https://api.line.me/v2/bot/user/all/richmenu/${staffMenuId}`,
+      { method: 'POST', headers }
+    )
+    const setAllOk = setAllRes.ok
 
     // 5. 経営者（role=manager）に個別でmanagerMenuを設定
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -217,6 +226,8 @@ export async function POST() {
       ok: true,
       staff_menu_id: staffMenuId,
       manager_menu_id: managerMenuId,
+      set_default_ok: setDefaultOk,
+      set_all_ok: setAllOk,
       managers_updated: managerResults,
     })
   } catch (e) {
