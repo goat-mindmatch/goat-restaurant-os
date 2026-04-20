@@ -35,6 +35,8 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [broadcasting, setBroadcasting] = useState(false)
+  const [generating,   setGenerating]   = useState(false)
+  const [shiftDraft,   setShiftDraft]   = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   const days = Array.from({ length: lastDay }, (_, i) => i + 1)
@@ -120,6 +122,26 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
     ))
   }
 
+  // AIシフト叩き台生成
+  const handleGenerateShift = async () => {
+    if (!confirm(`${year}年${month}月のシフト叩き台をAIで生成します。\nLINEでも通知されます。よろしいですか？`)) return
+    setGenerating(true)
+    setShiftDraft(null)
+    const res = await fetch('/api/shifts/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ year, month, notify: true }),
+    })
+    const data = await res.json() as { shift_draft?: string; error?: string }
+    setGenerating(false)
+    if (res.ok && data.shift_draft) {
+      setShiftDraft(data.shift_draft)
+      setMessage('✅ AIがシフト叩き台を生成しました。LINEにも送信しました。')
+    } else {
+      setMessage(`❌ ${data.error ?? '生成に失敗しました'}`)
+    }
+  }
+
   // 一斉通知
   const handleBroadcast = async () => {
     if (!confirm(`${month}月の確定シフトを全スタッフにLINE通知します。よろしいですか？`)) return
@@ -176,16 +198,34 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
         </div>
       </div>
 
-      {/* 通知ボタン */}
-      <div className="mx-4 mt-3">
+      {/* ボタン群 */}
+      <div className="mx-4 mt-3 flex gap-2">
         <button
           onClick={handleBroadcast}
           disabled={broadcasting || Object.keys(shiftMap).length === 0}
-          className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl text-sm"
+          className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl text-sm"
         >
-          {broadcasting ? '送信中...' : `📢 確定シフトを全員にLINE通知`}
+          {broadcasting ? '送信中...' : `📢 全員に通知`}
+        </button>
+        <button
+          onClick={handleGenerateShift}
+          disabled={generating || staffList.length === 0}
+          className="flex-1 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl text-sm"
+        >
+          {generating ? 'AI生成中...' : `🤖 AIで叩き台作成`}
         </button>
       </div>
+
+      {/* AIシフト叩き台 */}
+      {shiftDraft && (
+        <div className="mx-4 mt-3 bg-purple-50 border border-purple-200 rounded-xl p-4">
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-sm font-bold text-purple-700">🤖 AI生成シフト叩き台</p>
+            <button onClick={() => setShiftDraft(null)} className="text-xs text-purple-400">閉じる</button>
+          </div>
+          <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{shiftDraft}</pre>
+        </div>
+      )}
 
       {/* 月切替ナビゲーション */}
       {onMonthChange && (

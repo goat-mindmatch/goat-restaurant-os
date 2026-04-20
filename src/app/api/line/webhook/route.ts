@@ -89,7 +89,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '本日の売上', '売上入力', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '本日の売上', '売上入力', 'スキル一覧', 'ヘルプ', '使い方', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -150,6 +150,11 @@ async function handleEvent(event: LineEvent) {
       break
     case '売上入力':
       await handleSalesInputStart(userId)
+      break
+    case 'スキル一覧':
+    case 'ヘルプ':
+    case '使い方':
+      await handleSkillList(userId)
       break
     case '経営メニューへ切替':
       await handleMenuSwitch(userId, 'manager')
@@ -1014,39 +1019,22 @@ async function getSalesSession(lineUserId: string): Promise<string | null> {
   return data ? data.state : null
 }
 
-// フロー開始
+// フロー開始（フォームURLを送信）
 async function handleSalesInputStart(lineUserId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any
 
   // 経営者チェック
   const { data: staff } = await db.from('staff')
-    .select('role').eq('tenant_id', TENANT_ID).eq('line_user_id', lineUserId).single()
+    .select('name, role').eq('tenant_id', TENANT_ID).eq('line_user_id', lineUserId).single()
   if (!staff || staff.role !== 'manager') {
     await sendLineMessage(lineUserId, '⚠️ このコマンドは経営者専用です。')
     return
   }
 
-  const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
-    .toISOString().split('T')[0]
-
-  // セッション作成
-  await db.from('line_sessions').upsert({
-    line_user_id: lineUserId,
-    state: 'awaiting_sales_store',
-    meta: JSON.stringify({ date: today }),
-    created_at: new Date().toISOString(),
-  })
-
-  const dateLabel = today.replace(/-/g, '/').slice(5) // "04/20"
+  const formUrl = `https://goat-restaurant-os.vercel.app/sales-form?uid=${lineUserId}`
   await sendLineMessage(lineUserId,
-    `📝 ${dateLabel}の売上を入力します\n\n` +
-    `━━━━━━━━━━━━\n` +
-    `①店内売上（円）を入力してください\n\n` +
-    `例：85000\n` +
-    `ない場合は「0」\n` +
-    `━━━━━━━━━━━━\n` +
-    `❌ キャンセルは「キャンセル」`)
+    `📝 売上入力フォームです。\n\nタップして開いてください👇\n${formUrl}\n\n店内・Uber・ロケットなう・食材費をまとめて入力できます。`)
 }
 
 // 数値入力処理
@@ -1142,6 +1130,68 @@ async function handleSalesInput(lineUserId: string, text: string, state: string)
       `━━━━━━━━━━━━\n` +
       `💴 合計：¥${totalSales.toLocaleString()}\n\n` +
       `ダッシュボードに反映されました👇\nhttps://goat-restaurant-os.vercel.app/dashboard`)
+  }
+}
+
+// ================================
+// スキル一覧（全機能の使い方ガイド）
+// ================================
+async function handleSkillList(lineUserId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+  const { data: staff } = await db.from('staff')
+    .select('role').eq('tenant_id', TENANT_ID).eq('line_user_id', lineUserId).single()
+
+  const isManager = staff?.role === 'manager'
+
+  const staffSkills = `📋 スタッフ向け 使える機能一覧
+
+━━━━━━━━━━━━
+🟢 出勤打刻
+「出勤」と送信 → 自動で出勤時間を記録
+
+🔴 退勤打刻
+「退勤」と送信 → 退勤時間を記録
+
+📅 シフト希望提出
+「シフト希望提出」と送信 → フォームが開く
+来月の出勤希望日を選んで送信
+
+📆 シフト確認
+「シフト確認」と送信 → 自分のシフトを表示
+
+📦 発注依頼
+「発注依頼」と送信 → 発注フォームが開く
+品目・数量・配達希望日を入力
+
+🧾 レシートをPLに記録（隠し機能）
+領収書の写真をそのまま送信 → AIが自動で金額・店名・カテゴリを読み取ってPLに記録
+
+━━━━━━━━━━━━
+「スキル一覧」でいつでもこの一覧が見られます`
+
+  const managerSkills = `📋 経営者向け 追加機能
+
+━━━━━━━━━━━━
+📊 売上確認
+「本日の売上」と送信 → 当日売上＋月次累計を表示
+
+📝 売上入力
+「売上入力」と送信 → フォームが開く
+店内・Uber・ロケットなう・食材費をまとめて入力
+
+📈 ダッシュボード
+https://goat-restaurant-os.vercel.app/dashboard
+
+💴 給与計算・PL・シフト管理なども
+ダッシュボードの「もっと」から全機能にアクセスできます
+
+━━━━━━━━━━━━
+「スタッフメニューへ切替」でスタッフ機能も使えます`
+
+  await sendLineMessage(lineUserId, staffSkills)
+  if (isManager) {
+    await sendLineMessage(lineUserId, managerSkills)
   }
 }
 
