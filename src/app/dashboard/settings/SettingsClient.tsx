@@ -390,6 +390,7 @@ function LineTab() {
   const [toast, setToast]               = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [uploadingStaff, setUploadingStaff]     = useState(false)
   const [uploadingManager, setUploadingManager] = useState(false)
+  const [settingDefault, setSettingDefault]     = useState(false)
   const [statusLoading, setStatusLoading] = useState(false)
   const [menuStatus, setMenuStatus]       = useState<MenuStatus[] | null>(null)
 
@@ -438,6 +439,34 @@ function LineTab() {
       showToast(`❌ ${e instanceof Error ? e.message : '不明なエラー'}`, 'error')
     } finally {
       setter(false)
+    }
+  }
+
+  const setDefault = async () => {
+    setSettingDefault(true)
+    setToast(null)
+    try {
+      const res  = await fetch('/api/line/set-default-richmenu', { method: 'POST' })
+      const data = await res.json() as {
+        ok?: boolean
+        set_default_ok?: boolean; set_default_status?: number; set_default_error?: string
+        set_all_ok?: boolean;     set_all_status?: number;     set_all_error?: string
+        managers_updated?: { name: string; status: number }[]
+        error?: string
+      }
+      if (data.ok) {
+        const mgr = data.managers_updated?.length
+          ? `（経営者 ${data.managers_updated.map(m => m.name).join('・')} にも設定済み）`
+          : ''
+        showToast(`✅ デフォルト設定完了！LINEを再起動して確認してください ${mgr}`, 'success')
+      } else {
+        const detail = data.set_default_error ?? data.set_all_error ?? data.error ?? '不明'
+        showToast(`❌ デフォルト設定失敗 (${data.set_default_status ?? '?'}): ${detail}`, 'error')
+      }
+    } catch (e) {
+      showToast(`❌ ${e instanceof Error ? e.message : '不明なエラー'}`, 'error')
+    } finally {
+      setSettingDefault(false)
     }
   }
 
@@ -537,6 +566,26 @@ function LineTab() {
               {uploadingManager ? 'アップロード中...' : '🖼 画像を選択してアップロード'}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* STEP 2.5: デフォルト設定（画像アップロード後に実行） */}
+      <div className="bg-white rounded-xl border-2 border-orange-300 overflow-hidden">
+        <div className="bg-orange-50 px-4 py-2 border-b border-orange-200">
+          <p className="text-xs font-bold text-orange-700">⚡ STEP 2 完了後に必ず実行　スタッフに表示させる</p>
+        </div>
+        <div className="p-4">
+          <p className="text-xs text-gray-500 mb-3">
+            画像アップロードが終わったら、このボタンを押してメニューをLINEユーザーに紐付けます。
+            これをしないとLINEアプリに何も表示されません。
+          </p>
+          <button
+            onClick={setDefault}
+            disabled={settingDefault}
+            className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-bold py-3 rounded-xl transition-colors text-sm"
+          >
+            {settingDefault ? '設定中...' : '🔗 全スタッフにメニューを表示させる'}
+          </button>
         </div>
       </div>
 
