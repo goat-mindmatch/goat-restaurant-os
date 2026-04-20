@@ -12,14 +12,8 @@ import { createServiceClient } from '@/lib/supabase'
 import { sendLineMessage } from '@/lib/line-staff'
 
 const TENANT_ID = process.env.TENANT_ID!
-const CRON_SECRET = process.env.CRON_SECRET ?? ''
 
-export async function POST(req: NextRequest) {
-  // 簡易認証（CRON_SECRETが設定されている場合）
-  const auth = req.headers.get('x-cron-secret')
-  if (CRON_SECRET && auth !== CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+async function runReport() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any
@@ -111,7 +105,11 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, month: monthLabel, sent_to: results })
 }
 
-// Vercel Cron からの GET にも対応
-export async function GET(req: NextRequest) {
-  return POST(req)
+export async function POST() {
+  return runReport()
+}
+
+// ブラウザ手動テスト用（GETでも動く）
+export async function GET() {
+  return runReport()
 }
