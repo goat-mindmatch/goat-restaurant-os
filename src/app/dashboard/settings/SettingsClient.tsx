@@ -414,12 +414,24 @@ function FixedCostsTab() {
     setTimeout(() => setToast(null), 3000)
   }
 
+  const [tableReady, setTableReady] = useState(true)
+
   const load = useCallback(() => {
     setLoading(true)
     fetch('/api/settings/fixed-costs')
       .then(r => r.json())
-      .then((d: FixedCost[]) => { setList(d); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then((d: unknown) => {
+        if (Array.isArray(d)) {
+          setList(d as FixedCost[])
+          setTableReady(true)
+        } else {
+          // テーブルが存在しない or APIエラー → 空リストで表示
+          setList([])
+          setTableReady(false)
+        }
+        setLoading(false)
+      })
+      .catch(() => { setList([]); setLoading(false) })
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -429,46 +441,83 @@ function FixedCostsTab() {
   const handleAdd = async () => {
     if (!newAmount) return
     setSaving(true)
-    const res = await fetch('/api/settings/fixed-costs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: newCategory, amount: Number(newAmount), label: newLabel || FIXED_COST_CATEGORIES[newCategory] }),
-    })
-    const d = await res.json()
-    setSaving(false)
-    if (d.ok) { showMsg('✅ 追加しました', 'success'); setShowAdd(false); setNewLabel(''); setNewAmount(''); load() }
-    else showMsg(`❌ ${d.error}`, 'error')
+    try {
+      const res = await fetch('/api/settings/fixed-costs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: newCategory, amount: Number(newAmount), label: newLabel || FIXED_COST_CATEGORIES[newCategory] }),
+      })
+      const d = await res.json()
+      if (d.ok) { showMsg('✅ 追加しました', 'success'); setShowAdd(false); setNewLabel(''); setNewAmount(''); load() }
+      else showMsg(`❌ ${d.error ?? '追加に失敗しました'}`, 'error')
+    } catch {
+      showMsg('❌ 通信エラーが発生しました', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleEdit = async (id: string) => {
     setSaving(true)
-    const res = await fetch('/api/settings/fixed-costs', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, label: editLabel, amount: Number(editAmount) }),
-    })
-    const d = await res.json()
-    setSaving(false)
-    if (d.ok) { showMsg('✅ 更新しました', 'success'); setEditId(null); load() }
-    else showMsg(`❌ ${d.error}`, 'error')
+    try {
+      const res = await fetch('/api/settings/fixed-costs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, label: editLabel, amount: Number(editAmount) }),
+      })
+      const d = await res.json()
+      if (d.ok) { showMsg('✅ 更新しました', 'success'); setEditId(null); load() }
+      else showMsg(`❌ ${d.error ?? '更新に失敗しました'}`, 'error')
+    } catch {
+      showMsg('❌ 通信エラーが発生しました', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleToggle = async (item: FixedCost) => {
-    await fetch('/api/settings/fixed-costs', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: item.id, is_active: !item.is_active }),
-    })
-    load()
+    try {
+      await fetch('/api/settings/fixed-costs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, is_active: !item.is_active }),
+      })
+      load()
+    } catch {
+      showMsg('❌ 通信エラーが発生しました', 'error')
+    }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm('この固定費を削除しますか？')) return
-    await fetch(`/api/settings/fixed-costs?id=${id}`, { method: 'DELETE' })
-    load()
+    try {
+      await fetch(`/api/settings/fixed-costs?id=${id}`, { method: 'DELETE' })
+      load()
+    } catch {
+      showMsg('❌ 削除に失敗しました', 'error')
+    }
   }
 
   if (loading) return <p className="text-sm text-gray-400 py-4 text-center">読み込み中...</p>
+
+  if (!tableReady) return (
+    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
+      <p className="font-bold mb-1">⚠️ 固定費テーブルが未作成です</p>
+      <p className="text-xs">Supabase で以下のSQLを実行してください：</p>
+      <pre className="bg-yellow-100 rounded-lg p-2 mt-2 text-[10px] overflow-x-auto whitespace-pre-wrap">{`CREATE TABLE IF NOT EXISTS fixed_costs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_id text NOT NULL,
+  category text NOT NULL,
+  amount integer NOT NULL DEFAULT 0,
+  label text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);`}</pre>
+      <button onClick={load} className="mt-3 w-full bg-yellow-500 text-white text-sm font-semibold py-2 rounded-xl">
+        再読み込み
+      </button>
+    </div>
+  )
 
   return (
     <div>
