@@ -142,20 +142,23 @@ export async function POST() {
     )
   }
 
-  const headers = {
+  // ボディあり用（JSON送信）
+  const jsonHeaders = {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
   }
+  // ボディなし用（GET/DELETE/ボディなしPOST）
+  const authHeader = { Authorization: `Bearer ${token}` }
 
   try {
     // 1. 既存リッチメニューを全削除
-    const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers })
+    const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers: authHeader })
     if (listRes.ok) {
       const listData = await listRes.json() as { richmenus: { richMenuId: string }[] }
       await Promise.all(
         (listData.richmenus ?? []).map(menu =>
           fetch(`https://api.line.me/v2/bot/richmenu/${menu.richMenuId}`, {
-            method: 'DELETE', headers,
+            method: 'DELETE', headers: authHeader,
           })
         )
       )
@@ -163,7 +166,7 @@ export async function POST() {
 
     // 2. スタッフ用リッチメニューを作成
     const staffCreateRes = await fetch('https://api.line.me/v2/bot/richmenu', {
-      method: 'POST', headers, body: JSON.stringify(STAFF_RICH_MENU),
+      method: 'POST', headers: jsonHeaders, body: JSON.stringify(STAFF_RICH_MENU),
     })
     if (!staffCreateRes.ok) {
       return NextResponse.json(
@@ -175,7 +178,7 @@ export async function POST() {
 
     // 3. 経営者用リッチメニューを作成
     const managerCreateRes = await fetch('https://api.line.me/v2/bot/richmenu', {
-      method: 'POST', headers, body: JSON.stringify(MANAGER_RICH_MENU),
+      method: 'POST', headers: jsonHeaders, body: JSON.stringify(MANAGER_RICH_MENU),
     })
     if (!managerCreateRes.ok) {
       return NextResponse.json(
@@ -185,21 +188,21 @@ export async function POST() {
     }
     const { richMenuId: managerMenuId } = await managerCreateRes.json() as { richMenuId: string }
 
-    // 4a. スタッフメニューを「新規フォロワーのデフォルト」に設定
+    // 4a. スタッフメニューを「新規フォロワーのデフォルト」に設定（ボディなし）
     const setDefaultRes = await fetch(
       `https://api.line.me/v2/bot/richmenu/default/${staffMenuId}`,
-      { method: 'POST', headers }
+      { method: 'POST', headers: authHeader }
     )
     const setDefaultOk = setDefaultRes.ok
 
-    // 4b. 既存の全フォロワーにもスタッフメニューを紐付け
+    // 4b. 既存の全フォロワーにもスタッフメニューを紐付け（ボディなし）
     const setAllRes = await fetch(
       `https://api.line.me/v2/bot/user/all/richmenu/${staffMenuId}`,
-      { method: 'POST', headers }
+      { method: 'POST', headers: authHeader }
     )
     const setAllOk = setAllRes.ok
 
-    // 5. 経営者（role=manager）に個別でmanagerMenuを設定
+    // 5. 経営者（role=manager）に個別でmanagerMenuを設定（ボディなし）
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
     const { data: managers } = await db.from('staff')
@@ -213,7 +216,7 @@ export async function POST() {
     for (const m of managers ?? []) {
       const res = await fetch(
         `https://api.line.me/v2/bot/user/${m.line_user_id}/richmenu/${managerMenuId}`,
-        { method: 'POST', headers }
+        { method: 'POST', headers: authHeader }
       )
       managerResults.push({ name: m.name, ok: res.ok })
     }

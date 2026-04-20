@@ -20,10 +20,11 @@ export async function POST() {
     return NextResponse.json({ error: 'LINE_STAFF_CHANNEL_ACCESS_TOKEN 未設定' }, { status: 500 })
   }
 
-  const h = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  // ボディなしPOSTにはAuthorizationのみ（Content-Typeは不要・むしろLINE APIが拒否する）
+  const authHeader = { Authorization: `Bearer ${token}` }
 
   // 1. メニュー一覧からIDを取得
-  const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers: h })
+  const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers: authHeader })
   if (!listRes.ok) {
     return NextResponse.json({ error: `メニュー一覧取得失敗: ${listRes.status}` }, { status: 500 })
   }
@@ -42,10 +43,10 @@ export async function POST() {
 
   const results: Record<string, unknown> = { staff_menu_id: staffMenu.richMenuId }
 
-  // 2. スタッフメニューを新規フォロワーのデフォルトに設定
+  // 2. スタッフメニューを新規フォロワーのデフォルトに設定（ボディなし）
   const defaultRes = await fetch(
     `https://api.line.me/v2/bot/richmenu/default/${staffMenu.richMenuId}`,
-    { method: 'POST', headers: h }
+    { method: 'POST', headers: authHeader }
   )
   results.set_default_status = defaultRes.status
   results.set_default_ok     = defaultRes.ok
@@ -53,10 +54,10 @@ export async function POST() {
     results.set_default_error = await defaultRes.text()
   }
 
-  // 3. 既存の全フォロワーにスタッフメニューを紐付け
+  // 3. 既存の全フォロワーにスタッフメニューを紐付け（ボディなし）
   const allRes = await fetch(
     `https://api.line.me/v2/bot/user/all/richmenu/${staffMenu.richMenuId}`,
-    { method: 'POST', headers: h }
+    { method: 'POST', headers: authHeader }
   )
   results.set_all_status = allRes.status
   results.set_all_ok     = allRes.ok
@@ -64,7 +65,7 @@ export async function POST() {
     results.set_all_error = await allRes.text()
   }
 
-  // 4. 経営者には個別にmanagerMenuを設定
+  // 4. 経営者には個別にmanagerMenuを設定（ボディなし）
   if (managerMenu) {
     results.manager_menu_id = managerMenu.richMenuId
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,7 +81,7 @@ export async function POST() {
     for (const m of managers ?? []) {
       const res = await fetch(
         `https://api.line.me/v2/bot/user/${m.line_user_id}/richmenu/${managerMenu.richMenuId}`,
-        { method: 'POST', headers: h }
+        { method: 'POST', headers: authHeader }
       )
       managerResults.push({ name: m.name, status: res.status })
     }

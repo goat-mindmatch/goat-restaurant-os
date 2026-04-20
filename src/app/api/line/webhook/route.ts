@@ -800,7 +800,8 @@ JSONのみを返してください。前後の説明は不要です。`,
 // ================================
 async function handleMenuSwitch(lineUserId: string, to: 'staff' | 'manager') {
   const token = process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN!
-  const h = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  // ボディなしPOSTにはAuthorizationのみ
+  const h = { Authorization: `Bearer ${token}` }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any
 

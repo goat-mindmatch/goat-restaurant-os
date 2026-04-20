@@ -20,7 +20,10 @@ export async function GET() {
 
   const h = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
-  const results: Record<string, unknown> = {}
+  const results: Record<string, unknown> = {
+    // Content-Typeヘッダーバグ修正済み確認用
+    _note: 'ボディなしPOSTはAuthorizationのみ使用（Content-Type除去済み）',
+  }
 
   // 1. Bot情報（どのLINEアカウントのトークンか）
   try {
@@ -69,6 +72,13 @@ export async function GET() {
     })
   }
   results.image_checks = imageChecks
+
+  // 6. Webhook設定確認
+  try {
+    const r = await fetch('https://api.line.me/v2/bot/channel/webhook/endpoint', { headers: h })
+    results.webhook_status = r.status
+    results.webhook_info   = r.ok ? await r.json() : await r.text()
+  } catch (e) { results.webhook_error = String(e) }
 
   return NextResponse.json(results, { status: 200 })
 }
