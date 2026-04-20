@@ -376,12 +376,22 @@ function StaffTab() {
   )
 }
 
+type MenuStatus = {
+  id: string
+  name: string
+  is_default: boolean
+  has_image: boolean
+  image_content_type: string | null
+}
+
 // ─── LINE設定タブ ────────────────────────────────────
 function LineTab() {
   const [setupLoading, setSetupLoading] = useState(false)
   const [toast, setToast]               = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [uploadingStaff, setUploadingStaff]     = useState(false)
   const [uploadingManager, setUploadingManager] = useState(false)
+  const [statusLoading, setStatusLoading] = useState(false)
+  const [menuStatus, setMenuStatus]       = useState<MenuStatus[] | null>(null)
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type })
@@ -428,6 +438,24 @@ function LineTab() {
       showToast(`❌ ${e instanceof Error ? e.message : '不明なエラー'}`, 'error')
     } finally {
       setter(false)
+    }
+  }
+
+  const checkStatus = async () => {
+    setStatusLoading(true)
+    setMenuStatus(null)
+    try {
+      const res  = await fetch('/api/line/richmenu-status')
+      const data = await res.json() as { menus?: MenuStatus[]; error?: string }
+      if (data.menus) {
+        setMenuStatus(data.menus)
+      } else {
+        showToast(`❌ 確認失敗: ${data.error ?? '不明'}`, 'error')
+      }
+    } catch (e) {
+      showToast(`❌ ${e instanceof Error ? e.message : '不明なエラー'}`, 'error')
+    } finally {
+      setStatusLoading(false)
     }
   }
 
@@ -509,6 +537,44 @@ function LineTab() {
               {uploadingManager ? 'アップロード中...' : '🖼 画像を選択してアップロード'}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* STEP 3: 現在の状態確認 */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
+          <p className="text-xs font-bold text-gray-600">STEP 3　設定状態を確認する</p>
+        </div>
+        <div className="p-4">
+          <button
+            onClick={checkStatus}
+            disabled={statusLoading}
+            className="w-full border border-gray-300 hover:bg-gray-50 text-gray-600 font-semibold py-2.5 rounded-xl transition-colors text-sm disabled:opacity-50"
+          >
+            {statusLoading ? '確認中...' : '🔍 現在のメニュー状態を確認する'}
+          </button>
+
+          {menuStatus && (
+            <div className="mt-3 space-y-2">
+              {menuStatus.length === 0 ? (
+                <p className="text-xs text-red-500">❌ LINEにリッチメニューが1件も登録されていません。STEP 1から実施してください。</p>
+              ) : (
+                menuStatus.map(m => (
+                  <div key={m.id} className={`rounded-xl p-3 text-xs border ${m.has_image ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold text-gray-700">{m.name}</span>
+                      {m.is_default && <span className="bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded text-[10px] font-bold">デフォルト</span>}
+                    </div>
+                    <div className="flex gap-3">
+                      <span className={m.has_image ? 'text-green-700' : 'text-red-600'}>
+                        {m.has_image ? '✅ 画像あり' : '❌ 画像なし → STEP 2でアップロード'}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
 
