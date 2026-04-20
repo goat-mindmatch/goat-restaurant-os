@@ -44,28 +44,20 @@ const STAFF_RICH_MENU = {
       bounds: { x: C[1], y: R[0], width: W[1], height: H },
       action: { type: 'message', label: '退勤打刻', text: '退勤' },
     },
-    // 上段右: シフト希望提出
+    // 上段右: シフト希望提出（message型でWebhook経由→uid付きURL返信）
     {
       bounds: { x: C[2], y: R[0], width: W[2], height: H },
-      action: {
-        type: 'uri',
-        label: 'シフト希望提出',
-        uri: `${BASE_URL}/shift-form`,
-      },
+      action: { type: 'message', label: 'シフト希望提出', text: 'シフト希望提出' },
     },
     // 下段左: 経営メニューへ切り替え（経営者のみ有効）
     {
       bounds: { x: C[0], y: R[1], width: W[0], height: H },
       action: { type: 'message', label: '経営メニューへ', text: '経営メニューへ切替' },
     },
-    // 下段中: 発注依頼
+    // 下段中: 発注依頼（message型でWebhook経由→uid付きURL返信）
     {
       bounds: { x: C[1], y: R[1], width: W[1], height: H },
-      action: {
-        type: 'uri',
-        label: '発注依頼',
-        uri: `${BASE_URL}/order-form`,
-      },
+      action: { type: 'message', label: '発注依頼', text: '発注依頼' },
     },
     // 下段右: シフト確認
     {
