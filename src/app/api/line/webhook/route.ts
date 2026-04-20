@@ -89,7 +89,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '本日の売上', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,6 +138,9 @@ async function handleEvent(event: LineEvent) {
     case 'クーポン':
       await sendLineMessage(userId,
         `🔍 クーポン検証ページです。\n\nお客様の検証コードを入力して承認してください👇\nhttps://goat-restaurant-os.vercel.app/verify?uid=${userId}\n\n💡 ブックマークしておくと便利です。`)
+      break
+    case '本日の売上':
+      await handleTodaySales(userId)
       break
     case '経営メニューへ切替':
       await handleMenuSwitch(userId, 'manager')
@@ -901,6 +904,82 @@ async function handleMenuSwitch(lineUserId: string, to: 'staff' | 'manager') {
   } else {
     await sendLineMessage(lineUserId, '⚠️ メニューの切り替えに失敗しました。時間をおいて再度お試しください。')
   }
+}
+
+// ================================
+// 本日の売上（経営者向け）
+// ================================
+async function handleTodaySales(lineUserId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+
+  // role確認（経営者のみ）
+  const { data: staff } = await db.from('staff')
+    .select('name, role')
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId)
+    .single()
+
+  if (!staff || staff.role !== 'manager') {
+    await sendLineMessage(lineUserId, '⚠️ このコマンドは経営者専用です。')
+    return
+  }
+
+  const today = new Date().toLocaleString('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).replace(/\//g, '-')
+  const todayISO = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
+    .toISOString().split('T')[0]
+
+  const { data: sales } = await db.from('daily_sales')
+    .select('total_sales, store_sales, delivery_sales, store_orders, delivery_orders, uber_sales, rocketnow_sales, lunch_sales, dinner_sales, food_cost, labor_cost')
+    .eq('tenant_id', TENANT_ID)
+    .eq('date', todayISO)
+    .single()
+
+  // 月次集計
+  const firstDayOfMonth = todayISO.slice(0, 7) + '-01'
+  const { data: monthRows } = await db.from('daily_sales')
+    .select('total_sales')
+    .eq('tenant_id', TENANT_ID)
+    .gte('date', firstDayOfMonth)
+    .lte('date', todayISO)
+  const monthTotal = (monthRows ?? []).reduce((s: number, r: { total_sales: number | null }) => s + (r.total_sales ?? 0), 0)
+
+  // 月間目標
+  const { data: tenant } = await db.from('tenants')
+    .select('monthly_target').eq('id', TENANT_ID).single()
+  const monthlyTarget = tenant?.monthly_target ?? 0
+
+  if (!sales) {
+    await sendLineMessage(lineUserId,
+      `📊 ${today} の売上\n\nまだ売上データが入力されていません。\n\nダッシュボードから入力してください👇\nhttps://goat-restaurant-os.vercel.app/dashboard/sales`)
+    return
+  }
+
+  const fmt = (n: number | null) => n != null ? `¥${n.toLocaleString()}` : '未入力'
+  const pct = (a: number | null, b: number) => (a && b > 0) ? ` (${Math.round(a / b * 100)}%)` : ''
+
+  const flLine = (sales.food_cost || sales.labor_cost)
+    ? `\n💰 FL比率: 食材 ${fmt(sales.food_cost)} / 人件費 ${fmt(sales.labor_cost)}`
+    : ''
+
+  const monthLine = monthlyTarget > 0
+    ? `\n\n📅 今月累計: ${fmt(monthTotal)}${pct(monthTotal, monthlyTarget)} / 目標 ${fmt(monthlyTarget)}`
+    : `\n\n📅 今月累計: ${fmt(monthTotal)}`
+
+  await sendLineMessage(lineUserId,
+    `📊 ${today} の売上\n\n` +
+    `💴 合計: ${fmt(sales.total_sales)}\n` +
+    `🏪 店内: ${fmt(sales.store_sales)}（${sales.store_orders ?? 0}件）\n` +
+    `🛵 デリバリー: ${fmt(sales.delivery_sales)}（${sales.delivery_orders ?? 0}件）\n` +
+    (sales.lunch_sales ? `🌞 ランチ: ${fmt(sales.lunch_sales)}\n` : '') +
+    (sales.dinner_sales ? `🌙 ディナー: ${fmt(sales.dinner_sales)}\n` : '') +
+    flLine +
+    monthLine +
+    `\n\n詳細はダッシュボードで確認できます👇\nhttps://goat-restaurant-os.vercel.app/dashboard`
+  )
 }
 
 // ================================
