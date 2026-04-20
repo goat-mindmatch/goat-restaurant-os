@@ -55,7 +55,8 @@ const MANAGER_MENU_DEF = {
   ],
 }
 
-const MENU_DEFS: Record<string, typeof STAFF_MENU_DEF> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const MENU_DEFS: Record<string, any> = {
   staff:   STAFF_MENU_DEF,
   manager: MANAGER_MENU_DEF,
 }
