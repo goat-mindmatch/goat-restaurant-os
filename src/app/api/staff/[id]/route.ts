@@ -2,8 +2,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
- * PATCH /api/staff/:id
- * スタッフの時給・交通費を更新
+ * PATCH /api/staff/:id — スタッフ情報更新（時給・交通費・有効フラグ・名前・役職）
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -18,11 +17,14 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await req.json()
-    const { hourly_wage, transport_fee } = body
+    const { hourly_wage, transport_fee, is_active, name, role } = body
 
-    const update: Record<string, number> = {}
-    if (hourly_wage  !== undefined) update.hourly_wage  = Number(hourly_wage)
+    const update: Record<string, string | number | boolean> = {}
+    if (hourly_wage   !== undefined) update.hourly_wage   = Number(hourly_wage)
     if (transport_fee !== undefined) update.transport_fee = Number(transport_fee)
+    if (is_active     !== undefined) update.is_active     = Boolean(is_active)
+    if (name          !== undefined) update.name          = String(name).trim()
+    if (role          !== undefined) update.role          = String(role)
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'no fields to update' }, { status: 400 })
