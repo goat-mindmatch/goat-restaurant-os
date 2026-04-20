@@ -378,71 +378,144 @@ function StaffTab() {
 
 // ─── LINE設定タブ ────────────────────────────────────
 function LineTab() {
-  const [loading, setLoading] = useState(false)
-  const [toast, setToast]     = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [setupLoading, setSetupLoading] = useState(false)
+  const [toast, setToast]               = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [uploadingStaff, setUploadingStaff]     = useState(false)
+  const [uploadingManager, setUploadingManager] = useState(false)
+
+  const showToast = (msg: string, type: 'success' | 'error') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 5000)
+  }
 
   const setup = async () => {
-    setLoading(true)
+    setSetupLoading(true)
     setToast(null)
     try {
       const res = await fetch('/api/line/setup-richmenu', { method: 'POST' })
       const d = await res.json() as { ok?: boolean; error?: string; managers_updated?: { name: string; ok: boolean }[] }
       if (res.ok && d.ok) {
         const managerInfo = d.managers_updated && d.managers_updated.length > 0
-          ? `（経営者メニュー設定: ${d.managers_updated.map(m => m.name).join('・')}）`
+          ? `（経営者: ${d.managers_updated.map(m => m.name).join('・')}）`
           : ''
-        setToast({ msg: `✅ リッチメニューを設定しました！LINEアプリで確認してください ${managerInfo}`, type: 'success' })
+        showToast(`✅ リッチメニューを設定しました！次に画像をアップロードしてください ${managerInfo}`, 'success')
       } else {
-        setToast({ msg: `❌ 設定に失敗しました: ${d.error ?? '不明なエラー'}`, type: 'error' })
+        showToast(`❌ 設定に失敗しました: ${d.error ?? '不明なエラー'}`, 'error')
       }
     } catch (e) {
-      setToast({ msg: `❌ ${e instanceof Error ? e.message : '不明なエラー'}`, type: 'error' })
+      showToast(`❌ ${e instanceof Error ? e.message : '不明なエラー'}`, 'error')
     } finally {
-      setLoading(false)
+      setSetupLoading(false)
     }
   }
 
+  const uploadImage = async (menuType: 'staff' | 'manager', file: File) => {
+    const setter = menuType === 'staff' ? setUploadingStaff : setUploadingManager
+    setter(true)
+    setToast(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('menu_type', menuType)
+      const res  = await fetch('/api/line/upload-richmenu-image', { method: 'POST', body: fd })
+      const data = await res.json() as { ok?: boolean; error?: string }
+      if (data.ok) {
+        showToast(`✅ ${menuType === 'staff' ? 'スタッフ' : '経営者'}メニューの画像をアップロードしました！`, 'success')
+      } else {
+        showToast(`❌ アップロード失敗: ${data.error ?? '不明なエラー'}`, 'error')
+      }
+    } catch (e) {
+      showToast(`❌ ${e instanceof Error ? e.message : '不明なエラー'}`, 'error')
+    } finally {
+      setter(false)
+    }
+  }
+
+  const handleFileSelect = (menuType: 'staff' | 'manager') => {
+    const input = document.createElement('input')
+    input.type   = 'file'
+    input.accept = 'image/jpeg,image/png'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) await uploadImage(menuType, file)
+    }
+    input.click()
+  }
+
   return (
-    <div>
+    <div className="space-y-4">
       {toast && <Toast msg={toast.msg} type={toast.type} />}
 
-      {/* 事前確認 */}
-      <div className="mb-4 bg-blue-50 rounded-xl p-3 text-xs text-blue-700 space-y-1">
-        <p className="font-semibold">📋 設定前チェックリスト</p>
-        <p>① Vercelの環境変数に <code className="bg-blue-100 px-1 rounded">LINE_STAFF_CHANNEL_ACCESS_TOKEN</code> が設定済みか</p>
-        <p>② LINE Official Account Managerでリッチメニューの画像がアップロード済みか</p>
-        <p>③ スタッフがLINEを友だち追加済みか</p>
+      {/* STEP 1: リッチメニュー作成 */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
+          <p className="text-xs font-bold text-gray-600">STEP 1　ボタン構成を作る</p>
+        </div>
+        <div className="p-4">
+          <p className="text-xs text-gray-500 mb-3">
+            LINEにスタッフ用・経営者用の6ボタンメニューを登録します。
+            画像なしの状態で作成されるので、次のSTEP 2で画像を設定してください。
+          </p>
+          <button
+            onClick={setup}
+            disabled={setupLoading}
+            className="w-full bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+          >
+            {setupLoading ? '作成中...' : '📱 リッチメニューを作成する'}
+          </button>
+        </div>
       </div>
 
-      <p className="text-sm text-gray-600 mb-4">
-        スタッフ用LINEのリッチメニュー（操作パネル）を自動設定します。
-        スタッフ全員に6ボタンメニュー、経営者にはダッシュボードリンク付きメニューが設定されます。
-      </p>
-      <button
-        onClick={setup}
-        disabled={loading}
-        className="w-full bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white font-semibold py-3 px-4 rounded-xl transition-colors"
-      >
-        {loading ? '設定中...' : '📱 LINEリッチメニューを設定する'}
-      </button>
+      {/* STEP 2: 画像アップロード */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
+          <p className="text-xs font-bold text-gray-600">STEP 2　画像をアップロードする</p>
+        </div>
+        <div className="p-4 space-y-3">
+          <p className="text-xs text-gray-500">
+            JPEG または PNG、2500×1686px 推奨。STEP 1 完了後に設定してください。
+          </p>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <div>
-          <p className="text-xs font-semibold text-gray-600 mb-1">スタッフ用ボタン</p>
-          <div className="flex flex-wrap gap-1">
-            {['出勤', '退勤', 'シフト希望', '口コミ誘導', '発注依頼', 'シフト確認'].map(label => (
-              <span key={label} className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">{label}</span>
-            ))}
+          {/* スタッフ用 */}
+          <div className="border border-gray-100 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">👤 スタッフ用メニュー</p>
+                <p className="text-[10px] text-gray-400">出勤 / 退勤 / シフト / 口コミ / 発注 / シフト確認</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleFileSelect('staff')}
+              disabled={uploadingStaff}
+              className="w-full border-2 border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50 text-gray-500 hover:text-green-600 text-sm font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {uploadingStaff ? 'アップロード中...' : '🖼 画像を選択してアップロード'}
+            </button>
+          </div>
+
+          {/* 経営者用 */}
+          <div className="border border-gray-100 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">👑 経営者用メニュー</p>
+                <p className="text-[10px] text-gray-400">売上 / PL / シフト / 人件費 / 発注 / ダッシュボード</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleFileSelect('manager')}
+              disabled={uploadingManager}
+              className="w-full border-2 border-dashed border-gray-300 hover:border-green-400 hover:bg-green-50 text-gray-500 hover:text-green-600 text-sm font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {uploadingManager ? 'アップロード中...' : '🖼 画像を選択してアップロード'}
+            </button>
           </div>
         </div>
-        <div>
-          <p className="text-xs font-semibold text-gray-600 mb-1">経営者用ボタン</p>
-          <div className="flex flex-wrap gap-1">
-            {['売上確認', 'PL確認', 'シフト確認', '人件費率', '発注状況', 'ダッシュボード'].map(label => (
-              <span key={label} className="bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded-full">{label}</span>
-            ))}
-          </div>
-        </div>
+      </div>
+
+      {/* 補足 */}
+      <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+        <p className="font-semibold mb-1">💡 画像サイズについて</p>
+        <p>Canvaで「2500×1686px」のカスタムサイズで作成するとそのまま使えます。</p>
       </div>
     </div>
   )
