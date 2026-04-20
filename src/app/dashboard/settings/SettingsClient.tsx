@@ -396,16 +396,16 @@ const FIXED_COST_CATEGORIES: Record<string, string> = {
 }
 
 function FixedCostsTab() {
-  type FixedCost = { id: string; category: string; amount: number; label: string | null; is_active: boolean }
+  type FixedCost = { id: string; category: string; amount: number; name: string | null; is_active: boolean }
   const [list, setList] = useState<FixedCost[]>([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [newCategory, setNewCategory] = useState('rent')
-  const [newLabel, setNewLabel] = useState('')
+  const [newName, setNewName] = useState('')
   const [newAmount, setNewAmount] = useState('')
-  const [editLabel, setEditLabel] = useState('')
+  const [editName, setEditName] = useState('')
   const [editAmount, setEditAmount] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -445,10 +445,10 @@ function FixedCostsTab() {
       const res = await fetch('/api/settings/fixed-costs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: newCategory, amount: Number(newAmount), label: newLabel || FIXED_COST_CATEGORIES[newCategory] }),
+        body: JSON.stringify({ category: newCategory, amount: Number(newAmount), name: newName || FIXED_COST_CATEGORIES[newCategory] }),
       })
       const d = await res.json()
-      if (d.ok) { showMsg('✅ 追加しました', 'success'); setShowAdd(false); setNewLabel(''); setNewAmount(''); load() }
+      if (d.ok) { showMsg('✅ 追加しました', 'success'); setShowAdd(false); setNewName(''); setNewAmount(''); load() }
       else showMsg(`❌ ${d.error ?? '追加に失敗しました'}`, 'error')
     } catch {
       showMsg('❌ 通信エラーが発生しました', 'error')
@@ -463,7 +463,7 @@ function FixedCostsTab() {
       const res = await fetch('/api/settings/fixed-costs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, label: editLabel, amount: Number(editAmount) }),
+        body: JSON.stringify({ id, name: editName, amount: Number(editAmount) }),
       })
       const d = await res.json()
       if (d.ok) { showMsg('✅ 更新しました', 'success'); setEditId(null); load() }
@@ -552,7 +552,7 @@ function FixedCostsTab() {
           </div>
           <div>
             <label className="text-xs text-gray-500">項目名（例：家賃 スケルトン物件）</label>
-            <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)}
+            <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
               placeholder={FIXED_COST_CATEGORIES[newCategory]}
               className="w-full border border-purple-200 rounded-xl px-3 py-2 text-sm bg-white mt-0.5" />
           </div>
@@ -582,20 +582,20 @@ function FixedCostsTab() {
                   <span className={`inline-block w-8 h-4 rounded-full transition-colors ${item.is_active ? 'bg-green-400' : 'bg-gray-300'}`} />
                 </button>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{item.label ?? FIXED_COST_CATEGORIES[item.category] ?? item.category}</p>
+                  <p className="text-sm font-semibold text-gray-800 truncate">{item.name ?? FIXED_COST_CATEGORIES[item.category] ?? item.category}</p>
                   <p className="text-xs text-gray-400">{FIXED_COST_CATEGORIES[item.category] ?? item.category}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-2">
                 <p className="text-sm font-bold text-gray-800">¥{item.amount.toLocaleString()}</p>
-                <button onClick={() => { setEditId(editId === item.id ? null : item.id); setEditLabel(item.label ?? ''); setEditAmount(String(item.amount)) }}
+                <button onClick={() => { setEditId(editId === item.id ? null : item.id); setEditName(item.name ?? ''); setEditAmount(String(item.amount)) }}
                   className="text-gray-400 text-xs">✏️</button>
                 <button onClick={() => handleDelete(item.id)} className="text-gray-400 text-xs">🗑</button>
               </div>
             </div>
             {editId === item.id && (
               <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-2">
-                <input type="text" value={editLabel} onChange={e => setEditLabel(e.target.value)}
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
                   placeholder="項目名"
                   className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
                 <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)}
