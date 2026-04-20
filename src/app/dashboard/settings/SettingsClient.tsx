@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-type Tab = 'store' | 'staff' | 'line'
+type Tab = 'store' | 'staff' | 'costs' | 'line'
 
 type Staff = {
   id: string
@@ -384,6 +384,187 @@ type MenuStatus = {
   image_content_type: string | null
 }
 
+// ─── 固定費管理タブ ──────────────────────────────────
+
+const FIXED_COST_CATEGORIES: Record<string, string> = {
+  rent: '家賃',
+  utility: '光熱費',
+  communication: '通信費',
+  equipment: '設備リース',
+  insurance: '保険',
+  other: 'その他固定費',
+}
+
+function FixedCostsTab() {
+  type FixedCost = { id: string; category: string; amount: number; label: string | null; is_active: boolean }
+  const [list, setList] = useState<FixedCost[]>([])
+  const [loading, setLoading] = useState(true)
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [newCategory, setNewCategory] = useState('rent')
+  const [newLabel, setNewLabel] = useState('')
+  const [newAmount, setNewAmount] = useState('')
+  const [editLabel, setEditLabel] = useState('')
+  const [editAmount, setEditAmount] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const showMsg = (msg: string, type: 'success' | 'error') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  const load = useCallback(() => {
+    setLoading(true)
+    fetch('/api/settings/fixed-costs')
+      .then(r => r.json())
+      .then((d: FixedCost[]) => { setList(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const totalMonthly = list.filter(f => f.is_active).reduce((s, f) => s + f.amount, 0)
+
+  const handleAdd = async () => {
+    if (!newAmount) return
+    setSaving(true)
+    const res = await fetch('/api/settings/fixed-costs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: newCategory, amount: Number(newAmount), label: newLabel || FIXED_COST_CATEGORIES[newCategory] }),
+    })
+    const d = await res.json()
+    setSaving(false)
+    if (d.ok) { showMsg('✅ 追加しました', 'success'); setShowAdd(false); setNewLabel(''); setNewAmount(''); load() }
+    else showMsg(`❌ ${d.error}`, 'error')
+  }
+
+  const handleEdit = async (id: string) => {
+    setSaving(true)
+    const res = await fetch('/api/settings/fixed-costs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, label: editLabel, amount: Number(editAmount) }),
+    })
+    const d = await res.json()
+    setSaving(false)
+    if (d.ok) { showMsg('✅ 更新しました', 'success'); setEditId(null); load() }
+    else showMsg(`❌ ${d.error}`, 'error')
+  }
+
+  const handleToggle = async (item: FixedCost) => {
+    await fetch('/api/settings/fixed-costs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: item.id, is_active: !item.is_active }),
+    })
+    load()
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('この固定費を削除しますか？')) return
+    await fetch(`/api/settings/fixed-costs?id=${id}`, { method: 'DELETE' })
+    load()
+  }
+
+  if (loading) return <p className="text-sm text-gray-400 py-4 text-center">読み込み中...</p>
+
+  return (
+    <div>
+      {toast && <Toast msg={toast.msg} type={toast.type} />}
+
+      {/* 月合計 */}
+      <div className="bg-white rounded-xl p-4 shadow-sm mb-4 text-center">
+        <p className="text-xs text-gray-400">月間固定費合計（有効分）</p>
+        <p className="text-3xl font-black text-gray-900 mt-1">¥{totalMonthly.toLocaleString()}</p>
+        <p className="text-xs text-gray-400 mt-0.5">毎月1日に自動で経費に計上されます</p>
+      </div>
+
+      {/* 追加ボタン */}
+      <button
+        onClick={() => setShowAdd(!showAdd)}
+        className="w-full mb-4 py-2.5 rounded-xl border-2 border-dashed border-purple-300 text-purple-500 text-sm font-semibold hover:bg-purple-50"
+      >
+        {showAdd ? '✕ キャンセル' : '＋ 固定費を追加する'}
+      </button>
+
+      {showAdd && (
+        <div className="mb-4 bg-purple-50 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold text-purple-700">新しい固定費</p>
+          <div>
+            <label className="text-xs text-gray-500">カテゴリ</label>
+            <select value={newCategory} onChange={e => setNewCategory(e.target.value)}
+              className="w-full border border-purple-200 rounded-xl px-3 py-2 text-sm bg-white mt-0.5">
+              {Object.entries(FIXED_COST_CATEGORIES).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">項目名（例：家賃 スケルトン物件）</label>
+            <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)}
+              placeholder={FIXED_COST_CATEGORIES[newCategory]}
+              className="w-full border border-purple-200 rounded-xl px-3 py-2 text-sm bg-white mt-0.5" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">月額（円）</label>
+            <input type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)}
+              placeholder="例: 200000"
+              className="w-full border border-purple-200 rounded-xl px-3 py-2 text-sm bg-white mt-0.5" />
+          </div>
+          <button onClick={handleAdd} disabled={saving || !newAmount}
+            className="w-full bg-purple-500 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">
+            {saving ? '追加中...' : '追加する'}
+          </button>
+        </div>
+      )}
+
+      {/* 一覧 */}
+      <div className="space-y-2">
+        {list.length === 0 && (
+          <p className="text-center text-gray-400 text-sm py-4">固定費が登録されていません</p>
+        )}
+        {list.map(item => (
+          <div key={item.id} className={`bg-white rounded-xl shadow-sm overflow-hidden ${!item.is_active ? 'opacity-50' : ''}`}>
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <button onClick={() => handleToggle(item)} className="flex-shrink-0">
+                  <span className={`inline-block w-8 h-4 rounded-full transition-colors ${item.is_active ? 'bg-green-400' : 'bg-gray-300'}`} />
+                </button>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{item.label ?? FIXED_COST_CATEGORIES[item.category] ?? item.category}</p>
+                  <p className="text-xs text-gray-400">{FIXED_COST_CATEGORIES[item.category] ?? item.category}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 ml-2">
+                <p className="text-sm font-bold text-gray-800">¥{item.amount.toLocaleString()}</p>
+                <button onClick={() => { setEditId(editId === item.id ? null : item.id); setEditLabel(item.label ?? ''); setEditAmount(String(item.amount)) }}
+                  className="text-gray-400 text-xs">✏️</button>
+                <button onClick={() => handleDelete(item.id)} className="text-gray-400 text-xs">🗑</button>
+              </div>
+            </div>
+            {editId === item.id && (
+              <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-2">
+                <input type="text" value={editLabel} onChange={e => setEditLabel(e.target.value)}
+                  placeholder="項目名"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
+                <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)}
+                  placeholder="月額"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
+                <button onClick={() => handleEdit(item.id)} disabled={saving}
+                  className="w-full bg-purple-500 text-white text-sm font-semibold py-2 rounded-lg disabled:opacity-50">
+                  {saving ? '保存中...' : '更新する'}
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── LINE設定タブ ────────────────────────────────────
 function LineTab() {
   const [setupLoading, setSetupLoading] = useState(false)
@@ -596,6 +777,7 @@ export default function SettingsClient() {
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'store', label: '店舗設定',    icon: '🏪' },
     { id: 'staff', label: 'スタッフ管理', icon: '👥' },
+    { id: 'costs', label: '固定費',      icon: '🏠' },
     { id: 'line',  label: 'LINE設定',    icon: '💬' },
   ]
 
@@ -622,6 +804,7 @@ export default function SettingsClient() {
       {/* タブ内容 */}
       {tab === 'store' && <StoreTab />}
       {tab === 'staff' && <StaffTab />}
+      {tab === 'costs' && <FixedCostsTab />}
       {tab === 'line'  && <LineTab />}
     </div>
   )
