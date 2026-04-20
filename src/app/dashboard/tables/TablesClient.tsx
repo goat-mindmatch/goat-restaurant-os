@@ -432,6 +432,72 @@ function AddTableModal({
   )
 }
 
+/* ─────────────────────────────── フロアマップ ────────────────────────────── */
+const MAP_BG: Record<string, string> = {
+  empty:           'bg-gray-100 border-gray-200',
+  occupied:        'bg-red-100 border-red-300',
+  waiting_payment: 'bg-yellow-100 border-yellow-300',
+}
+
+function FloorMapView({
+  tables,
+  onSelect,
+}: {
+  tables: TableData[]
+  onSelect: (t: TableData) => void
+}) {
+  if (tables.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-dashed border-gray-200 py-12 text-center">
+        <p className="text-4xl mb-3">🪑</p>
+        <p className="text-gray-500 font-medium">テーブルが登録されていません</p>
+      </div>
+    )
+  }
+
+  // テーブル番号順でソート
+  const sorted = [...tables].sort((a, b) => a.table_number - b.table_number)
+
+  return (
+    <div className="grid grid-cols-4 gap-3">
+      {sorted.map(table => {
+        // 着席からの経過時間（最初の注文時刻を基準）
+        const firstOrder = table.orders.length > 0
+          ? [...table.orders].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0]
+          : null
+        const elapsed = firstOrder
+          ? Math.round((Date.now() - new Date(firstOrder.created_at).getTime()) / 60000)
+          : null
+
+        return (
+          <button
+            key={table.id}
+            onClick={() => onSelect(table)}
+            className={`relative rounded-2xl border-2 p-2 text-center transition-all active:scale-95 aspect-square flex flex-col items-center justify-center gap-0.5 ${MAP_BG[table.status]}`}
+          >
+            {/* ステータスドット */}
+            <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${STATUS_DOT[table.status]}`} />
+
+            <p className="text-base font-black leading-tight text-gray-800">{table.name}</p>
+            <p className="text-[10px] text-gray-500">{table.capacity}席</p>
+
+            {table.status !== 'empty' ? (
+              <>
+                <p className="text-xs font-bold text-gray-700">¥{table.total_amount.toLocaleString()}</p>
+                {elapsed !== null && (
+                  <p className="text-[10px] text-gray-500">{elapsed}分</p>
+                )}
+              </>
+            ) : (
+              <p className="text-[10px] text-gray-400">空席</p>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ─────────────────────────────── メイン ─────────────────────────────────── */
 export default function TablesClient({ initialTables }: { initialTables: TableData[] }) {
   const [tables, setTables] = useState<TableData[]>(initialTables)
@@ -439,6 +505,7 @@ export default function TablesClient({ initialTables }: { initialTables: TableDa
   const [showAdd, setShowAdd] = useState(false)
   const [tableReady, setTableReady] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('map')
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -597,41 +664,68 @@ export default function TablesClient({ initialTables }: { initialTables: TableDa
           </div>
         </div>
 
-        {/* テーブルグリッド */}
-        {tables.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-dashed border-gray-200 py-12 text-center">
-            <p className="text-4xl mb-3">🪑</p>
-            <p className="text-gray-500 font-medium">テーブルが登録されていません</p>
-            <p className="text-sm text-gray-400 mt-1">下の「＋ テーブルを追加」から登録してください</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-3">
-            {tables.map(table => (
-              <button
-                key={table.id}
-                onClick={() => setSelected(table)}
-                className={`relative rounded-2xl border-2 p-3 text-left transition-all active:scale-95 ${STATUS_COLOR[table.status]}`}
-              >
-                {/* ステータスドット */}
-                <span className={`absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full ${STATUS_DOT[table.status]}`} />
+        {/* タブ切り替え */}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+          <button
+            onClick={() => setViewMode('map')}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+              viewMode === 'map' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-400'
+            }`}
+          >
+            🗺️ マップ表示
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+              viewMode === 'list' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-400'
+            }`}
+          >
+            📋 リスト表示
+          </button>
+        </div>
 
-                <p className="text-lg font-black leading-tight">{table.name}</p>
-                <p className="text-[10px] font-medium opacity-70 mb-1">{table.capacity}席</p>
+        {/* マップ表示 */}
+        {viewMode === 'map' && (
+          <FloorMapView tables={tables} onSelect={setSelected} />
+        )}
 
-                {table.status !== 'empty' ? (
-                  <>
-                    <p className="text-base font-bold">¥{table.total_amount.toLocaleString()}</p>
-                    <p className="text-[10px] opacity-70">{table.order_count}件</p>
-                    <p className="text-[10px] font-bold mt-1">
-                      {STATUS_LABEL[table.status]}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm opacity-50">空席</p>
-                )}
-              </button>
-            ))}
-          </div>
+        {/* リスト表示 */}
+        {viewMode === 'list' && (
+          tables.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-dashed border-gray-200 py-12 text-center">
+              <p className="text-4xl mb-3">🪑</p>
+              <p className="text-gray-500 font-medium">テーブルが登録されていません</p>
+              <p className="text-sm text-gray-400 mt-1">下の「＋ テーブルを追加」から登録してください</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {tables.map(table => (
+                <button
+                  key={table.id}
+                  onClick={() => setSelected(table)}
+                  className={`relative rounded-2xl border-2 p-3 text-left transition-all active:scale-95 ${STATUS_COLOR[table.status]}`}
+                >
+                  {/* ステータスドット */}
+                  <span className={`absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full ${STATUS_DOT[table.status]}`} />
+
+                  <p className="text-lg font-black leading-tight">{table.name}</p>
+                  <p className="text-[10px] font-medium opacity-70 mb-1">{table.capacity}席</p>
+
+                  {table.status !== 'empty' ? (
+                    <>
+                      <p className="text-base font-bold">¥{table.total_amount.toLocaleString()}</p>
+                      <p className="text-[10px] opacity-70">{table.order_count}件</p>
+                      <p className="text-[10px] font-bold mt-1">
+                        {STATUS_LABEL[table.status]}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm opacity-50">空席</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )
         )}
 
         {/* アクションボタン */}

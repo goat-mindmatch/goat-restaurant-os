@@ -32,9 +32,11 @@ const MORE_ITEMS = [
   { label: 'メニュー分析', href: '/dashboard/menu-engineering', icon: '🧮' },
   { label: '混雑予測',   href: '/dashboard/forecast',          icon: '🔮' },
   { label: 'SNS投稿',   href: '/dashboard/sns',                icon: '📱' },
-  { label: 'ロイヤルティ', href: '/dashboard/loyalty',         icon: '🎁' },
-  { label: 'レシート',   href: '/dashboard/receipts',          icon: '🧾' },
-  { label: '設定',       href: '/dashboard/settings',          icon: '⚙️' },
+  { label: 'ロイヤルティ', href: '/dashboard/loyalty',            icon: '🎁' },
+  { label: 'Uber取込',  href: '/dashboard/sales/uber-import',  icon: '🛵' },
+  { label: 'AIシフト',  href: '/dashboard/shifts/auto',        icon: '🤖' },
+  { label: 'レシート',   href: '/dashboard/receipts',           icon: '🧾' },
+  { label: '設定',       href: '/dashboard/settings',           icon: '⚙️' },
 ]
 
 export default function DashboardNav({ current }: { current: string }) {

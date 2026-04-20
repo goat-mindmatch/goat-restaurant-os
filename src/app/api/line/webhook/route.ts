@@ -640,38 +640,57 @@ async function handleShiftCheck(lineUserId: string) {
     return
   }
 
-  // 今日以降のシフトを2ヶ月分取得（今月＋来月）
-  const today = new Date().toISOString().split('T')[0]
-  const now = new Date()
-  const twoMonthsLater = new Date(now.getFullYear(), now.getMonth() + 2, 0)
-    .toISOString().split('T')[0]
+  // 今月のカレンダーFlex Messageを送信
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
 
-  const { data: shiftsRaw } = await supabase
-    .from('shifts')
-    .select('date, start_time, end_time, role_on_day')
-    .eq('staff_id', staff.id)
-    .gte('date', today)
-    .lte('date', twoMonthsLater)
-    .order('date')
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://goat-restaurant-os.vercel.app'}/api/line/shift-calendar`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineUserId, staffId: staff.id, year, month }),
+      }
+    )
+    if (!res.ok) {
+      throw new Error(`shift-calendar API error: ${res.status}`)
+    }
+  } catch (e) {
+    console.error('shift-calendar error:', e)
+    // フォールバック: テキスト形式で表示
+    const today = now.toISOString().split('T')[0]
+    const twoMonthsLater = new Date(now.getFullYear(), now.getMonth() + 2, 0)
+      .toISOString().split('T')[0]
 
-  const shifts = shiftsRaw as { date: string; start_time: string; end_time: string; role_on_day: string | null }[] | null
+    const { data: shiftsRaw } = await supabase
+      .from('shifts')
+      .select('date, start_time, end_time, role_on_day')
+      .eq('staff_id', staff.id)
+      .gte('date', today)
+      .lte('date', twoMonthsLater)
+      .order('date')
 
-  if (!shifts?.length) {
-    await sendLineMessage(lineUserId, `${staff.name}さん、今後のシフトはまだ確定していません。\n管理者にご確認ください。`)
-    return
+    const shifts = shiftsRaw as { date: string; start_time: string; end_time: string; role_on_day: string | null }[] | null
+
+    if (!shifts?.length) {
+      await sendLineMessage(lineUserId, `${staff.name}さん、今後のシフトはまだ確定していません。\n管理者にご確認ください。`)
+      return
+    }
+
+    const DAYS_JP_FB = ['日', '月', '火', '水', '木', '金', '土']
+    const shiftText = shifts.map(s => {
+      const d = new Date(s.date)
+      const mm = d.getMonth() + 1
+      const dd = d.getDate()
+      const dow = DAYS_JP_FB[d.getDay()]
+      const role = s.role_on_day ? ` (${s.role_on_day})` : ''
+      return `${mm}/${dd}(${dow}) ${s.start_time.slice(0, 5)}〜${s.end_time.slice(0, 5)}${role}`
+    }).join('\n')
+
+    await sendLineMessage(lineUserId, `📅 ${staff.name}さんの今後のシフト:\n\n${shiftText}\n\n全${shifts.length}日`)
   }
-
-  const DAYS_JP = ['日','月','火','水','木','金','土']
-  const shiftText = shifts.map(s => {
-    const d = new Date(s.date)
-    const mm = d.getMonth() + 1
-    const dd = d.getDate()
-    const dow = DAYS_JP[d.getDay()]
-    const role = s.role_on_day ? ` (${s.role_on_day})` : ''
-    return `${mm}/${dd}(${dow}) ${s.start_time.slice(0,5)}〜${s.end_time.slice(0,5)}${role}`
-  }).join('\n')
-
-  await sendLineMessage(lineUserId, `📅 ${staff.name}さんの今後のシフト:\n\n${shiftText}\n\n全${shifts.length}日`)
 }
 
 // ================================

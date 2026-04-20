@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,10 +25,46 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="ja"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        {/* ダークモード: localStorage → prefers-color-scheme の順で判定 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+(function() {
+  try {
+    var stored = localStorage.getItem('theme');
+    if (stored === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else if (stored === 'light') {
+      document.documentElement.classList.remove('dark');
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.classList.add('dark');
+    }
+  } catch(e) {}
+})();
+            `,
+          }}
+        />
+        {/* PWA */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#ea580c" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+      </head>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* Service Worker 登録 */}
+        <Script id="sw-register" strategy="afterInteractive">{`
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(function(err) {
+              console.warn('SW registration failed:', err);
+            });
+          }
+        `}</Script>
+      </body>
     </html>
   );
 }

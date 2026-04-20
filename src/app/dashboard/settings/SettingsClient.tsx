@@ -111,6 +111,12 @@ function StoreTab() {
       >
         {saving ? '保存中...' : '💾 保存する'}
       </button>
+
+      {/* ダークモード切替 */}
+      <div className="mt-2">
+        <p className="text-xs font-semibold text-gray-500 mb-2">表示設定</p>
+        <DarkModeToggle />
+      </div>
     </div>
   )
 }
@@ -815,6 +821,51 @@ function LineTab() {
         <p className="font-semibold mb-1">💡 画像サイズについて</p>
         <p>Canvaで「2500×1686px」のカスタムサイズで作成するとそのまま使えます。</p>
       </div>
+    </div>
+  )
+}
+
+// ─── ダークモード切替セクション ────────────────────────
+function DarkModeToggle() {
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    // 初期値: documentのdarkクラスを確認
+    setIsDark(document.documentElement.classList.contains('dark'))
+  }, [])
+
+  const toggle = () => {
+    const next = !isDark
+    setIsDark(next)
+    if (next) {
+      document.documentElement.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-4 flex items-center justify-between">
+      <div>
+        <p className="text-sm font-semibold text-gray-800">🌙 ダークモード</p>
+        <p className="text-xs text-gray-400 mt-0.5">夜間の操作に便利です</p>
+      </div>
+      <button
+        onClick={toggle}
+        className={`relative inline-flex h-7 w-12 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+          isDark ? 'bg-orange-500' : 'bg-gray-200'
+        }`}
+        role="switch"
+        aria-checked={isDark}
+      >
+        <span
+          className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ${
+            isDark ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
     </div>
   )
 }

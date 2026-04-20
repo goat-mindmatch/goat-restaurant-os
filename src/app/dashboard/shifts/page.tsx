@@ -8,6 +8,7 @@ import { createServiceClient } from '@/lib/supabase'
 import DashboardNav from '@/components/DashboardNav'
 import ShiftsPageClient from './ShiftsPageClient'
 import AttendanceClient from './AttendanceClient'
+import Link from 'next/link'
 
 const TENANT_ID = process.env.TENANT_ID!
 
@@ -82,9 +83,17 @@ export default async function ShiftsPage({
 
   return (
     <main className="min-h-screen bg-gray-50 pb-24">
-      <div className="bg-white border-b px-4 py-4">
-        <h1 className="text-xl font-bold text-gray-900">シフト管理</h1>
-        <p className="text-sm text-gray-500">{year}年{month}月</p>
+      <div className="bg-white border-b px-4 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">シフト管理</h1>
+          <p className="text-sm text-gray-500">{year}年{month}月</p>
+        </div>
+        <Link
+          href={`/dashboard/shifts/auto?year=${year}&month=${month}`}
+          className="text-sm bg-blue-600 text-white font-bold px-3 py-2 rounded-xl flex items-center gap-1"
+        >
+          🤖 AI自動作成
+        </Link>
       </div>
 
       <ShiftsPageClient

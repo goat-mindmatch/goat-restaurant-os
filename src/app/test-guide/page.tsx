@@ -9,7 +9,7 @@ export default function TestGuidePage() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>GOAT Restaurant OS — テスト操作ガイド</title>
+        <title>GOAT Restaurant OS — テスト操作ガイド v2</title>
         <style>{`
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { font-family: -apple-system, 'Hiragino Sans', sans-serif; background: #f8f8f8; color: #1a1a1a; }
@@ -59,7 +59,7 @@ export default function TestGuidePage() {
           <div className="card-icon" style={{fontSize:'40px',marginBottom:'12px'}}>🍜</div>
           <h1>GOAT Restaurant OS<br />テスト・操作ガイド</h1>
           <p>新機能11個の確認方法をまとめました</p>
-          <div className="badge">2026-04-20 更新</div>
+          <div className="badge">v1: 2026-04-20 / v2: 2026-04-20 追加11機能</div>
         </div>
 
         {/* 目次 */}
@@ -78,6 +78,18 @@ export default function TestGuidePage() {
               ['📱', 'SNS投稿管理', '#sns'],
               ['📊', '週次AIレポート', '#weekly'],
               ['🤖', 'AI店長モード', '#ai-manager'],
+              ['💴', '給与明細LINE送信', '#payslip'],
+              ['📅', 'シフトFlex表示', '#shift-flex'],
+              ['🌙', '閉店自動日報LINE', '#daily-report'],
+              ['🏠', 'ホーム刷新', '#home-new'],
+              ['🔔', 'PWAプッシュ通知', '#pwa'],
+              ['🗺️', 'テーブルマップUI', '#table-map'],
+              ['🌓', 'ダークモード', '#dark'],
+              ['🌤️', '天気連動バナー', '#weather'],
+              ['🤖', 'AIシフト自動作成', '#shift-ai'],
+              ['📦', '在庫自動発注', '#auto-order'],
+              ['🌐', '多言語自動翻訳', '#translate'],
+              ['🛵', 'Uber Eats自動取込', '#uber'],
             ].map(([icon, label, href]) => (
               <a key={href as string} href={href as string} className="toc-item">
                 <span>{icon}</span>{label}
@@ -505,10 +517,242 @@ export default function TestGuidePage() {
 
         </div>
 
+        <div className="section">
+          {/* ═══════ v2 新機能セクション ═══════ */}
+          <p className="section-title" style={{marginTop:'8px'}}>🆕 v2 追加機能（2026-04-20）</p>
+
+          {/* 給与明細LINE */}
+          <div className="card" id="payslip">
+            <div className="card-header">
+              <div className="card-icon">💴</div>
+              <div>
+                <div className="card-title">給与明細LINE自動送信</div>
+                <div className="card-sub">月末25日にスタッフのLINEへ自動配信</div>
+              </div>
+            </div>
+            <div className="url-box">
+              <span>手動で今すぐ送信するURL</span>
+              https://goat-restaurant-os.vercel.app/api/payroll/send-slip?month=2026-04&secret=【CRON_SECRET】
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>上のURLのCRON_SECRETと月を指定してブラウザで開く</strong><p>月は YYYY-MM 形式で指定</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>スタッフのLINEを確認</strong><p>紺色ヘッダーの給与明細Flex Messageが届いていればOK。「受領確認」ボタンも表示される</p></div></div>
+            </div>
+            <div className="tip">✅ 対象: staff テーブルに line_user_id が登録されている全アクティブスタッフ</div>
+          </div>
+
+          {/* シフトFlex */}
+          <div className="card" id="shift-flex">
+            <div className="card-header">
+              <div className="card-icon">📅</div>
+              <div>
+                <div className="card-title">シフトFlex Message（LINE内カレンダー）</div>
+                <div className="card-sub">「シフト確認」でLINE内にカレンダーが展開</div>
+              </div>
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>スタッフLINEで「シフト確認」と送信</strong><p>これまでURLリンクが来ていたが、今後はLINE内で直接カレンダーが表示される</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>確認ポイント</strong><p>オレンジ背景●=出勤予定日、グレー背景○=休み、今日の日付は太字で表示</p></div></div>
+            </div>
+          </div>
+
+          {/* 閉店日報 */}
+          <div className="card" id="daily-report">
+            <div className="card-header">
+              <div className="card-icon">🌙</div>
+              <div>
+                <div className="card-title">閉店自動日報LINE送信</div>
+                <div className="card-sub">毎日23:00にmanager/ownerロールのLINEへ自動送信</div>
+              </div>
+            </div>
+            <div className="url-box">
+              <span>手動で今すぐ送信するURL</span>
+              https://goat-restaurant-os.vercel.app/api/line/daily-report?secret=【CRON_SECRET】
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>上のURLをブラウザで開く</strong><p>manager/ownerロールのスタッフのLINEに今日の日報が届く</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>確認ポイント</strong><p>売上合計・客数・口コミランキング・先週比・目標達成率が黒いカードで届いていればOK</p></div></div>
+            </div>
+            <div className="tip">✅ スタッフのroleが'manager'または'owner'で、line_user_idが登録されていることが条件</div>
+          </div>
+
+          {/* ホーム刷新 */}
+          <div className="card" id="home-new">
+            <div className="card-header">
+              <div className="card-icon">🏠</div>
+              <div>
+                <div className="card-title">ホーム画面 — コントロールパネル刷新</div>
+                <div className="card-sub">今日の全情報が1画面で把握できる設計に</div>
+              </div>
+            </div>
+            <div className="url-box">
+              <span>アクセス URL</span>
+              https://goat-restaurant-os.vercel.app/dashboard
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>ダッシュボードを開く</strong><p>店舗名・営業中バッジ・売上プログレスバーが最上部に表示される</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>確認ポイント</strong><p>テーブル空席数・未対応呼び出し件数（赤点滅）・今日の口コミランキング・天気バナーが全部1画面で見える</p></div></div>
+              <div className="step"><div className="step-num">3</div><div className="step-body"><strong>30秒自動更新</strong><p>画面を触らなくてもデータが30秒ごとに自動更新される</p></div></div>
+            </div>
+          </div>
+
+          {/* PWA */}
+          <div className="card" id="pwa">
+            <div className="card-header">
+              <div className="card-icon">🔔</div>
+              <div>
+                <div className="card-title">PWAプッシュ通知</div>
+                <div className="card-sub">ホーム画面に追加してロック画面でも通知受信</div>
+              </div>
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>ダッシュボードをスマホで開く</strong><p>Safariの場合「共有」→「ホーム画面に追加」でアプリとして使えるようになる</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>「🔔 通知をON」ボタンをタップ</strong><p>ホーム画面の右上に表示。タップすると通知許可ダイアログが出る</p></div></div>
+              <div className="step"><div className="step-num">3</div><div className="step-body"><strong>「許可」をタップ</strong><p>以後、テーブル呼び出しやアラートがロック画面に通知される</p></div></div>
+            </div>
+          </div>
+
+          {/* テーブルマップ */}
+          <div className="card" id="table-map">
+            <div className="card-header">
+              <div className="card-icon">🗺️</div>
+              <div>
+                <div className="card-title">テーブル管理 フロアマップUI</div>
+                <div className="card-sub">カード一覧に加え、フロア見取り図で確認できる</div>
+              </div>
+            </div>
+            <div className="url-box">
+              <span>アクセス URL</span>
+              https://goat-restaurant-os.vercel.app/dashboard/tables
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>「🗺️ マップ表示」タブをタップ</strong><p>テーブルがグリッド形式でフロアマップ風に表示される</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>色の意味</strong><p>グレー=空き、赤=注文中、黄=会計待ち。タップすると注文詳細が開く</p></div></div>
+            </div>
+          </div>
+
+          {/* ダークモード */}
+          <div className="card" id="dark">
+            <div className="card-header">
+              <div className="card-icon">🌓</div>
+              <div>
+                <div className="card-title">ダークモード</div>
+                <div className="card-sub">夜の厨房でも眩しくない暗い画面に切替</div>
+              </div>
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>「もっと」→「設定 ⚙️」を開く</strong><p>「表示設定」セクションにダークモードのトグルがある</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>トグルをONにする</strong><p>即座に画面全体が暗いテーマに切り替わる。設定は次回以降も保持される</p></div></div>
+            </div>
+            <div className="tip">✅ スマホのシステム設定（ダークモード）にも自動連動します</div>
+          </div>
+
+          {/* 天気バナー */}
+          <div className="card" id="weather">
+            <div className="card-header">
+              <div className="card-icon">🌤️</div>
+              <div>
+                <div className="card-title">天気連動バナー</div>
+                <div className="card-sub">今日の天気に合わせた運営アドバイスを表示</div>
+              </div>
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>ダッシュボードホームを開く</strong><p>売上カードの下に天気バナーが自動表示される</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>天気に応じたメッセージ</strong><p>☀️晴れ→テラス席案内、☔雨→Uber Eats確認、❄️雪→スタッフ配置見直し など</p></div></div>
+            </div>
+          </div>
+
+          {/* シフトAI */}
+          <div className="card" id="shift-ai">
+            <div className="card-header">
+              <div className="card-icon">🤖</div>
+              <div>
+                <div className="card-title">AIシフト自動作成</div>
+                <div className="card-sub">希望日・混雑予測から自動でシフト案を生成</div>
+              </div>
+            </div>
+            <div className="url-box">
+              <span>アクセス URL</span>
+              https://goat-restaurant-os.vercel.app/dashboard/shifts/auto
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>「もっと」→「AIシフト 🤖」を開く</strong><p>対象年月を選択する</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>「🤖 AIシフトを生成」をタップ</strong><p>スタッフの希望日・曜日別混雑を考慮してシフト案が自動生成される（10〜20秒かかる）</p></div></div>
+              <div className="step"><div className="step-num">3</div><div className="step-body"><strong>内容を確認して「このシフトを確定する」をタップ</strong><p>shiftsテーブルに一括登録される</p></div></div>
+            </div>
+            <div className="warn">⚠️ AIが生成したシフトは必ず人間が確認してから確定してください</div>
+          </div>
+
+          {/* 在庫自動発注 */}
+          <div className="card" id="auto-order">
+            <div className="card-header">
+              <div className="card-icon">📦</div>
+              <div>
+                <div className="card-title">在庫 → 自動発注メール</div>
+                <div className="card-sub">最低在庫を下回ったら業者に自動メール送信</div>
+              </div>
+            </div>
+            <div className="url-box">
+              <span>手動で今すぐ実行するURL</span>
+              https://goat-restaurant-os.vercel.app/api/inventory/auto-order?secret=【CRON_SECRET】
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>在庫管理画面で発注設定を行う</strong><p>「もっと」→「在庫管理」→ 各アイテムの「⚡」ボタンをタップ → 最低在庫数・発注先メールアドレスを設定</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>在庫が閾値を下回ったら自動メール送信</strong><p>毎日1回cronが実行。発注先メールアドレスに自動でメールが届く</p></div></div>
+            </div>
+            <div className="tip">✅ 発注先メールアドレスが未設定のアイテムは自動発注されません</div>
+          </div>
+
+          {/* 多言語翻訳 */}
+          <div className="card" id="translate">
+            <div className="card-header">
+              <div className="card-icon">🌐</div>
+              <div>
+                <div className="card-title">多言語メニュー自動翻訳</div>
+                <div className="card-sub">AIが英語・中国語を自動生成</div>
+              </div>
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>「もっと」→「メニュー管理」→ 編集したいメニューをタップ</strong><p>編集フォームが開く</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>「🌐 AI翻訳を自動生成」ボタンをタップ</strong><p>日本語のメニュー名・説明からAIが英語・中国語を自動生成</p></div></div>
+              <div className="step"><div className="step-num">3</div><div className="step-body"><strong>内容を確認して保存</strong><p>お客様のQRメニューで英語・中国語が表示されるようになる（言語切替ボタンから選択）</p></div></div>
+            </div>
+          </div>
+
+          {/* Uber Eats */}
+          <div className="card" id="uber">
+            <div className="card-header">
+              <div className="card-icon">🛵</div>
+              <div>
+                <div className="card-title">Uber Eats 売上取込</div>
+                <div className="card-sub">CSVを貼り付けるだけでPLに自動反映</div>
+              </div>
+            </div>
+            <div className="url-box">
+              <span>アクセス URL</span>
+              https://goat-restaurant-os.vercel.app/dashboard/sales/uber-import
+            </div>
+            <div className="steps">
+              <div className="step"><div className="step-num">1</div><div className="step-body"><strong>Uber Eatsダッシュボードからレポートを取得</strong><p>「分析」→「注文レポート」→ 対象期間を選んでCSVダウンロード</p></div></div>
+              <div className="step"><div className="step-num">2</div><div className="step-body"><strong>「もっと」→「Uber取込 🛵」を開く</strong><p>CSVの内容をテキストボックスに貼り付ける</p></div></div>
+              <div className="step"><div className="step-num">3</div><div className="step-body"><strong>「取込実行」をタップ</strong><p>「〇日分のUber Eats売上を反映しました」と表示されればOK。PLページで確認できる</p></div></div>
+            </div>
+            <table>
+              <thead><tr><th>対応形式</th><th>例</th></tr></thead>
+              <tbody>
+                <tr><td>YYYY-MM-DD,注文数,売上</td><td>2026-04-01,12,18400</td></tr>
+                <tr><td>MM/DD/YYYY,注文数,売上</td><td>04/01/2026,12,18400</td></tr>
+                <tr><td>英語ヘッダー（Date,Orders,Subtotal）</td><td>そのまま貼り付けOK</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+
         {/* フッター */}
         <div className="footer">
           <p>🍜 GOAT Restaurant OS — テスト操作ガイド</p>
-          <p style={{marginTop:'6px'}}>作成: GOAT Agent / 2026-04-20</p>
+          <p style={{marginTop:'6px'}}>v1: 2026-04-20（11機能）／ v2: 2026-04-20（+12機能 = 計23機能）</p>
           <p style={{marginTop:'6px'}}>
             <a href="https://goat-restaurant-os.vercel.app/dashboard" style={{color:'#ea580c'}}>
               → ダッシュボードを開く

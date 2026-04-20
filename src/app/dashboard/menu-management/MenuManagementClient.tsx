@@ -225,6 +225,38 @@ export default function MenuManagementClient({ initialItems }: { initialItems: M
   const [msg, setMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // AI翻訳
+  const [translatingId, setTranslatingId] = useState<string | null>(null)
+  const [translations, setTranslations] = useState<Record<string, {
+    name_en: string; description_en: string; name_zh: string; description_zh: string
+  }>>({})
+
+  const handleTranslate = useCallback(async (item: MenuItem) => {
+    setTranslatingId(item.id)
+    const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 3500) }
+    try {
+      const res = await fetch('/api/menu/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          menuItemId: item.id,
+          name_ja: item.name,
+          description_ja: item.description ?? '',
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.translations) {
+        setTranslations(prev => ({ ...prev, [item.id]: data.translations }))
+        showMsg('✅ AI翻訳が完了しました')
+      } else {
+        showMsg('❌ ' + (data.error ?? '翻訳に失敗しました'))
+      }
+    } catch {
+      showMsg('❌ 通信エラーが発生しました')
+    }
+    setTranslatingId(null)
+  }, [])
+
   // 追加フォーム
   const [newName,      setNewName]      = useState('')
   const [newDesc,      setNewDesc]      = useState('')
@@ -520,6 +552,35 @@ export default function MenuManagementClient({ initialItems }: { initialItems: M
                   {/* ─ 編集フォーム ─ */}
                   {editId === item.id && (
                     <div className="border-t border-orange-100 bg-orange-50 p-4 space-y-3">
+
+                      {/* AI翻訳ボタン */}
+                      <button
+                        type="button"
+                        onClick={() => handleTranslate(item)}
+                        disabled={translatingId === item.id}
+                        className="w-full bg-blue-50 border border-blue-200 text-blue-700 font-semibold py-2 rounded-xl text-xs disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      >
+                        {translatingId === item.id ? (
+                          '⏳ AI翻訳中...'
+                        ) : (
+                          '🌐 AI翻訳を自動生成（英語・中国語）'
+                        )}
+                      </button>
+
+                      {/* 翻訳結果プレビュー */}
+                      {translations[item.id] && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-1">
+                          <p className="text-[10px] font-bold text-blue-700">翻訳結果</p>
+                          <p className="text-xs text-blue-800">🇺🇸 {translations[item.id].name_en}</p>
+                          {translations[item.id].description_en && (
+                            <p className="text-[11px] text-blue-600">{translations[item.id].description_en}</p>
+                          )}
+                          <p className="text-xs text-blue-800">🇨🇳 {translations[item.id].name_zh}</p>
+                          {translations[item.id].description_zh && (
+                            <p className="text-[11px] text-blue-600">{translations[item.id].description_zh}</p>
+                          )}
+                        </div>
+                      )}
 
                       <div>
                         <label className="text-xs text-gray-500">商品名</label>

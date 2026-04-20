@@ -12,6 +12,8 @@ type InventoryItem = {
   note: string | null
   last_updated: string
   supplier: { name: string } | null
+  supplier_email?: string | null
+  order_quantity?: number | null
 }
 
 type Supplier = { id: string; name: string }
@@ -88,7 +90,48 @@ export default function InventoryClient({
   const [newMin, setNewMin] = useState('')
   const [newSupplierId, setNewSupplierId] = useState('')
 
+  // 自動発注設定モーダル
+  const [autoOrderItem, setAutoOrderItem] = useState<InventoryItem | null>(null)
+  const [autoOrderEmail, setAutoOrderEmail] = useState('')
+  const [autoOrderQty, setAutoOrderQty] = useState('')
+  const [autoOrderSaving, setAutoOrderSaving] = useState(false)
+
   const toast = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 3500) }
+
+  const openAutoOrder = (item: InventoryItem) => {
+    setAutoOrderItem(item)
+    setAutoOrderEmail(item.supplier_email ?? '')
+    setAutoOrderQty(String(item.order_quantity ?? (item.min_stock * 2 || '')))
+  }
+
+  const handleAutoOrderSave = async () => {
+    if (!autoOrderItem) return
+    setAutoOrderSaving(true)
+    const res = await fetch('/api/inventory', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        item_id: autoOrderItem.id,
+        change_amount: 0,
+        reason: 'adjustment',
+        supplier_email: autoOrderEmail || null,
+        order_quantity: autoOrderQty ? Number(autoOrderQty) : null,
+      }),
+    })
+    if (res.ok) {
+      setItems(prev => prev.map(i =>
+        i.id === autoOrderItem.id
+          ? { ...i, supplier_email: autoOrderEmail || null, order_quantity: autoOrderQty ? Number(autoOrderQty) : null }
+          : i
+      ))
+      toast('✅ 自動発注設定を保存しました')
+      setAutoOrderItem(null)
+    } else {
+      const d = await res.json()
+      toast('❌ ' + (d.error ?? '保存に失敗しました'))
+    }
+    setAutoOrderSaving(false)
+  }
 
   const toggleCategory = (cat: string) => {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
@@ -383,6 +426,17 @@ export default function InventoryClient({
                             </button>
                           )}
                           <button
+                            onClick={() => openAutoOrder(item)}
+                            className={`px-2 text-xs font-semibold rounded-lg py-1.5 ${
+                              item.supplier_email
+                                ? 'bg-purple-100 text-purple-700'
+                                : 'border border-gray-200 text-gray-400'
+                            }`}
+                            title="自動発注設定"
+                          >
+                            ⚡
+                          </button>
+                          <button
                             onClick={() => handleDelete(item.id, item.name)}
                             className="px-3 text-xs text-gray-400 border border-gray-200 rounded-lg"
                           >
@@ -443,6 +497,66 @@ export default function InventoryClient({
               <button onClick={handleAdjust} disabled={!adjustAmount || loading}
                 className="flex-1 py-3 bg-blue-500 text-white rounded-xl font-bold disabled:opacity-50">
                 {loading ? '更新中...' : '記録する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 自動発注設定モーダル */}
+      {autoOrderItem && (
+        <div className="fixed inset-0 bg-black/50 z-40 flex items-end" onClick={() => setAutoOrderItem(null)}>
+          <div className="bg-white rounded-t-3xl w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-800 text-lg mb-1">⚡ 自動発注設定</h3>
+            <p className="text-sm text-gray-500 mb-4">{autoOrderItem.name}</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">
+                  発注先メールアドレス（在庫不足時に自動送信）
+                </label>
+                <input
+                  type="email"
+                  value={autoOrderEmail}
+                  onChange={e => setAutoOrderEmail(e.target.value)}
+                  placeholder="supplier@example.com"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">
+                  自動発注数量（空欄 = 最低在庫数の2倍）
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={autoOrderQty}
+                    onChange={e => setAutoOrderQty(e.target.value)}
+                    placeholder={String(autoOrderItem.min_stock * 2 || '')}
+                    className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-lg text-center font-bold"
+                  />
+                  <span className="text-gray-500 font-medium">{autoOrderItem.unit}</span>
+                </div>
+              </div>
+
+              {autoOrderItem.supplier_email && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-700">
+                  現在の設定: {autoOrderItem.supplier_email}
+                  {autoOrderItem.order_quantity && ` / 発注量: ${autoOrderItem.order_quantity}${autoOrderItem.unit}`}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setAutoOrderItem(null)}
+                className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-500 font-semibold">
+                キャンセル
+              </button>
+              <button onClick={handleAutoOrderSave} disabled={autoOrderSaving}
+                className="flex-[2] py-3 bg-purple-600 text-white rounded-xl font-bold disabled:opacity-50">
+                {autoOrderSaving ? '保存中...' : '⚡ 自動発注を設定する'}
               </button>
             </div>
           </div>
