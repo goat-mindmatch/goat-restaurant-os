@@ -15,6 +15,8 @@ export type Database = {
           name: string                // 店舗名 e.g. "人類みなまぜそば"
           slug: string                // URL用スラッグ e.g. "mazesoba-jinrui"
           plan: 'starter' | 'pro' | 'enterprise'
+          monthly_target: number | null // 月間売上目標
+          change_fund: number | null    // つり銭準備金（デフォルト100,000）
           created_at: string
           updated_at: string
         }
@@ -120,13 +122,36 @@ export type Database = {
           id: string
           tenant_id: string
           date: string               // YYYY-MM-DD
-          // 売上
+          // 売上（店内）
           store_sales: number        // 店内売上
-          delivery_sales: number     // デリバリー売上（Uber Eats等）
-          total_sales: number        // 合計売上
+          // デリバリー各媒体
+          // AnyDeli モバイルオーダー
+          anydeli_sales: number | null        // AnyDeli 総売上（現金+オンライン）
+          anydeli_orders: number | null       // AnyDeli 総注文数
+          anydeli_cash_sales: number | null   // AnyDeli 現金売上
+          anydeli_online_sales: number | null // AnyDeli オンライン売上（PayPay/クレカ）
+          anydeli_synced_at: string | null    // AnyDeli 最終同期日時
+          // キャッシュレジスター照合
+          cash_register_photo_url: string | null  // 現金写真URL
+          cash_register_actual: number | null     // 実際のレジ内金額（AI読み取り）
+          cash_register_diff: number | null       // 差額（実際 - 想定）
+          cash_register_checked_at: string | null // 照合実施日時
+          // デリバリー各媒体
+          uber_sales: number | null       // Uber Eats 売上
+          uber_orders: number | null      // Uber Eats 注文数
+          uber_synced_at: string | null   // Uber Eats 最終同期日時
+          rocketnow_sales: number | null  // ロケットナウ 売上
+          rocketnow_orders: number | null // ロケットナウ 注文数
+          rocketnow_synced_at: string | null // ロケットナウ 最終同期日時
+          menu_sales: number | null       // menu 売上
+          menu_orders: number | null      // menu 注文数
+          menu_synced_at: string | null   // menu 最終同期日時
+          // デリバリー合計
+          delivery_sales: number     // デリバリー売上合計（全媒体）
+          total_sales: number        // 合計売上（店内＋デリバリー）
           // 客数
           store_orders: number       // 店内注文数
-          delivery_orders: number    // デリバリー注文数
+          delivery_orders: number    // デリバリー注文数合計
           // FL
           food_cost: number | null   // 食材費（発注データから）
           labor_cost: number | null  // 人件費（打刻から自動計算）

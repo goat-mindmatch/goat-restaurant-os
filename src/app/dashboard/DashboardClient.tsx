@@ -584,8 +584,9 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
         <h2 className="text-xs font-semibold mb-2" style={{ color: 'var(--text-sub)' }}>管理メニュー</h2>
         <div className="grid grid-cols-3 gap-3">
           {[
+            { label: '現金精算',   href: '/dashboard/cash-register', icon: '💴', desc: '写真で照合' },
             { label: 'シフト管理', href: '/dashboard/shifts',    icon: '📅', desc: '確定・編集' },
-            { label: '給与計算',   href: '/dashboard/payroll',   icon: '💴', desc: '今月の給与' },
+            { label: '給与計算',   href: '/dashboard/payroll',   icon: '💰', desc: '今月の給与' },
             { label: '在庫管理',   href: '/dashboard/inventory', icon: '🗃️', desc: '食材・消耗品' },
             { label: '口コミ',     href: '/dashboard/reviews',   icon: '⭐', desc: 'Google連携' },
             { label: 'レシート',   href: '/dashboard/receipts',  icon: '🧾', desc: '経費・OCR' },

@@ -68,25 +68,61 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
     const updated: string[] = []
     const errors: string[] = []
+    const now = new Date().toISOString()
 
     for (const row of rows) {
-      const { error } = await db
+      // 既存レコードを取得して他媒体の売上を保持しつつ合計を再計算
+      const { data: existing } = await db
         .from('daily_sales')
-        .upsert({
-          tenant_id: TENANT_ID,
-          date: row.date,
-          menu_sales: row.amount,
-          menu_orders: row.orders,
-        }, { onConflict: 'tenant_id,date', ignoreDuplicates: false })
+        .select('store_sales, uber_sales, rocketnow_sales')
+        .eq('tenant_id', TENANT_ID)
+        .eq('date', row.date)
+        .single()
 
-      if (error) errors.push(`${row.date}: ${error.message}`)
-      else updated.push(row.date)
+      const storeSales     = Number(existing?.store_sales)     || 0
+      const uberSales      = Number(existing?.uber_sales)      || 0
+      const rocketnowSales = Number(existing?.rocketnow_sales) || 0
+      const menuSales      = row.amount
+
+      const deliverySales = uberSales + rocketnowSales + menuSales
+      const totalSales    = storeSales + deliverySales
+
+      const { error: upsertError } = await db
+        .from('daily_sales')
+        .upsert(
+          {
+            tenant_id:      TENANT_ID,
+            date:           row.date,
+            menu_sales:     menuSales,
+            menu_orders:    row.orders,
+            delivery_sales: deliverySales,
+            menu_synced_at: now,
+          },
+          { onConflict: 'tenant_id,date', ignoreDuplicates: false }
+        )
+
+      if (upsertError) { errors.push(`${row.date}: ${upsertError.message}`); continue }
+
+      // total_sales は GENERATED ALWAYS カラムのため DB 側で自動計算される
+      updated.push(row.date)
     }
 
-    return NextResponse.json({ ok: true, updated: updated.length, errors, dates: updated })
+    return NextResponse.json({
+      ok:      true,
+      updated: updated.length,
+      errors,
+      dates:   updated,
+      summary: rows.map(r => ({
+        date:     r.date,
+        orders:   r.orders,
+        sales:    r.amount,
+        syncedAt: now,
+      })),
+    })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

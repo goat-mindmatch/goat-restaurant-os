@@ -17,7 +17,7 @@ export async function GET() {
     const db = createServiceClient() as any
     const { data, error } = await db
       .from('tenants')
-      .select('id, name, monthly_target')
+      .select('id, name, monthly_target, change_fund')
       .eq('id', TENANT_ID)
       .single()
 
@@ -36,6 +36,7 @@ export async function PATCH(req: NextRequest) {
 
     if (body.name           !== undefined) update.name           = String(body.name).trim()
     if (body.monthly_target !== undefined) update.monthly_target = Number(body.monthly_target)
+    if (body.change_fund    !== undefined) update.change_fund    = Number(body.change_fund)
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'no fields to update' }, { status: 400 })

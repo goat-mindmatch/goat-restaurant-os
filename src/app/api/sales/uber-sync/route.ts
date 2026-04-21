@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
       // total_sales = 店内 + デリバリー全媒体
       const totalSales    = storeSales + deliverySales
 
-      const { error } = await db
+      const { error: upsertError } = await db
         .from('daily_sales')
         .upsert(
           {
@@ -184,17 +184,18 @@ export async function POST(req: NextRequest) {
             uber_sales:     uberSales,
             uber_orders:    row.orders,
             delivery_sales: deliverySales,
-            total_sales:    totalSales,
-            uber_synced_at: now,   // 集計時刻を記録
+            uber_synced_at: now,
           },
           { onConflict: 'tenant_id,date', ignoreDuplicates: false }
         )
 
-      if (error) {
-        errors.push(`${row.date}: ${error.message}`)
-      } else {
-        updated.push(row.date)
+      if (upsertError) {
+        errors.push(`${row.date}: ${upsertError.message}`)
+        continue
       }
+
+      // total_sales は GENERATED ALWAYS カラムのため DB 側で自動計算される
+      updated.push(row.date)
     }
 
     return NextResponse.json({
