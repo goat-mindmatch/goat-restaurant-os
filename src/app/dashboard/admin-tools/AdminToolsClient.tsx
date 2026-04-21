@@ -102,17 +102,31 @@ export default function AdminToolsClient() {
     setResults(prev => ({ ...prev, [tool.id]: null }))
 
     try {
-      const res = await fetch('/api/admin/trigger', {
+      // setup-richmenu は直接APIを呼ぶ（Vercel自己呼び出しのタイムアウト回避）
+      const endpoint = tool.id === 'setup-richmenu'
+        ? '/api/line/setup-richmenu'
+        : '/api/admin/trigger'
+      const body = tool.id === 'setup-richmenu'
+        ? '{}'
+        : JSON.stringify({ action: tool.id })
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: tool.id }),
+        body,
       })
       const data = await res.json()
+      // setup-richmenu の結果を読みやすく整形
+      let msg = data.message ?? data.error ?? (res.ok ? '✅ 実行完了' : '⚠️ エラー')
+      if (tool.id === 'setup-richmenu' && data.ok) {
+        const managerCount = (data.managers_updated ?? []).length
+        msg = `✅ セットアップ完了！スタッフ全員・経営者${managerCount}名に新しいメニューを適用しました`
+      }
       setResults(prev => ({
         ...prev,
         [tool.id]: {
           ok: res.ok && (data.ok !== false),
-          message: data.message ?? data.error ?? (res.ok ? '✅ 実行完了' : '⚠️ エラー'),
+          message: msg,
         },
       }))
     } catch (e) {
