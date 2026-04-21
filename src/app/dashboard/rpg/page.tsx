@@ -12,6 +12,8 @@ export const dynamic = 'force-dynamic'
 
 import { createServiceClient } from '@/lib/supabase'
 import RPGClient from './RPGClient'
+import { DEFAULT_REWARDS } from '@/app/api/rpg/rewards/route'
+import type { RPGReward } from '@/app/api/rpg/rewards/route'
 
 const TENANT_ID = process.env.TENANT_ID ?? 'mazesoba-jinrui'
 
@@ -60,6 +62,19 @@ export default async function RPGPage() {
   const monthStart = `${thisYear}-${String(thisMonth).padStart(2, '0')}-01`
   const monthEnd   = `${thisYear}-${String(thisMonth).padStart(2, '0')}-${String(new Date(thisYear, thisMonth, 0).getDate()).padStart(2, '0')}`
   const todayStr   = jst.toISOString().split('T')[0]
+
+  // 報酬ロードマップ取得
+  let rewards: RPGReward[] = DEFAULT_REWARDS
+  try {
+    const { data: tenantData } = await db
+      .from('tenants')
+      .select('rpg_rewards')
+      .eq('id', TENANT_ID)
+      .single()
+    if (tenantData?.rpg_rewards && Array.isArray(tenantData.rpg_rewards)) {
+      rewards = tenantData.rpg_rewards as RPGReward[]
+    }
+  } catch { /* use defaults */ }
 
   // 並列取得
   const [staffRes, rpgRes, attendanceRes, reviewsRes] = await Promise.all([
@@ -213,5 +228,5 @@ export default async function RPGPage() {
     teamExpGoal: Math.max(10000, Math.ceil(teamExp / 5000) * 5000 + 5000),
   }
 
-  return <RPGClient staffList={ranked} currentMonth={`${thisYear}年${thisMonth}月`} teamStats={teamStats} />
+  return <RPGClient staffList={ranked} currentMonth={`${thisYear}年${thisMonth}月`} teamStats={teamStats} rewards={rewards} />
 }

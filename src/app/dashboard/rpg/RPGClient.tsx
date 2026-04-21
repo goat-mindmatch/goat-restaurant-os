@@ -7,6 +7,7 @@
 
 import DashboardNav from '@/components/DashboardNav'
 import type { StaffRPGData, TeamStats } from './page'
+import type { RPGReward } from '@/app/api/rpg/rewards/route'
 
 // ─── クラス定義 ─────────────────────────────────────────
 const DQ_CLASSES = [
@@ -599,24 +600,26 @@ function DailyMissions() {
 }
 
 // ─── 報酬ロードマップ ─────────────────────────────────
-const REWARDS = [
-  { level: 5,  icon: '🎯', title: '好きなシフト優先権', desc: '1日分のシフト希望が100%通る', color: '#34D399' },
-  { level: 10, icon: '🍜', title: '店長とのランチ',     desc: 'メニューは何でもOK、好きな話をしよう', color: '#60A5FA' },
-  { level: 15, icon: '🎌', title: '特別休暇1日',        desc: '希望日に特別休暇取得権', color: '#F59E0B' },
-  { level: 20, icon: '💰', title: '時給 +¥50（1ヶ月）', desc: '翌月の給与に反映', color: '#A855F7' },
-  { level: 25, icon: '👑', title: '伝説ボーナス ¥10,000', desc: '神クラス到達の証', color: '#FFD700' },
-]
-
-function RewardRoadmap({ staffList }: { staffList: StaffRPGData[] }) {
+function RewardRoadmap({ staffList, rewards }: { staffList: StaffRPGData[]; rewards: RPGReward[] }) {
+  const sorted = [...rewards].sort((a, b) => a.level - b.level)
   return (
     <div className="mb-4">
-      <p className="text-xs text-gray-500 mb-3 px-1">🎁 報酬ロードマップ</p>
+      <div className="flex items-center justify-between mb-3 px-1">
+        <p className="text-xs text-gray-500">🎁 報酬ロードマップ</p>
+        <a
+          href="/dashboard/rpg/settings"
+          className="text-[10px] text-purple-400 font-semibold px-2 py-1 rounded-lg"
+          style={{ background: 'rgba(168,85,247,0.15)' }}
+        >
+          ⚙️ 編集
+        </a>
+      </div>
       <div className="relative">
         {/* 縦ライン */}
         <div className="absolute left-7 top-4 bottom-4 w-0.5 bg-gray-800" />
 
         <div className="space-y-3">
-          {REWARDS.map(r => {
+          {sorted.map(r => {
             const achieved = staffList.filter(s => s.level >= r.level).length
             const isAny = achieved > 0
             return (
@@ -697,9 +700,10 @@ type Props = {
   staffList: StaffRPGData[]
   currentMonth: string
   teamStats: TeamStats
+  rewards: RPGReward[]
 }
 
-export default function RPGClient({ staffList, currentMonth, teamStats }: Props) {
+export default function RPGClient({ staffList, currentMonth, teamStats, rewards }: Props) {
   return (
     <div className="min-h-screen pb-24" style={{ background: '#060818' }}>
       {/* ヘッダー */}
@@ -710,8 +714,19 @@ export default function RPGClient({ staffList, currentMonth, teamStats }: Props)
           borderBottom: '1px solid rgba(168,85,247,0.3)',
         }}
       >
-        <h1 className="text-xl font-black tracking-tight text-white">⚔️ スタッフRPG</h1>
-        <p className="text-sm text-purple-300 mt-0.5">{currentMonth} / 全{staffList.length}名</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-white">⚔️ スタッフRPG</h1>
+            <p className="text-sm text-purple-300 mt-0.5">{currentMonth} / 全{staffList.length}名</p>
+          </div>
+          <a
+            href="/dashboard/rpg/settings"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-all"
+            style={{ background: 'rgba(168,85,247,0.2)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.3)' }}
+          >
+            ⚙️ 報酬設定
+          </a>
+        </div>
 
         {/* EXP凡例 */}
         <div className="flex flex-wrap gap-3 mt-3 text-[10px] text-gray-400">
@@ -747,7 +762,7 @@ export default function RPGClient({ staffList, currentMonth, teamStats }: Props)
 
             {/* 報酬ロードマップ */}
             <div className="mt-4">
-              <RewardRoadmap staffList={staffList} />
+              <RewardRoadmap staffList={staffList} rewards={rewards} />
             </div>
 
             {/* クラス図鑑 */}
