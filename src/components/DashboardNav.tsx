@@ -2,52 +2,84 @@
 
 /**
  * 全ダッシュボードページ共通ボトムナビ
- * ホーム / 注文 / 売上 / シフト / もっと（ドロワー）
- *
- * 「もっと」タップで全ページグリッドが開く
+ * ホーム / 売上 / タスク / シフト / もっと（カテゴリ分けドロワー）
  */
 
 import { useState } from 'react'
 
 const MAIN_NAV = [
-  { label: 'ホーム',   href: '/dashboard',             icon: '🏠' },
-  { label: '注文',     href: '/dashboard/menu-orders', icon: '🍜' },
-  { label: '売上入力', href: '/dashboard/sales',       icon: '💹' },
-  { label: 'シフト',   href: '/dashboard/shifts',      icon: '📅' },
+  { label: 'ホーム',   href: '/dashboard',          icon: '🏠' },
+  { label: '売上',     href: '/dashboard/sales',    icon: '💹' },
+  { label: 'タスク',   href: '/dashboard/tasks',    icon: '📋' },
+  { label: 'シフト',   href: '/dashboard/shifts',   icon: '📅' },
 ]
 
-const MORE_ITEMS = [
-  { label: 'テーブル管理', href: '/dashboard/tables',   icon: '🪑' },
-  { label: '仕込みタスク', href: '/dashboard/tasks',    icon: '📋' },
-  { label: '厨房ディスプレイ', href: '/kitchen',        icon: '👨‍🍳' },
-  { label: 'PL損益',     href: '/dashboard/pl',        icon: '📊' },
-  { label: '在庫管理',   href: '/dashboard/inventory', icon: '🗃️' },
-  { label: '給与計算',   href: '/dashboard/payroll',   icon: '💴' },
-  { label: '発注管理',   href: '/dashboard/orders',    icon: '📦' },
-  { label: 'メニュー管理', href: '/dashboard/menu-management', icon: '🍽️' },
-  { label: '口コミ管理', href: '/dashboard/reviews',          icon: '⭐' },
-  { label: 'スタッフRPG', href: '/dashboard/rpg',              icon: '⚔️' },
-  { label: 'スタッフ',   href: '/dashboard/staff',             icon: '👥' },
-  { label: 'メニュー分析', href: '/dashboard/menu-engineering', icon: '🧮' },
-  { label: '混雑予測',   href: '/dashboard/forecast',          icon: '🔮' },
-  { label: 'SNS投稿',   href: '/dashboard/sns',                icon: '📱' },
-  { label: 'ロイヤルティ', href: '/dashboard/loyalty',            icon: '🎁' },
-  { label: 'デリバリー取込', href: '/dashboard/sales/delivery-import', icon: '🛵' },
-  { label: 'AIシフト',  href: '/dashboard/shifts/auto',        icon: '🤖' },
-  { label: 'レシート',   href: '/dashboard/receipts',           icon: '🧾' },
-  { label: 'まぜそばマニュアル', href: '/dashboard/manual',     icon: '📖' },
-  { label: '管理者ツール', href: '/dashboard/admin-tools',      icon: '🛠️' },
-  { label: '設定',       href: '/dashboard/settings',           icon: '⚙️' },
+type NavItem = { label: string; href: string; icon: string }
+
+const CATEGORIES: { title: string; items: NavItem[]; note?: string }[] = [
+  {
+    title: '📊 売上・財務',
+    items: [
+      { label: '売上管理',     href: '/dashboard/sales',                    icon: '💹' },
+      { label: '現金精算',     href: '/dashboard/cash-register',            icon: '💴' },
+      { label: 'PL損益',       href: '/dashboard/pl',                       icon: '📈' },
+      { label: 'レシート',     href: '/dashboard/receipts',                 icon: '🧾' },
+      { label: 'デリバリー取込', href: '/dashboard/sales/delivery-import', icon: '🛵' },
+    ],
+  },
+  {
+    title: '👥 スタッフ',
+    items: [
+      { label: 'スタッフ',   href: '/dashboard/staff',        icon: '👥' },
+      { label: 'シフト',     href: '/dashboard/shifts',       icon: '📅' },
+      { label: 'AIシフト',   href: '/dashboard/shifts/auto',  icon: '🤖' },
+      { label: '給与計算',   href: '/dashboard/payroll',      icon: '💰' },
+      { label: 'スタッフRPG', href: '/dashboard/rpg',         icon: '⚔️' },
+    ],
+  },
+  {
+    title: '📣 集客・マーケティング',
+    items: [
+      { label: '口コミ管理',   href: '/dashboard/reviews',          icon: '⭐' },
+      { label: 'ロイヤルティ', href: '/dashboard/loyalty',          icon: '🎁' },
+      { label: 'SNS投稿',     href: '/dashboard/sns',               icon: '📱' },
+      { label: '混雑予測',    href: '/dashboard/forecast',          icon: '🔮' },
+    ],
+  },
+  {
+    title: '🔮 AnyDeli移行後に本格稼働',
+    note: 'AnyDeliから自社システムへ移行後に使用',
+    items: [
+      { label: 'テーブル管理', href: '/dashboard/tables',           icon: '🪑' },
+      { label: '厨房ディスプレイ', href: '/kitchen',                icon: '👨‍🍳' },
+      { label: 'モバイル注文', href: '/dashboard/menu-orders',      icon: '🍜' },
+      { label: '在庫管理',    href: '/dashboard/inventory',         icon: '🗃️' },
+      { label: '発注管理',    href: '/dashboard/orders',            icon: '📦' },
+    ],
+  },
+  {
+    title: '⚙️ 設定・管理',
+    items: [
+      { label: 'メニュー管理', href: '/dashboard/menu-management',  icon: '🍽️' },
+      { label: 'メニュー分析', href: '/dashboard/menu-engineering', icon: '🧮' },
+      { label: '管理者ツール', href: '/dashboard/admin-tools',      icon: '🛠️' },
+      { label: 'マニュアル',   href: '/dashboard/manual',           icon: '📖' },
+      { label: '設定',         href: '/dashboard/settings',         icon: '⚙️' },
+    ],
+  },
 ]
+
+// ドロワーに表示される全アイテム（アクティブ判定用）
+const ALL_MORE_ITEMS = CATEGORIES.flatMap(c => c.items)
 
 export default function DashboardNav({ current }: { current: string }) {
   const [open, setOpen] = useState(false)
 
-  const isMoreActive = MORE_ITEMS.some(i => i.href === current)
+  const isMoreActive = ALL_MORE_ITEMS.some(i => i.href === current)
 
   return (
     <>
-      {/* 「もっと」ドロワー オーバーレイ */}
+      {/* ドロワー オーバーレイ */}
       {open && (
         <div
           className="fixed inset-0 z-20"
@@ -55,28 +87,46 @@ export default function DashboardNav({ current }: { current: string }) {
         >
           {/* ドロワー本体 */}
           <div
-            className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl shadow-2xl border-t border-gray-100 px-4 pt-4 pb-6"
+            className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl shadow-2xl border-t border-gray-100 px-4 pt-4 pb-8 overflow-y-auto"
+            style={{ maxHeight: '80vh' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
-            <p className="text-xs font-semibold text-gray-400 mb-3">その他のメニュー</p>
-            <div className="grid grid-cols-4 gap-3">
-              {MORE_ITEMS.map(item => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className={`flex flex-col items-center py-3 rounded-xl text-xs font-medium transition-colors ${
-                    current === item.href
-                      ? 'bg-orange-50 text-orange-600'
-                      : 'bg-gray-50 text-gray-600 hover:bg-orange-50 hover:text-orange-600'
-                  }`}
-                  onClick={() => setOpen(false)}
-                >
-                  <span className="text-2xl leading-tight mb-1">{item.icon}</span>
-                  {item.label}
-                </a>
-              ))}
-            </div>
+
+            {CATEGORIES.map(cat => (
+              <div key={cat.title} className="mb-5">
+                {/* カテゴリヘッダー */}
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-xs font-bold text-gray-600">{cat.title}</p>
+                  {cat.note && (
+                    <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-medium">
+                      {cat.note}
+                    </span>
+                  )}
+                </div>
+
+                {/* アイテムグリッド */}
+                <div className="grid grid-cols-4 gap-2">
+                  {cat.items.map(item => (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      className={`flex flex-col items-center py-3 rounded-xl text-xs font-medium transition-colors ${
+                        current === item.href
+                          ? 'bg-orange-50 text-orange-600'
+                          : cat.note
+                            ? 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                            : 'bg-gray-50 text-gray-600 hover:bg-orange-50 hover:text-orange-600'
+                      }`}
+                      onClick={() => setOpen(false)}
+                    >
+                      <span className="text-2xl leading-tight mb-1">{item.icon}</span>
+                      <span className="text-center leading-tight">{item.label}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

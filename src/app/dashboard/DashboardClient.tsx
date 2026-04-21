@@ -152,7 +152,45 @@ function Section({
 /* ─── メインコンポーネント ─── */
 export default function DashboardClient({ data }: { data: DashboardData }) {
   const router = useRouter()
-  const [notifStatus, setNotifStatus] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [notifStatus, setNotifStatus]   = useState<'idle' | 'loading' | 'done'>('idle')
+  const [syncStatus, setSyncStatus]     = useState<'idle' | 'sending' | 'waiting' | 'done' | 'error'>('idle')
+  const [syncMessage, setSyncMessage]   = useState('')
+
+  // AnyDeli 今すぐ同期
+  const handleSyncNow = async () => {
+    setSyncStatus('sending')
+    setSyncMessage('リクエスト送信中...')
+    try {
+      const res  = await fetch('/api/admin/sync-trigger', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      setSyncStatus('waiting')
+      setSyncMessage(json.mode === 'github_actions' ? 'GitHub Actions 起動中（約90秒）' : '同期リクエスト送信済み（約60秒）')
+      // 15秒ごとに完了チェック（最大2分）
+      let count = 0
+      const requestedAt = json.requested_at
+      const poll = setInterval(async () => {
+        count++
+        try {
+          const s = await fetch('/api/admin/sync-status').then(r => r.json())
+          if (s.completed && s.completed_at >= requestedAt) {
+            clearInterval(poll)
+            setSyncStatus('done')
+            setSyncMessage('✅ 同期完了！')
+            setTimeout(() => { setSyncStatus('idle'); router.refresh() }, 2000)
+          } else if (count >= 8) {
+            clearInterval(poll)
+            setSyncStatus('idle')
+            setSyncMessage('')
+          }
+        } catch { if (count >= 8) clearInterval(poll) }
+      }, 15000)
+    } catch (e) {
+      setSyncStatus('error')
+      setSyncMessage((e as Error).message)
+      setTimeout(() => setSyncStatus('idle'), 3000)
+    }
+  }
 
   // 30秒ごとの自動更新
   useEffect(() => {
@@ -278,6 +316,52 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
               )}
             </p>
           )}
+        </div>
+      </section>
+
+      {/* ─── クイックアクション ─── */}
+      <section className="mb-4">
+        <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-sub)' }}>⚡ クイックアクション</p>
+        <div className="grid grid-cols-3 gap-2">
+          {/* AnyDeli 今すぐ同期 */}
+          <button
+            onClick={handleSyncNow}
+            disabled={syncStatus === 'sending' || syncStatus === 'waiting'}
+            className="rounded-xl p-3 text-center active:scale-95 transition-all disabled:opacity-60"
+            style={{ background: syncStatus === 'done' ? '#f0fdf4' : '#eff6ff', border: `1px solid ${syncStatus === 'done' ? '#86efac' : '#bfdbfe'}` }}
+          >
+            <p className="text-2xl mb-1">
+              {syncStatus === 'sending' || syncStatus === 'waiting' ? '⏳' : syncStatus === 'done' ? '✅' : '⚡'}
+            </p>
+            <p className="text-xs font-semibold" style={{ color: syncStatus === 'done' ? '#16a34a' : '#1d4ed8' }}>
+              {syncStatus === 'idle' || syncStatus === 'error' ? 'AnyDeli同期' : syncStatus === 'done' ? '同期完了' : '同期中...'}
+            </p>
+            <p className="text-[10px] mt-0.5 leading-tight" style={{ color: '#6b7280' }}>
+              {syncMessage || '今すぐ取込'}
+            </p>
+          </button>
+
+          {/* 現金精算 */}
+          <a
+            href="/dashboard/cash-register"
+            className="rounded-xl p-3 text-center active:scale-95 transition-all"
+            style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}
+          >
+            <p className="text-2xl mb-1">💴</p>
+            <p className="text-xs font-semibold" style={{ color: '#c2410c' }}>現金精算</p>
+            <p className="text-[10px] mt-0.5" style={{ color: '#6b7280' }}>今日の現金確認</p>
+          </a>
+
+          {/* 今日のタスク */}
+          <a
+            href="/dashboard/tasks"
+            className="rounded-xl p-3 text-center active:scale-95 transition-all"
+            style={{ background: '#f0fdf4', border: '1px solid #86efac' }}
+          >
+            <p className="text-2xl mb-1">📋</p>
+            <p className="text-xs font-semibold" style={{ color: '#15803d' }}>仕込みタスク</p>
+            <p className="text-[10px] mt-0.5" style={{ color: '#6b7280' }}>今日の作業開始</p>
+          </a>
         </div>
       </section>
 
