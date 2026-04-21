@@ -24,6 +24,10 @@ export default function StaffClient({ initialStaff }: { initialStaff: Staff[] })
   const [message, setMessage]   = useState<string | null>(null)
   const [loading, setLoading]   = useState(false)
 
+  // PIN管理
+  const [pinTarget, setPinTarget] = useState<Staff | null>(null)
+  const [pinInput,  setPinInput]  = useState('')
+
   // 新規追加フォーム
   const [newName,  setNewName]  = useState('')
   const [newRole,  setNewRole]  = useState<'staff' | 'manager'>('staff')
@@ -92,6 +96,27 @@ export default function StaffClient({ initialStaff }: { initialStaff: Staff[] })
     } else {
       const d = await res.json() as { error?: string }
       toast(`❌ ${d.error ?? '更新に失敗しました'}`)
+    }
+  }
+
+  // PIN設定
+  const handleSetPin = async () => {
+    if (!pinTarget) return
+    if (pinInput.length < 4) return toast('❌ 4桁以上のPINを入力してください')
+    setLoading(true)
+    const res = await fetch('/api/auth/set-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staffId: pinTarget.id, pin: pinInput }),
+    })
+    setLoading(false)
+    if (res.ok) {
+      toast(`✅ ${pinTarget.name} のPINを設定しました`)
+      setPinTarget(null)
+      setPinInput('')
+    } else {
+      const d = await res.json() as { error?: string }
+      toast(`❌ ${d.error ?? 'PIN設定に失敗しました'}`)
     }
   }
 
@@ -317,10 +342,16 @@ export default function StaffClient({ initialStaff }: { initialStaff: Staff[] })
                     編集
                   </button>
                   <button
-                    onClick={() => handleDeactivate(s)}
-                    className="text-xs text-gray-400 border border-gray-200 rounded-lg px-3 py-1"
+                    onClick={() => { setPinTarget(s); setPinInput('') }}
+                    className="text-xs text-blue-500 border border-blue-200 rounded-lg px-3 py-1 font-medium"
                   >
-                    退職
+                    🔑 PIN
+                  </button>
+                  <button
+                    onClick={() => handleDeactivate(s)}
+                    className="text-xs text-red-400 border border-red-200 rounded-lg px-3 py-1"
+                  >
+                    停止
                   </button>
                 </div>
               </div>
@@ -328,6 +359,44 @@ export default function StaffClient({ initialStaff }: { initialStaff: Staff[] })
           </div>
         ))}
       </div>
+
+      {/* PIN設定モーダル */}
+      {pinTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+          <div className="bg-white rounded-t-2xl w-full max-w-sm p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-1">🔑 PIN設定</h3>
+            <p className="text-sm text-gray-500 mb-4">{pinTarget.name} のログインPINを設定します</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={8}
+              placeholder="4〜8桁の数字"
+              value={pinInput}
+              onChange={e => setPinInput(e.target.value.replace(/\D/g, ''))}
+              className="w-full border-2 border-orange-200 rounded-xl px-4 py-3 text-2xl text-center tracking-widest font-bold mb-4 focus:outline-none focus:border-orange-500"
+              autoFocus
+            />
+            <p className="text-xs text-gray-400 mb-4 text-center">
+              ※ 退職時は「停止」ボタンでログインを無効化できます
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setPinTarget(null); setPinInput('') }}
+                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-500 text-sm"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSetPin}
+                disabled={loading || pinInput.length < 4}
+                className="flex-1 py-3 rounded-xl bg-orange-500 text-white font-bold text-sm disabled:opacity-40"
+              >
+                {loading ? '設定中...' : '設定する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 退職済みスタッフ */}
       {inactive.length > 0 && (
