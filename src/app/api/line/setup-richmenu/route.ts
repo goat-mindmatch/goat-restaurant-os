@@ -2,128 +2,18 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
- * LINE リッチメニュー自動セットアップ
  * POST /api/line/setup-richmenu
+ * リッチメニューをゼロから再作成して全スタッフに適用する
  *
- * スタッフ用（全員デフォルト）+ 経営者用（manager ロールに個別設定）の
- * 2種類を作成する
+ * メニュー定義の正本は src/lib/richmenu-defs.ts を参照。
+ * ここでは定義を変更しない。
  */
 
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { STAFF_MENU_DEF, MANAGER_MENU_DEF } from '@/lib/richmenu-defs'
 
-const BASE_URL = 'https://goat-restaurant-os.vercel.app'
 const TENANT_ID = process.env.TENANT_ID!
-
-// ===========================
-// スタッフ用リッチメニュー（6ボタン）
-// ===========================
-// ========================================
-// 座標計算: 2500 × 1686 を 3×2 グリッドに分割
-//   列幅: 834 + 833 + 833 = 2500  ✓
-//   行高: 843 + 843       = 1686  ✓
-// ========================================
-const C = [0, 834, 1667]       // 各列の x 座標
-const W = [834, 833, 833]       // 各列の幅
-const R = [0, 843]              // 各行の y 座標
-const H = 843                   // 行の高さ（共通）
-
-const STAFF_RICH_MENU = {
-  size: { width: 2500, height: 1686 },
-  selected: true,
-  name: 'GOAT Staff Menu v3',
-  chatBarText: 'スタッフメニュー',
-  areas: [
-    // 上段左: 出勤
-    {
-      bounds: { x: C[0], y: R[0], width: W[0], height: H },
-      action: { type: 'message', label: '出勤打刻', text: '出勤' },
-    },
-    // 上段中: 退勤
-    {
-      bounds: { x: C[1], y: R[0], width: W[1], height: H },
-      action: { type: 'message', label: '退勤打刻', text: '退勤' },
-    },
-    // 上段右: シフト希望提出（message型でWebhook経由→uid付きURL返信）
-    {
-      bounds: { x: C[2], y: R[0], width: W[2], height: H },
-      action: { type: 'message', label: 'シフト希望提出', text: 'シフト希望提出' },
-    },
-    // 下段左: 経営メニューへ切り替え（経営者のみ有効）
-    {
-      bounds: { x: C[0], y: R[1], width: W[0], height: H },
-      action: { type: 'message', label: '経営メニューへ', text: '経営メニューへ切替' },
-    },
-    // 下段中: 自分のランク確認（Webhook経由→レベル・EXPを返信）
-    {
-      bounds: { x: C[1], y: R[1], width: W[1], height: H },
-      action: { type: 'message', label: 'ランク確認', text: '自分のランク' },
-    },
-    // 下段右: シフト確認
-    {
-      bounds: { x: C[2], y: R[1], width: W[2], height: H },
-      action: { type: 'message', label: 'シフト確認', text: 'シフト確認' },
-    },
-  ],
-}
-
-// ===========================
-// 経営者用リッチメニュー（6ボタン）
-// ===========================
-const MANAGER_RICH_MENU = {
-  size: { width: 2500, height: 1686 },
-  selected: true,
-  name: 'GOAT Manager Menu v2',
-  chatBarText: '経営メニュー',
-  areas: [
-    // 上段左: 本日の売上確認
-    {
-      bounds: { x: C[0], y: R[0], width: W[0], height: H },
-      action: { type: 'message', label: '売上確認', text: '本日の売上' },
-    },
-    // 上段中: PL・損益確認
-    {
-      bounds: { x: C[1], y: R[0], width: W[1], height: H },
-      action: {
-        type: 'uri',
-        label: 'PL確認',
-        uri: `${BASE_URL}/dashboard/pl`,
-      },
-    },
-    // 上段右: シフト確認・修正
-    {
-      bounds: { x: C[2], y: R[0], width: W[2], height: H },
-      action: {
-        type: 'uri',
-        label: 'シフト確認',
-        uri: `${BASE_URL}/dashboard/shifts`,
-      },
-    },
-    // 下段左: スタッフメニューへ切り替え
-    {
-      bounds: { x: C[0], y: R[1], width: W[0], height: H },
-      action: { type: 'message', label: 'スタッフメニューへ', text: 'スタッフメニューへ切替' },
-    },
-    // 下段中: RPGランキング確認
-    {
-      bounds: { x: C[1], y: R[1], width: W[1], height: H },
-      action: {
-        type: 'uri',
-        label: 'RPGランキング',
-        uri: `${BASE_URL}/dashboard/rpg`,
-      },
-    },
-    // 下段右: スタッフ評価・ダッシュボード
-    {
-      bounds: { x: C[2], y: R[1], width: W[2], height: H },
-      action: {
-        type: 'uri',
-        label: 'ダッシュボード',
-        uri: `${BASE_URL}/dashboard`,
-      },
-    },
-  ],
-}
 
 export async function POST() {
   const token = process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN
@@ -134,31 +24,24 @@ export async function POST() {
     )
   }
 
-  // ボディあり用（JSON送信）
-  const jsonHeaders = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  }
-  // ボディなし用（GET/DELETE/ボディなしPOST）
-  const authHeader = { Authorization: `Bearer ${token}` }
+  const jsonHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  const authHeader  = { Authorization: `Bearer ${token}` }
 
   try {
-    // 1. 既存リッチメニューを全削除
+    // 1. 既存リッチメニューを全削除（逐次実行して確実に消す）
     const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers: authHeader })
     if (listRes.ok) {
       const listData = await listRes.json() as { richmenus: { richMenuId: string }[] }
-      await Promise.all(
-        (listData.richmenus ?? []).map(menu =>
-          fetch(`https://api.line.me/v2/bot/richmenu/${menu.richMenuId}`, {
-            method: 'DELETE', headers: authHeader,
-          })
-        )
-      )
+      for (const menu of listData.richmenus ?? []) {
+        await fetch(`https://api.line.me/v2/bot/richmenu/${menu.richMenuId}`, {
+          method: 'DELETE', headers: authHeader,
+        })
+      }
     }
 
-    // 2. スタッフ用リッチメニューを作成
+    // 2. スタッフ用メニューを作成（src/lib/richmenu-defs.ts の定義を使用）
     const staffCreateRes = await fetch('https://api.line.me/v2/bot/richmenu', {
-      method: 'POST', headers: jsonHeaders, body: JSON.stringify(STAFF_RICH_MENU),
+      method: 'POST', headers: jsonHeaders, body: JSON.stringify(STAFF_MENU_DEF),
     })
     if (!staffCreateRes.ok) {
       return NextResponse.json(
@@ -168,9 +51,9 @@ export async function POST() {
     }
     const { richMenuId: staffMenuId } = await staffCreateRes.json() as { richMenuId: string }
 
-    // 3. 経営者用リッチメニューを作成
+    // 3. 経営者用メニューを作成（src/lib/richmenu-defs.ts の定義を使用）
     const managerCreateRes = await fetch('https://api.line.me/v2/bot/richmenu', {
-      method: 'POST', headers: jsonHeaders, body: JSON.stringify(MANAGER_RICH_MENU),
+      method: 'POST', headers: jsonHeaders, body: JSON.stringify(MANAGER_MENU_DEF),
     })
     if (!managerCreateRes.ok) {
       return NextResponse.json(
@@ -180,21 +63,19 @@ export async function POST() {
     }
     const { richMenuId: managerMenuId } = await managerCreateRes.json() as { richMenuId: string }
 
-    // 4a. スタッフメニューを「新規フォロワーのデフォルト」に設定（ボディなし）
+    // 4a. スタッフメニューを新規フォロワーのデフォルトに設定
     const setDefaultRes = await fetch(
       `https://api.line.me/v2/bot/richmenu/default/${staffMenuId}`,
       { method: 'POST', headers: authHeader }
     )
-    const setDefaultOk = setDefaultRes.ok
 
-    // 4b. 既存の全フォロワーにもスタッフメニューを紐付け（ボディなし）
+    // 4b. 既存の全フォロワーにスタッフメニューを紐付け
     const setAllRes = await fetch(
       `https://api.line.me/v2/bot/user/all/richmenu/${staffMenuId}`,
       { method: 'POST', headers: authHeader }
     )
-    const setAllOk = setAllRes.ok
 
-    // 5. 経営者（role=manager）に個別でmanagerMenuを設定（ボディなし）
+    // 5. role=manager のスタッフに個別で経営者メニューを設定
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
     const { data: managers } = await db.from('staff')
@@ -204,22 +85,23 @@ export async function POST() {
       .eq('is_active', true)
       .not('line_user_id', 'is', null)
 
-    const managerResults: { name: string; ok: boolean }[] = []
+    const managerResults: { name: string; ok: boolean; status: number }[] = []
     for (const m of managers ?? []) {
       const res = await fetch(
         `https://api.line.me/v2/bot/user/${m.line_user_id}/richmenu/${managerMenuId}`,
         { method: 'POST', headers: authHeader }
       )
-      managerResults.push({ name: m.name, ok: res.ok })
+      managerResults.push({ name: m.name, ok: res.ok, status: res.status })
     }
 
     return NextResponse.json({
       ok: true,
-      staff_menu_id: staffMenuId,
+      staff_menu_id:   staffMenuId,
       manager_menu_id: managerMenuId,
-      set_default_ok: setDefaultOk,
-      set_all_ok: setAllOk,
+      set_default_ok:  setDefaultRes.ok,
+      set_all_ok:      setAllRes.ok,
       managers_updated: managerResults,
+      message: `セットアップ完了。スタッフ全員・経営者${managerResults.length}名に適用しました。`,
     })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
