@@ -54,10 +54,10 @@ const STAFF_RICH_MENU = {
       bounds: { x: C[0], y: R[1], width: W[0], height: H },
       action: { type: 'message', label: '経営メニューへ', text: '経営メニューへ切替' },
     },
-    // 下段中: 発注依頼（message型でWebhook経由→uid付きURL返信）
+    // 下段中: 自分のランク確認（Webhook経由→レベル・EXPを返信）
     {
       bounds: { x: C[1], y: R[1], width: W[1], height: H },
-      action: { type: 'message', label: '発注依頼', text: '発注依頼' },
+      action: { type: 'message', label: 'ランク確認', text: '自分のランク' },
     },
     // 下段右: シフト確認
     {
@@ -104,13 +104,13 @@ const MANAGER_RICH_MENU = {
       bounds: { x: C[0], y: R[1], width: W[0], height: H },
       action: { type: 'message', label: 'スタッフメニューへ', text: 'スタッフメニューへ切替' },
     },
-    // 下段中: 発注状況確認
+    // 下段中: RPGランキング確認
     {
       bounds: { x: C[1], y: R[1], width: W[1], height: H },
       action: {
         type: 'uri',
-        label: '発注状況',
-        uri: `${BASE_URL}/dashboard/orders`,
+        label: 'RPGランキング',
+        uri: `${BASE_URL}/dashboard/rpg`,
       },
     },
     // 下段右: スタッフ評価・ダッシュボード

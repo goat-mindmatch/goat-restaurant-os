@@ -89,7 +89,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '本日の売上', '売上入力', 'スキル一覧', 'ヘルプ', '使い方', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '本日の売上', '売上入力', 'スキル一覧', 'ヘルプ', '使い方', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット', '自分のランク']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -165,6 +165,9 @@ async function handleEvent(event: LineEvent) {
     case 'メニュー更新':
     case 'メニューリセット':
       await handleMenuReset(userId)
+      break
+    case '自分のランク':
+      await handleMyRank(userId)
       break
     case '管理メニュー':
       await handleAdminMenu(userId)
@@ -1156,6 +1159,97 @@ async function handleSalesInput(lineUserId: string, text: string, state: string)
 // ================================
 // スキル一覧（全機能の使い方ガイド）
 // ================================
+// ─── 自分のランク確認 ────────────────────────────────────────────────────────
+async function handleMyRank(lineUserId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any
+
+  // スタッフ情報取得
+  const { data: staff } = await db.from('staff')
+    .select('id, name')
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId)
+    .single()
+
+  if (!staff) {
+    await sendLineMessage(lineUserId, '❌ スタッフ情報が見つかりませんでした。\n登録済みか確認してください。')
+    return
+  }
+
+  // 今月の範囲
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000) // JST
+  const year  = now.getUTCFullYear()
+  const month = now.getUTCMonth() + 1
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
+  const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`
+
+  // 勤怠・口コミを並列取得
+  const [attendRes, reviewRes, rpgRes] = await Promise.all([
+    db.from('attendance')
+      .select('date, clock_in')
+      .eq('tenant_id', TENANT_ID)
+      .eq('staff_id', staff.id)
+      .gte('date', monthStart)
+      .lte('date', monthEnd),
+    db.from('review_submissions')
+      .select('id')
+      .eq('tenant_id', TENANT_ID)
+      .eq('staff_id', staff.id)
+      .eq('verified', true)
+      .gte('created_at', `${monthStart}T00:00:00`)
+      .lte('created_at', `${monthEnd}T23:59:59`),
+    db.from('staff_rpg')
+      .select('exp, level')
+      .eq('tenant_id', TENANT_ID)
+      .eq('staff_id', staff.id)
+      .single(),
+  ])
+
+  const workDays    = (attendRes.data ?? []).length
+  const monthReviews = (reviewRes.data ?? []).length
+
+  // EXP計算（DBにあれば優先、なければ計算）
+  const calcExp = workDays * 50 + monthReviews * 150
+  const exp     = rpgRes.data?.exp ?? calcExp
+  const level   = Math.floor(exp / 1000) + 1
+
+  // クラス名
+  const className =
+    level >= 25 ? '人類みなまぜそば之神 👑' :
+    level >= 18 ? '伝説のスタッフ ⚔️' :
+    level >= 12 ? '賢者 🔮' :
+    level >= 7  ? '武闘家 🥊' :
+    level >= 3  ? '僧侶 🌿' :
+    '旅人 🎒'
+
+  // 次のレベルまで
+  const nextLevelExp = level * 1000
+  const remaining   = nextLevelExp - exp
+  const progress    = Math.min(100, Math.round(((exp - (level - 1) * 1000) / 1000) * 100))
+
+  // プログレスバー（10マス）
+  const filled = Math.round(progress / 10)
+  const bar = '█'.repeat(filled) + '░'.repeat(10 - filled)
+
+  const message = [
+    `⚔️ ${staff.name}さんのランク`,
+    ``,
+    `🏅 クラス: ${className}`,
+    `📊 Lv.${level}  |  ${exp.toLocaleString()} EXP`,
+    ``,
+    `[${bar}] ${progress}%`,
+    `次のLvまで: あと ${remaining.toLocaleString()} EXP`,
+    ``,
+    `📅 今月の出勤: ${workDays}日`,
+    `⭐ 今月の口コミ: ${monthReviews}件`,
+    ``,
+    `👉 ランキングを確認する`,
+    `https://goat-restaurant-os.vercel.app/dashboard/rpg`,
+  ].join('\n')
+
+  await sendLineMessage(lineUserId, message)
+}
+
 async function handleSkillList(lineUserId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any
