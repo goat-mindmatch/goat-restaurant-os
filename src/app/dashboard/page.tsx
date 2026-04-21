@@ -19,12 +19,13 @@ async function getDashboardData() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  const today = new Date().toISOString().split('T')[0]
+  // JST（日本時間）で today を計算（UTC + 9時間）
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
   const firstDayOfMonth = today.slice(0, 7) + '-01'
 
   // 7日前
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+  const sevenDaysAgo = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6)
   const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
 
   const [todaySalesRes, monthSalesRes, weekSalesRes, todayAttendanceRes, tenantRes, monthShiftsRes, tablesRes, pendingCallsRes, todayReviewsRes] =

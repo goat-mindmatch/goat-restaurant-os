@@ -10,9 +10,10 @@ async function getSalesData() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any
 
-  const now = new Date()
-  const firstDay = now.toISOString().slice(0, 7) + '-01'
-  const lastDay = now.toISOString().slice(0, 10)
+  // JST（日本時間）で今日を計算（UTC + 9時間）
+  const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const firstDay = nowJST.toISOString().slice(0, 7) + '-01'
+  const lastDay = nowJST.toISOString().slice(0, 10)
 
   const { data: sales } = await db.from('daily_sales')
     .select('*')

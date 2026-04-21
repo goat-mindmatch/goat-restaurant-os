@@ -109,6 +109,10 @@ export async function POST(req: NextRequest) {
         anydeli_sales:     row.amount,
         anydeli_orders:    row.orders,
         anydeli_synced_at: now,
+        // store_sales にも反映させることで total_sales（= store_sales + delivery_sales）に乗る
+        store_sales:       row.amount,
+        store_orders:      row.orders,
+        data_source:       'api',
       }
 
       // 現金/オンライン内訳が提供された場合のみ更新
