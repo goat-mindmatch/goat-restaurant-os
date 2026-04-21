@@ -63,11 +63,12 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard/tasks', req.url))
   }
 
-  // セッション情報をヘッダーに付与（Server Componentで利用可能に）
+  // セッション情報をヘッダーに付与（ASCII安全な値のみ）
   const res = NextResponse.next()
   res.headers.set('x-staff-id',   session.staffId)
-  res.headers.set('x-staff-name', session.name)
   res.headers.set('x-staff-role', session.role)
+  // 名前は日本語を含むためエンコードしてセット
+  res.headers.set('x-staff-name', encodeURIComponent(session.name))
   return res
 }
 
