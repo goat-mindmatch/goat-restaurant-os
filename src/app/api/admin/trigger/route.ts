@@ -27,6 +27,7 @@ const ACTION_MAP: Record<string, { path: string; method: 'GET' | 'POST' }> = {
   'send-mission':     { path: '/api/line/send-mission',     method: 'POST' },
   'send-payslips':    { path: '/api/payroll/send-slip',     method: 'GET' },
   'auto-order':       { path: '/api/inventory/auto-order',  method: 'GET' },
+  'setup-richmenu':   { path: '/api/line/setup-richmenu',   method: 'POST' },
 }
 
 export async function POST(req: NextRequest) {

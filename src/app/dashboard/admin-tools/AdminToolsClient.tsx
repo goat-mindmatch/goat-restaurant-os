@@ -74,9 +74,17 @@ const TOOLS: Tool[] = [
     icon: '🛵',
     category: '在庫・発注',
   },
+  {
+    id: 'setup-richmenu',
+    label: 'リッチメニュー セットアップ',
+    description: 'LINEのボタン動作を最新設定に更新します。画像アップロード後に必ず実行してください',
+    icon: '📲',
+    category: 'LINE設定',
+    confirm: 'リッチメニューを再作成します。全スタッフのLINEメニューが切り替わります。よろしいですか？',
+  },
 ]
 
-const CATEGORIES = ['レポート', 'LINE送信', '在庫・発注']
+const CATEGORIES = ['レポート', 'LINE送信', '在庫・発注', 'LINE設定']
 
 export default function AdminToolsClient() {
   const [results, setResults] = useState<Record<string, ToolResult | null>>({})
