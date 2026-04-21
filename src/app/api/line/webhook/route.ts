@@ -919,7 +919,7 @@ async function handleMenuSwitch(lineUserId: string, to: 'staff' | 'manager') {
   const listData = await listRes.json() as { richmenus: { richMenuId: string; name: string }[] }
   const menus = listData.richmenus ?? []
 
-  const targetName = to === 'manager' ? 'GOAT Manager Menu v2' : 'GOAT Staff Menu v3'
+  const targetName = to === 'manager' ? 'GOAT Manager Menu v3' : 'GOAT Staff Menu v4'
   const targetMenu = menus.find(m => m.name === targetName)
 
   if (!targetMenu) {
