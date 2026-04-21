@@ -1,0 +1,86 @@
+name: AnyDeli データ自動同期
+
+on:
+  # 定時実行（JST）
+  schedule:
+    - cron: '0 0 * * *'    # 9:00 JST = 0:00 UTC
+    - cron: '0 3 * * *'    # 12:00 JST = 3:00 UTC
+    - cron: '0 14 * * *'   # 23:00 JST = 14:00 UTC
+
+  # Web アプリの「今すぐ同期」ボタンから呼び出し
+  repository_dispatch:
+    types: [anydeli-sync]
+
+  # GitHub の画面からも手動実行可能
+  workflow_dispatch:
+
+env:
+  API_URL: https://goat-restaurant-os.vercel.app
+
+jobs:
+  sync:
+    name: AnyDeli データ取込
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # ─── 1. コードを取得 ────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ─── 2. Node.js セットアップ ────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ─── 3. Chrome インストール ──────────────────────────────
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+
+      # ─── 4. Playwright インストール ─────────────────────────
+      - name: Install Playwright
+        run: |
+          npm install playwright
+          npx playwright install-deps
+
+      # ─── 5. 仮想ディスプレイ起動（headless: false 対応） ───
+      - name: Start virtual display (Xvfb)
+        run: |
+          sudo apt-get install -y xvfb --quiet
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 2
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      # ─── 6. セッションファイルを復元 ────────────────────────
+      - name: Restore AnyDeli session
+        run: |
+          mkdir -p sessions
+          echo "${{ secrets.ANYDELI_SESSION }}" > sessions/anydeli-session-b64.txt
+          echo "${{ secrets.ANYDELI_SESSION }}" | base64 -d > sessions/anydeli-session.json
+          echo "セッションファイルを復元しました"
+
+      # ─── 7. AnyDeli スクレイピング実行 ──────────────────────
+      - name: Run AnyDeli sync
+        env:
+          ANYDELI_SESSION_B64: ${{ secrets.ANYDELI_SESSION }}
+          API_URL: ${{ env.API_URL }}
+          DISPLAY: ':99'
+        run: node scripts/cloud-anydeli-sync.js
+
+      # ─── 8. 同期完了を Web アプリに通知 ─────────────────────
+      - name: Notify sync complete
+        if: success()
+        run: |
+          curl -s -X POST "${{ env.API_URL }}/api/admin/sync-complete" \
+            -H "Content-Type: application/json" \
+            -d '{}' | cat
+
+      # ─── 9. セッション切れ時の通知 ──────────────────────────
+      - name: Notify session expired
+        if: failure()
+        run: |
+          echo "::error::AnyDeli セッションが切れているか、スクレイピングに失敗しました。"
+          echo "::error::Mac で setup-delivery-session.js anydeli を実行し、ANYDELI_SESSION Secret を更新してください。"
