@@ -27,15 +27,16 @@ const MORE_ITEMS = [
   { label: 'メニュー管理', href: '/dashboard/menu-management', icon: '🍽️' },
   { label: '口コミ管理', href: '/dashboard/reviews',          icon: '⭐' },
   { label: 'スタッフRPG', href: '/dashboard/rpg',              icon: '⚔️' },
-  { label: 'スタッフ評価', href: '/dashboard/staff-performance', icon: '📈' },
   { label: 'スタッフ',   href: '/dashboard/staff',             icon: '👥' },
   { label: 'メニュー分析', href: '/dashboard/menu-engineering', icon: '🧮' },
   { label: '混雑予測',   href: '/dashboard/forecast',          icon: '🔮' },
   { label: 'SNS投稿',   href: '/dashboard/sns',                icon: '📱' },
   { label: 'ロイヤルティ', href: '/dashboard/loyalty',            icon: '🎁' },
-  { label: 'Uber取込',  href: '/dashboard/sales/uber-import',  icon: '🛵' },
+  { label: 'デリバリー取込', href: '/dashboard/sales/delivery-import', icon: '🛵' },
   { label: 'AIシフト',  href: '/dashboard/shifts/auto',        icon: '🤖' },
   { label: 'レシート',   href: '/dashboard/receipts',           icon: '🧾' },
+  { label: 'まぜそばマニュアル', href: '/dashboard/manual',     icon: '📖' },
+  { label: '管理者ツール', href: '/dashboard/admin-tools',      icon: '🛠️' },
   { label: '設定',       href: '/dashboard/settings',           icon: '⚙️' },
 ]
 

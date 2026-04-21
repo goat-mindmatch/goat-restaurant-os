@@ -32,3 +32,90 @@ body {
   color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ─── ダークモード グローバル上書き ─────────────────────
+   Tailwind のユーティリティクラス（bg-white, bg-gray-50 等）は
+   CSS変数を無視するため、.dark クラス時に強制上書きする        */
+
+.dark body,
+.dark main {
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+.dark .bg-white {
+  background-color: var(--surface) !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #1a2234 !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #1e2a3a !important;
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800 {
+  color: var(--text) !important;
+}
+
+.dark .text-gray-700 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: var(--text-sub) !important;
+}
+
+.dark .text-gray-400 {
+  color: #64748b !important;
+}
+
+.dark .border-gray-200,
+.dark .border-gray-100 {
+  border-color: var(--border) !important;
+}
+
+.dark .border-b {
+  border-color: var(--border) !important;
+}
+
+.dark nav.fixed.bottom-0 {
+  background-color: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+
+.dark .shadow-sm,
+.dark .shadow {
+  box-shadow: 0 1px 8px rgba(0,0,0,0.4) !important;
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #1e293b !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+.dark .bg-orange-50 {
+  background-color: #2d1900 !important;
+}
+
+.dark .bg-green-50 {
+  background-color: #052e16 !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: #0c1a2e !important;
+}
+
+.dark .bg-red-50 {
+  background-color: #2d0a0a !important;
+}
+
+.dark .bg-yellow-50 {
+  background-color: #2d2000 !important;
+}

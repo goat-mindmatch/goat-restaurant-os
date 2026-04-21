@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic'
 
 /**
  * 今日のミッション LINE Flex Message 一斉送信
- * POST /api/line/send-mission
+ * POST /api/line/send-mission  — 通常呼び出し
+ * GET  /api/line/send-mission?secret=xxx — cron / ブラウザ確認用
  *
  * 処理:
  *  1. daily_sales から先週同曜日の売上を取得して目標算出（+10%、なければ100,000円）
@@ -12,13 +13,22 @@ export const dynamic = 'force-dynamic'
  *  4. 各スタッフの line_user_id に Flex Message 送信
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { sendFlexMessage } from '@/lib/line-staff'
 
 const TENANT_ID = process.env.TENANT_ID!
 
-export async function POST() {
+// GETはcron / 管理者ツール用（secretチェック）
+export async function GET(req: NextRequest) {
+  const secret = new URL(req.url).searchParams.get('secret')
+  if (secret !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  return runMission()
+}
+
+async function runMission() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any
 
@@ -256,4 +266,8 @@ export async function POST() {
   )
 
   return NextResponse.json({ ok: true, sent, errors: errors.length > 0 ? errors : undefined })
+}
+
+export async function POST() {
+  return runMission()
 }

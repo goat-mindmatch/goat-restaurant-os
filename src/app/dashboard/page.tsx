@@ -30,7 +30,7 @@ async function getDashboardData() {
   const [todaySalesRes, monthSalesRes, weekSalesRes, todayAttendanceRes, tenantRes, monthShiftsRes, tablesRes, pendingCallsRes, todayReviewsRes] =
     await Promise.all([
       db.from('daily_sales')
-        .select('total_sales, store_sales, delivery_sales, store_orders, delivery_orders, uber_sales, rocketnow_sales, menu_sales, lunch_sales, dinner_sales, ai_comment')
+        .select('total_sales, store_sales, delivery_sales, store_orders, delivery_orders, uber_sales, rocketnow_sales, menu_sales, lunch_sales, dinner_sales, ai_comment, uber_synced_at')
         .eq('tenant_id', TENANT_ID).eq('date', today).single() as Promise<{ data: TodaySales | null }>,
       db.from('daily_sales')
         .select('total_sales, food_cost, labor_cost')
@@ -146,6 +146,8 @@ async function getDashboardData() {
       lunchSales: todaySalesRes.data?.lunch_sales ?? 0,
       dinnerSales: todaySalesRes.data?.dinner_sales ?? 0,
       aiComment: todaySalesRes.data?.ai_comment ?? null,
+      uberSales: todaySalesRes.data?.uber_sales ?? 0,
+      uberSyncedAt: todaySalesRes.data?.uber_synced_at ?? null,
     },
     target: {
       daily: dailyTarget,
@@ -212,6 +214,7 @@ type TodaySales = {
   lunch_sales: number
   dinner_sales: number
   ai_comment: string | null
+  uber_synced_at: string | null
 }
 
 type MonthSales = {

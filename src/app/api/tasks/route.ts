@@ -136,3 +136,62 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ log })
   }
 }
+
+/**
+ * DELETE /api/tasks?date=YYYY-MM-DD&reset=true
+ * 指定日の task_logs を全削除 → テンプレートから再生成して返す
+ */
+export async function DELETE(req: NextRequest) {
+  const db = createServiceClient() as any
+  const { searchParams } = new URL(req.url)
+  const date = searchParams.get('date') ?? new Date().toISOString().split('T')[0]
+  const reset = searchParams.get('reset') === 'true'
+
+  if (!reset) {
+    return NextResponse.json({ error: '?reset=true が必要です' }, { status: 400 })
+  }
+
+  // 当日ログを全削除
+  const { error: delError } = await db
+    .from('task_logs')
+    .delete()
+    .eq('tenant_id', TENANT_ID)
+    .eq('date', date)
+
+  if (delError) {
+    return NextResponse.json({ error: delError.message }, { status: 500 })
+  }
+
+  // テンプレートから再生成
+  const { data: templates } = await db
+    .from('task_templates')
+    .select('*')
+    .eq('tenant_id', TENANT_ID)
+    .eq('is_active', true)
+    .order('timing')
+    .order('order_index')
+
+  if (!templates || templates.length === 0) {
+    return NextResponse.json([])
+  }
+
+  const rows = templates.map((t: Record<string, unknown>) => ({
+    tenant_id: TENANT_ID,
+    template_id: t.id,
+    date,
+    title: t.title,
+    timing: t.timing,
+    completed_at: null,
+  }))
+
+  const { data: inserted, error: insertError } = await db
+    .from('task_logs')
+    .insert(rows)
+    .select()
+
+  if (insertError) {
+    return NextResponse.json({ error: insertError.message }, { status: 500 })
+  }
+
+  return NextResponse.json(inserted ?? [])
+}

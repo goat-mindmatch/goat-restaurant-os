@@ -154,16 +154,38 @@ export async function POST(req: NextRequest) {
     const db = createServiceClient() as any
     const updated: string[] = []
     const errors: string[] = []
+    const now = new Date().toISOString()
 
     for (const row of rows) {
+      // 既存レコードを取得して他媒体の売上を保持しつつ合計を再計算
+      const { data: existing } = await db
+        .from('daily_sales')
+        .select('store_sales, rocketnow_sales, menu_sales')
+        .eq('tenant_id', TENANT_ID)
+        .eq('date', row.date)
+        .single()
+
+      const storeSales     = Number(existing?.store_sales)     || 0
+      const rocketnowSales = Number(existing?.rocketnow_sales) || 0
+      const menuSales      = Number(existing?.menu_sales)      || 0
+      const uberSales      = row.sales
+
+      // delivery_sales = Uber + Rocketnow + menu
+      const deliverySales = uberSales + rocketnowSales + menuSales
+      // total_sales = 店内 + デリバリー全媒体
+      const totalSales    = storeSales + deliverySales
+
       const { error } = await db
         .from('daily_sales')
         .upsert(
           {
-            tenant_id:   TENANT_ID,
-            date:        row.date,
-            uber_sales:  row.sales,
-            uber_orders: row.orders,
+            tenant_id:      TENANT_ID,
+            date:           row.date,
+            uber_sales:     uberSales,
+            uber_orders:    row.orders,
+            delivery_sales: deliverySales,
+            total_sales:    totalSales,
+            uber_synced_at: now,   // 集計時刻を記録
           },
           { onConflict: 'tenant_id,date', ignoreDuplicates: false }
         )
@@ -185,6 +207,7 @@ export async function POST(req: NextRequest) {
         orders:     r.orders,
         sales:      r.sales,
         netPayout:  r.netPayout,
+        syncedAt:   now,
       })),
     })
   } catch (e) {

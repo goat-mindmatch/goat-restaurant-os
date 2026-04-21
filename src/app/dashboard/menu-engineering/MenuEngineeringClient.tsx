@@ -10,11 +10,11 @@ import type { MenuEngineeringItem } from './page'
 
 type Quadrant = 'star' | 'plowhorse' | 'puzzle' | 'dog'
 
-const QUADRANT_CONFIG: Record<Quadrant, { label: string; icon: string; color: string; bg: string; action: string }> = {
-  star:       { label: 'スター',         icon: '⭐', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200', action: '価格アップ・積極プロモーション' },
-  plowhorse:  { label: 'プラウホース',   icon: '🐄', color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',   action: '原価削減・仕入れ見直し' },
-  puzzle:     { label: 'パズル',         icon: '❓', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', action: '認知度向上・メニュー内での露出強化' },
-  dog:        { label: 'ドッグ',         icon: '🐕', color: 'text-red-700',    bg: 'bg-red-50 border-red-200',     action: 'メニューから廃盤・リニューアル検討' },
+const QUADRANT_CONFIG: Record<Quadrant, { label: string; icon: string; color: string; bg: string; action: string; dqLabel: string }> = {
+  star:       { label: '勇者級',     dqLabel: '勇者級 ⚔️',  icon: '⚔️', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200', action: '価格アップ・積極プロモーション' },
+  plowhorse:  { label: '戦士級',     dqLabel: '戦士級 🛡️',  icon: '🛡️', color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',   action: '原価削減・仕入れ見直し' },
+  puzzle:     { label: '魔法使い級', dqLabel: '魔法使い級 🔮', icon: '🔮', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', action: '認知度向上・メニュー内での露出強化' },
+  dog:        { label: 'スライム級', dqLabel: 'スライム級 🟡', icon: '🟡', color: 'text-red-700',    bg: 'bg-red-50 border-red-200',     action: 'メニューから廃盤・リニューアル検討' },
 }
 
 const QUADRANT_ORDER: Quadrant[] = ['star', 'plowhorse', 'puzzle', 'dog']
@@ -119,10 +119,10 @@ export default function MenuEngineeringClient({ items, medianOrders, medianProfi
                 <text x="12" y="130" textAnchor="middle" fontSize="10" fill="#6b7280" transform="rotate(-90,12,130)">利益率 →</text>
 
                 {/* 象限ラベル */}
-                <text x="100" y="18" textAnchor="middle" fontSize="9" fill="#7c3aed" fontWeight="bold">❓ パズル</text>
-                <text x="300" y="18" textAnchor="middle" fontSize="9" fill="#b45309" fontWeight="bold">⭐ スター</text>
-                <text x="100" y="248" textAnchor="middle" fontSize="9" fill="#b91c1c" fontWeight="bold">🐕 ドッグ</text>
-                <text x="300" y="248" textAnchor="middle" fontSize="9" fill="#1d4ed8" fontWeight="bold">🐄 プラウホース</text>
+                <text x="100" y="18" textAnchor="middle" fontSize="9" fill="#7c3aed" fontWeight="bold">🔮 魔法使い級</text>
+                <text x="300" y="18" textAnchor="middle" fontSize="9" fill="#b45309" fontWeight="bold">⚔️ 勇者級</text>
+                <text x="100" y="248" textAnchor="middle" fontSize="9" fill="#b91c1c" fontWeight="bold">🟡 スライム級</text>
+                <text x="300" y="248" textAnchor="middle" fontSize="9" fill="#1d4ed8" fontWeight="bold">🛡️ 戦士級</text>
 
                 {/* 十字線 */}
                 <line x1="25" y1="130" x2="390" y2="130" stroke="#d1d5db" strokeWidth="1.5" strokeDasharray="4,3" />

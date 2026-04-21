@@ -42,6 +42,8 @@ type DashboardData = {
     lunchSales: number
     dinnerSales: number
     aiComment: string | null
+    uberSales: number
+    uberSyncedAt: string | null
   }
   target: {
     daily: number
@@ -264,6 +266,16 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
           {data.today.lunchSales > 0 && (
             <p className="text-xs mt-2" style={{ color: 'var(--text-sub)' }}>
               ☀️昼 ¥{data.today.lunchSales.toLocaleString()} / 🌙夜 ¥{data.today.dinnerSales.toLocaleString()}
+            </p>
+          )}
+          {data.today.uberSales > 0 && (
+            <p className="text-xs mt-1" style={{ color: 'var(--text-sub)' }}>
+              🛵 Uber ¥{data.today.uberSales.toLocaleString()}
+              {data.today.uberSyncedAt && (
+                <span className="ml-1 text-[10px] opacity-60">
+                  ({new Date(data.today.uberSyncedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })} 集計)
+                </span>
+              )}
             </p>
           )}
         </div>
