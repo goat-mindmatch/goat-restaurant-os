@@ -867,7 +867,7 @@ async function handleMenuReset(lineUserId: string) {
     .select('name, role').eq('tenant_id', TENANT_ID).eq('line_user_id', lineUserId).single()
 
   const isManager = staff?.role === 'manager'
-  const targetName = isManager ? 'GOAT Manager Menu v2' : 'GOAT Staff Menu v3'
+  const targetName = isManager ? 'GOAT Manager Menu v3' : 'GOAT Staff Menu v4'
   const targetMenu = listData.richmenus.find(m => m.name === targetName)
 
   if (!targetMenu) {

@@ -82,7 +82,7 @@ export async function GET() {
 
   // 7. デフォルト設定POSTを実際に試してレスポンスを確認
   const staffMenuForTest = (results.richmenus as { richMenuId: string; name: string }[] ?? [])
-    .find(m => m.name === 'GOAT Staff Menu v3')
+    .find(m => m.name === 'GOAT Staff Menu v4')
 
   if (staffMenuForTest) {
     try {
