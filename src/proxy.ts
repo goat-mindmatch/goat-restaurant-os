@@ -37,7 +37,7 @@ const ALL_STAFF_PATHS = [
 // 認証不要のパス
 const PUBLIC_PATHS = ['/login', '/api/', '/review', '/_next', '/favicon']
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // 認証不要パスはスルー
@@ -73,6 +73,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/|review).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/|review|_next).*)',
   ],
 }
