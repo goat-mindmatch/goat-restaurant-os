@@ -365,46 +365,63 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
         </div>
       </section>
 
-      {/* ─── テーブル空席 + 呼び出し件数（2列） ─── */}
-      <section className="mb-4 grid grid-cols-2 gap-3">
-        <a
-          href="/dashboard/tables"
-          className="rounded-2xl p-4 shadow-sm flex flex-col gap-1 active:scale-95 transition-transform"
+      {/* ─── 今月の売上目標進捗 ─── */}
+      <section className="mb-4">
+        <div
+          className="rounded-2xl p-4 shadow-sm"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
         >
-          <p className="text-xs font-semibold" style={{ color: 'var(--text-sub)' }}>🪑 テーブル</p>
-          <p className="text-2xl font-black" style={{ color: 'var(--text)' }}>
-            空き {data.tables?.empty ?? 0}
-            <span className="text-sm font-medium">/{data.tables?.total ?? 0}席</span>
-          </p>
-          <p className="text-xs" style={{ color: 'var(--text-sub)' }}>
-            注文中 {data.tables?.occupied ?? 0}席
-          </p>
-        </a>
-
-        <a
-          href="/dashboard/tables"
-          className="rounded-2xl p-4 shadow-sm flex flex-col gap-1 active:scale-95 transition-transform relative overflow-hidden"
-          style={{
-            background: hasPendingCalls ? '#fef2f2' : 'var(--surface)',
-            border: hasPendingCalls ? '2px solid #fca5a5' : '1px solid var(--border)',
-          }}
-        >
-          <p className="text-xs font-semibold" style={{ color: hasPendingCalls ? '#b91c1c' : 'var(--text-sub)' }}>
-            📣 呼び出し
-          </p>
-          <div className="flex items-center gap-2">
-            <p className="text-2xl font-black" style={{ color: hasPendingCalls ? '#b91c1c' : 'var(--text)' }}>
-              {data.pendingCallCount ?? 0}件
-            </p>
-            {hasPendingCalls && (
-              <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse inline-block" />
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-xs font-semibold" style={{ color: 'var(--text-sub)' }}>📈 今月の売上進捗</p>
+            {data.target.monthAchievementRate !== null && (
+              <span
+                className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{
+                  background: (data.target.monthAchievementRate ?? 0) >= 100 ? '#dcfce7'
+                    : (data.target.monthAchievementRate ?? 0) >= 80 ? '#fef9c3' : '#fee2e2',
+                  color: (data.target.monthAchievementRate ?? 0) >= 100 ? '#16a34a'
+                    : (data.target.monthAchievementRate ?? 0) >= 80 ? '#a16207' : '#dc2626',
+                }}
+              >
+                {data.target.monthAchievementRate}% 達成
+              </span>
             )}
           </div>
-          <p className="text-xs" style={{ color: hasPendingCalls ? '#b91c1c' : 'var(--text-sub)' }}>
-            {hasPendingCalls ? '未対応あり' : '未対応なし'}
-          </p>
-        </a>
+          {data.target.monthly > 0 ? (
+            <>
+              <div className="w-full rounded-full h-4 mb-2 relative overflow-hidden"
+                style={{ background: 'var(--border)' }}>
+                <div
+                  className="h-4 rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, data.target.monthAchievementRate ?? 0)}%`,
+                    background: (data.target.monthAchievementRate ?? 0) >= 100 ? '#16a34a'
+                      : (data.target.monthAchievementRate ?? 0) >= 80 ? '#ca8a04' : '#3b82f6',
+                  }}
+                />
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="font-bold" style={{ color: 'var(--text)' }}>
+                  ¥{data.month.sales.toLocaleString()}
+                </span>
+                <span style={{ color: 'var(--text-sub)' }}>
+                  目標 ¥{data.target.monthly.toLocaleString()}
+                </span>
+              </div>
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-sub)' }}>
+                {data.month.daysElapsed}日経過 / {data.month.daysInMonth}日中
+                {data.target.monthly > data.month.sales && data.month.daysInMonth > data.month.daysElapsed && (
+                  <> · 残り{data.month.daysInMonth - data.month.daysElapsed}日で
+                    ¥{(data.target.monthly - data.month.sales).toLocaleString()}必要</>
+                )}
+              </p>
+            </>
+          ) : (
+            <a href="/dashboard/settings" className="text-xs text-blue-500 underline">
+              売上目標を設定する →
+            </a>
+          )}
+        </div>
       </section>
 
       {/* ─── 天気バナー ─── */}

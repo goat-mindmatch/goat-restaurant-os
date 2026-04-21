@@ -6,7 +6,7 @@
  */
 
 import DashboardNav from '@/components/DashboardNav'
-import type { StaffRPGData } from './page'
+import type { StaffRPGData, TeamStats } from './page'
 
 // ─── クラス定義 ─────────────────────────────────────────
 const DQ_CLASSES = [
@@ -482,6 +482,179 @@ function RankCard({ staff }: { staff: StaffRPGData }) {
         </div>
 
         <ExpBar exp={staff.exp} level={staff.level} />
+
+        {/* スキルドット */}
+        <div className="flex gap-3 mt-2">
+          <SkillDots level={staff.skillService} color="#F59E0B" label="接客" />
+          <SkillDots level={staff.skillAttend}  color="#34D399" label="出勤" />
+          <SkillDots level={staff.skillTeam}    color="#60A5FA" label="チーム" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── スキルドット ─────────────────────────────────────
+function SkillDots({ level, color, label }: { level: number; color: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <div className="flex gap-0.5">
+        {[1, 2, 3, 4, 5].map(i => (
+          <span
+            key={i}
+            className="w-2 h-2 rounded-full inline-block"
+            style={{ background: i <= level ? color : 'rgba(255,255,255,0.1)' }}
+          />
+        ))}
+      </div>
+      <span className="text-[9px] text-gray-500">{label}</span>
+    </div>
+  )
+}
+
+// ─── チームチャレンジ ─────────────────────────────────
+function TeamChallenge({ stats }: { stats: TeamStats }) {
+  const reviewPct = Math.min(100, Math.round((stats.totalReviews / stats.reviewGoal) * 100))
+  const onTimePct = stats.totalStaff > 0 ? Math.round((stats.onTimeCount / stats.totalStaff) * 100) : 0
+  const expPct    = Math.min(100, Math.round((stats.teamExp / stats.teamExpGoal) * 100))
+
+  const rows = [
+    { label: '今月の口コミ', value: `${stats.totalReviews}/${stats.reviewGoal}件`, pct: reviewPct, color: '#F59E0B' },
+    { label: '遅刻ゼロメンバー', value: `${stats.onTimeCount}/${stats.totalStaff}名`, pct: onTimePct, color: '#34D399' },
+    { label: 'チームEXP',  value: `${stats.teamExp.toLocaleString()}/${stats.teamExpGoal.toLocaleString()}`, pct: expPct, color: '#60A5FA' },
+  ]
+
+  return (
+    <div
+      className="rounded-2xl p-4 mb-4"
+      style={{ background: 'linear-gradient(135deg, #1a0a3a, #0a1a2a)', border: '1.5px solid rgba(168,85,247,0.4)' }}
+    >
+      <p className="text-sm font-black text-white mb-3">🏆 チームチャレンジ</p>
+      <div className="space-y-3">
+        {rows.map(row => (
+          <div key={row.label}>
+            <div className="flex justify-between text-[11px] mb-1">
+              <span className="text-gray-300">{row.label}</span>
+              <span className="font-bold" style={{ color: row.color }}>{row.value}</span>
+            </div>
+            <div className="w-full rounded-full h-2.5" style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <div
+                className="h-2.5 rounded-full transition-all"
+                style={{ width: `${row.pct}%`, background: row.color, boxShadow: `0 0 6px ${row.color}88` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      {onTimePct >= 80 && reviewPct >= 80 && (
+        <div className="mt-3 text-[11px] text-center text-yellow-300 font-bold">
+          ✨ このペースなら今月のチームボーナス達成圏内！
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── デイリーミッション ───────────────────────────────
+const DAILY_MISSIONS = [
+  { icon: '⭐', title: '口コミを1件獲得する', exp: 150, hint: 'お客様にQRを渡してみよう' },
+  { icon: '🕐', title: '定時に出勤する',       exp: 100, hint: 'シフト開始5分前には準備完了' },
+  { icon: '📋', title: 'タスクを3つ完了する',   exp: 150, hint: '仕込みリストをチェック' },
+]
+
+function DailyMissions() {
+  return (
+    <div
+      className="rounded-2xl p-4 mb-4"
+      style={{ background: 'linear-gradient(135deg, #0a1a0a, #0a1a2a)', border: '1.5px solid rgba(52,211,153,0.3)' }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-black text-white">📜 今日のミッション</p>
+        <span className="text-[10px] text-gray-400 bg-gray-800 px-2 py-0.5 rounded-full">毎日リセット</span>
+      </div>
+      <div className="space-y-2">
+        {DAILY_MISSIONS.map((m, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 rounded-xl p-3"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <span className="text-2xl shrink-0">{m.icon}</span>
+            <div className="flex-1">
+              <p className="text-xs font-bold text-white">{m.title}</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">{m.hint}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs font-black text-yellow-400">+{m.exp}</p>
+              <p className="text-[9px] text-gray-500">EXP</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-gray-600 text-center mt-3">
+        ※ ミッション達成は打刻・タスク・口コミが自動で集計されます
+      </p>
+    </div>
+  )
+}
+
+// ─── 報酬ロードマップ ─────────────────────────────────
+const REWARDS = [
+  { level: 5,  icon: '🎯', title: '好きなシフト優先権', desc: '1日分のシフト希望が100%通る', color: '#34D399' },
+  { level: 10, icon: '🍜', title: '店長とのランチ',     desc: 'メニューは何でもOK、好きな話をしよう', color: '#60A5FA' },
+  { level: 15, icon: '🎌', title: '特別休暇1日',        desc: '希望日に特別休暇取得権', color: '#F59E0B' },
+  { level: 20, icon: '💰', title: '時給 +¥50（1ヶ月）', desc: '翌月の給与に反映', color: '#A855F7' },
+  { level: 25, icon: '👑', title: '伝説ボーナス ¥10,000', desc: '神クラス到達の証', color: '#FFD700' },
+]
+
+function RewardRoadmap({ staffList }: { staffList: StaffRPGData[] }) {
+  return (
+    <div className="mb-4">
+      <p className="text-xs text-gray-500 mb-3 px-1">🎁 報酬ロードマップ</p>
+      <div className="relative">
+        {/* 縦ライン */}
+        <div className="absolute left-7 top-4 bottom-4 w-0.5 bg-gray-800" />
+
+        <div className="space-y-3">
+          {REWARDS.map(r => {
+            const achieved = staffList.filter(s => s.level >= r.level).length
+            const isAny = achieved > 0
+            return (
+              <div key={r.level} className="flex items-start gap-3">
+                {/* レベルバッジ */}
+                <div
+                  className="shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center z-10"
+                  style={{
+                    background: isAny ? `${r.color}22` : 'rgba(255,255,255,0.04)',
+                    border: `2px solid ${isAny ? r.color : 'rgba(255,255,255,0.1)'}`,
+                    boxShadow: isAny ? `0 0 12px ${r.color}44` : 'none',
+                  }}
+                >
+                  <span className="text-xl">{isAny ? r.icon : '🔒'}</span>
+                  <span className="text-[9px] font-black mt-0.5" style={{ color: isAny ? r.color : '#4b5563' }}>
+                    Lv{r.level}
+                  </span>
+                </div>
+                {/* テキスト */}
+                <div className="flex-1 rounded-xl p-3" style={{
+                  background: isAny ? `${r.color}0a` : 'rgba(255,255,255,0.02)',
+                  border: `1px solid ${isAny ? `${r.color}33` : 'rgba(255,255,255,0.06)'}`,
+                }}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-black" style={{ color: isAny ? r.color : '#6b7280' }}>{r.title}</p>
+                    {achieved > 0 && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                        style={{ background: `${r.color}22`, color: r.color }}>
+                        {achieved}名達成
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-0.5">{r.desc}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -523,9 +696,10 @@ function ClassGuide() {
 type Props = {
   staffList: StaffRPGData[]
   currentMonth: string
+  teamStats: TeamStats
 }
 
-export default function RPGClient({ staffList, currentMonth }: Props) {
+export default function RPGClient({ staffList, currentMonth, teamStats }: Props) {
   return (
     <div className="min-h-screen pb-24" style={{ background: '#060818' }}>
       {/* ヘッダー */}
@@ -536,7 +710,7 @@ export default function RPGClient({ staffList, currentMonth }: Props) {
           borderBottom: '1px solid rgba(168,85,247,0.3)',
         }}
       >
-        <h1 className="text-xl font-black tracking-tight text-white">⚔️ スタッフRPGランキング</h1>
+        <h1 className="text-xl font-black tracking-tight text-white">⚔️ スタッフRPG</h1>
         <p className="text-sm text-purple-300 mt-0.5">{currentMonth} / 全{staffList.length}名</p>
 
         {/* EXP凡例 */}
@@ -547,15 +721,22 @@ export default function RPGClient({ staffList, currentMonth }: Props) {
         </div>
       </div>
 
-      {/* ランキング本体 */}
-      <div className="px-4 pt-4 flex flex-col gap-3">
+      <div className="px-4 pt-4">
+        {/* チームチャレンジ */}
+        <TeamChallenge stats={teamStats} />
+
+        {/* デイリーミッション */}
+        <DailyMissions />
+
         {staffList.length === 0 ? (
           <div className="text-center text-gray-500 py-16">
             <p className="text-5xl mb-3">🎮</p>
             <p className="text-sm">スタッフデータがありません</p>
           </div>
         ) : (
-          <>
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-gray-500 px-1">🏅 今月のランキング</p>
+
             {/* 1位 — チャンピオンカード */}
             {staffList[0] && <ChampionCard staff={staffList[0]} />}
 
@@ -564,9 +745,14 @@ export default function RPGClient({ staffList, currentMonth }: Props) {
               <RankCard key={s.staffId} staff={s} />
             ))}
 
+            {/* 報酬ロードマップ */}
+            <div className="mt-4">
+              <RewardRoadmap staffList={staffList} />
+            </div>
+
             {/* クラス図鑑 */}
             <ClassGuide />
-          </>
+          </div>
         )}
       </div>
 

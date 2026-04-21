@@ -34,6 +34,19 @@ export type StaffRPGData = {
   monthlyReviews: number
   workDays: number
   rank: number
+  // スキルレベル（各1〜5）
+  skillService: number   // 接客: 口コミ数ベース
+  skillAttend: number    // 出勤: 出勤率ベース
+  skillTeam: number      // チーム: 遅刻ゼロ・バッジ数ベース
+}
+
+export type TeamStats = {
+  totalReviews: number
+  reviewGoal: number
+  onTimeCount: number    // 遅刻ゼロのスタッフ数
+  totalStaff: number
+  teamExp: number
+  teamExpGoal: number
 }
 
 export default async function RPGPage() {
@@ -174,7 +187,12 @@ export default async function RPGPage() {
     if (monthlyReviews >= 10) badges.push('⭐ 口コミ10件超')
     if (hasZeroLate(s.id)) badges.push('⚡ 遅刻ゼロ')
 
-    return { staffId: s.id, name: s.name, level, exp, title, badges, monthlyReviews, workDays }
+    // スキルレベル計算（1〜5）
+    const skillService = Math.min(5, Math.floor(monthlyReviews / 2) + 1)         // 口コミ2件ごと+1
+    const skillAttend  = workDays >= 20 ? 5 : workDays >= 15 ? 4 : workDays >= 10 ? 3 : workDays >= 5 ? 2 : 1
+    const skillTeam    = Math.min(5, badges.length + 1)
+
+    return { staffId: s.id, name: s.name, level, exp, title, badges, monthlyReviews, workDays, skillService, skillAttend, skillTeam }
   })
 
   // EXP降順でランク付け
@@ -182,5 +200,18 @@ export default async function RPGPage() {
     .sort((a, b) => b.exp - a.exp || b.monthlyReviews - a.monthlyReviews)
     .map((s, i) => ({ ...s, rank: i + 1 }))
 
-  return <RPGClient staffList={ranked} currentMonth={`${thisYear}年${thisMonth}月`} />
+  // チームスタッツ
+  const totalReviews = Object.values(reviewCountMap).reduce((s, v) => s + v, 0)
+  const onTimeCount  = ranked.filter(s => hasZeroLate(s.staffId)).length
+  const teamExp      = ranked.reduce((s, r) => s + r.exp, 0)
+  const teamStats: TeamStats = {
+    totalReviews,
+    reviewGoal: Math.max(100, Math.ceil(totalReviews / 10) * 10 + 50),  // 動的目標（今の1.5倍を丸め）
+    onTimeCount,
+    totalStaff: ranked.length,
+    teamExp,
+    teamExpGoal: Math.max(10000, Math.ceil(teamExp / 5000) * 5000 + 5000),
+  }
+
+  return <RPGClient staffList={ranked} currentMonth={`${thisYear}年${thisMonth}月`} teamStats={teamStats} />
 }

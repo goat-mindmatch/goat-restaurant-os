@@ -104,6 +104,7 @@ export default function PLClient({ data, currentMonth }: { data: PLData; current
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [autoCateg, setAutoCateg] = useState(false)
 
   const handleExcelExport = async () => {
     setExporting(true)
@@ -121,6 +122,23 @@ export default function PLClient({ data, currentMonth }: { data: PLData; current
       setMsg('⚠️ Excel出力に失敗しました')
     }
     setExporting(false)
+  }
+
+  const handleAutoCategorize = async () => {
+    setAutoCateg(true)
+    try {
+      const res = await fetch('/api/expenses/auto-categorize', { method: 'POST' })
+      const json = await res.json()
+      if (json.ok) {
+        setMsg(`✅ ${json.message}`)
+        if (json.updated > 0) setTimeout(() => router.refresh(), 1000)
+      } else {
+        setMsg(`⚠️ ${json.error ?? '仕分けに失敗しました'}`)
+      }
+    } catch {
+      setMsg('⚠️ 通信エラーが発生しました')
+    }
+    setAutoCateg(false)
   }
 
   const handleAddExpense = async () => {
@@ -327,7 +345,14 @@ export default function PLClient({ data, currentMonth }: { data: PLData; current
           >
             {showExpenses ? '▲' : '▼'} 経費明細（{data.expenses.length}件）
           </button>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
+            <button
+              onClick={handleAutoCategorize}
+              disabled={autoCateg}
+              className="text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50"
+            >
+              {autoCateg ? '⏳ 仕分け中...' : '🤖 AI自動仕分け'}
+            </button>
             <a href="/dashboard/receipts"
               className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg font-semibold">
               📷 レシート
