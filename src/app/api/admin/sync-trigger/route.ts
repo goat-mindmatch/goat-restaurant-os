@@ -62,6 +62,17 @@ export async function POST() {
 
     if (!ghRes.ok) {
       const ghBody = await ghRes.text()
+      // 401/403 はトークン期限切れ。エラーを投げず Supabase フラグ方式にフォールバック
+      if (ghRes.status === 401 || ghRes.status === 403) {
+        console.warn(`GitHub PAT が無効（${ghRes.status}）: Supabase フラグ方式にフォールバック`)
+        return NextResponse.json({
+          ok:           true,
+          mode:         'supabase_flag',
+          requested_at: now,
+          message:      '同期リクエストを記録しました（60秒以内に自動実行）',
+          warning:      `GITHUB_PAT が無効です（${ghRes.status}）。Vercel の環境変数を更新してください。`,
+        })
+      }
       throw new Error(`GitHub API エラー ${ghRes.status}: ${ghBody}`)
     }
 
