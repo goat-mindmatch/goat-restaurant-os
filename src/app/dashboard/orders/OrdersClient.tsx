@@ -40,6 +40,8 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
   const [newSupContactMethod, setNewSupContactMethod] = useState<'line' | 'email' | 'both'>('line')
   const [sendText, setSendText] = useState<string | null>(null)
   const [sendResult, setSendResult] = useState<{ email_sent: boolean; email_error?: string | null; supplier_email: string | null; contact_method: string } | null>(null)
+  const [sendingOrderId, setSendingOrderId] = useState<string | null>(null)
+  const [emailSending, setEmailSending]     = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [showNewOrder, setShowNewOrder] = useState(false)
 
@@ -112,6 +114,7 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
 
   // 発注送付テキスト生成 + メール自動送信
   const sendOrder = async (orderId: string) => {
+    setSendingOrderId(orderId)
     toast('📤 発注メッセージを作成中...')
     const res = await fetch('/api/orders/send', {
       method: 'POST',
@@ -136,7 +139,42 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'sent' } : o))
     } else {
       toast('❌ メッセージ作成に失敗しました')
+      setSendingOrderId(null)
     }
+  }
+
+  // メール送付（モーダルから手動送信）
+  const sendEmailNow = async (testEmail?: string) => {
+    if (!sendingOrderId) return
+    setEmailSending(true)
+    try {
+      const res = await fetch('/api/orders/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id:    sendingOrderId,
+          force_email: true,
+          test_email:  testEmail ?? undefined,
+        }),
+      })
+      const data = await res.json() as { email_sent: boolean; email_error?: string | null; supplier: { email: string | null; contact_method: string } }
+      if (data.email_sent) {
+        setSendResult(prev => prev ? { ...prev, email_sent: true, email_error: null } : prev)
+        toast(`✅ メールを送信しました${testEmail ? '（テスト）' : ''}`)
+      } else {
+        toast(`❌ 送信失敗: ${data.email_error ?? '不明なエラー'}`)
+      }
+    } catch (e) {
+      toast('❌ ' + (e as Error).message)
+    }
+    setEmailSending(false)
+  }
+
+  // テスト送付（自分のメールへ）
+  const sendTestEmail = async () => {
+    const email = window.prompt('テスト送付先のメールアドレスを入力してください：')
+    if (!email?.trim()) return
+    await sendEmailNow(email.trim())
   }
 
   // ステータス更新（納品済み / キャンセル）
@@ -491,17 +529,36 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
             <div className="p-4">
               <pre className="bg-gray-50 rounded-xl p-4 text-sm whitespace-pre-wrap font-sans leading-relaxed">{sendText}</pre>
             </div>
-            <div className="p-4 border-t flex gap-2">
-              {!sendResult?.email_sent && (
-                <button onClick={copyToClipboard}
-                  className="flex-1 bg-blue-500 text-white font-bold py-3 rounded-xl">
-                  📋 コピーする
-                </button>
+            <div className="p-4 border-t flex flex-col gap-2">
+              {/* メール送信ボタン（メールアドレスが登録されている場合） */}
+              {sendResult?.supplier_email && !sendResult?.email_sent && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => sendEmailNow()}
+                    disabled={emailSending}
+                    className="flex-1 bg-green-500 disabled:bg-green-300 text-white font-bold py-3 rounded-xl text-sm">
+                    {emailSending ? '送信中...' : `📧 メールを送る`}
+                  </button>
+                  <button
+                    onClick={sendTestEmail}
+                    disabled={emailSending}
+                    className="px-4 bg-gray-100 disabled:opacity-50 text-gray-600 font-bold py-3 rounded-xl text-sm">
+                    🧪 テスト
+                  </button>
+                </div>
               )}
-              <button onClick={() => { setSendText(null); setSendResult(null) }}
-                className={`${sendResult?.email_sent ? 'flex-1 bg-green-500 text-white' : 'px-4 bg-gray-100 text-gray-600'} font-bold py-3 rounded-xl`}>
-                {sendResult?.email_sent ? '✅ 閉じる' : '閉じる'}
-              </button>
+              <div className="flex gap-2">
+                {!sendResult?.email_sent && (
+                  <button onClick={copyToClipboard}
+                    className="flex-1 bg-blue-500 text-white font-bold py-3 rounded-xl">
+                    📋 コピーする
+                  </button>
+                )}
+                <button onClick={() => { setSendText(null); setSendResult(null); setSendingOrderId(null) }}
+                  className={`${sendResult?.email_sent ? 'flex-1 bg-green-500 text-white' : 'px-4 bg-gray-100 text-gray-600'} font-bold py-3 rounded-xl`}>
+                  {sendResult?.email_sent ? '✅ 閉じる' : '閉じる'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

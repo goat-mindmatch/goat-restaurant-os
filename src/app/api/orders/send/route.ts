@@ -98,7 +98,7 @@ ${tenantName}
 
 export async function POST(req: NextRequest) {
   try {
-    const { order_id } = await req.json()
+    const { order_id, force_email, test_email } = await req.json()
     if (!order_id) return NextResponse.json({ error: 'order_id required' }, { status: 400 })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -136,10 +136,19 @@ export async function POST(req: NextRequest) {
     let emailError: string | null = null
     let lineSent = false
 
-    // メール送信（email or both）
-    if (supplierEmail && (contactMethod === 'email' || contactMethod === 'both')) {
-      const subject = `【発注】${order.supplier_name} 宛 — ${new Date().toLocaleDateString('ja-JP')}`
-      const result = await sendEmail(supplierEmail, subject, message)
+    // メール送信先を決定
+    // - test_email が指定された場合はそこへ（テスト送付）
+    // - force_email=true の場合はサプライヤーのメールへ強制送信
+    // - 通常フローは contact_method が email / both の場合のみ
+    const targetEmail = test_email?.trim() || (force_email ? supplierEmail : null) || (
+      (contactMethod === 'email' || contactMethod === 'both') ? supplierEmail : null
+    )
+
+    if (targetEmail) {
+      const subject = test_email
+        ? `【テスト送付】発注メッセージ — ${order.supplier_name}`
+        : `【発注】${order.supplier_name} 宛 — ${new Date().toLocaleDateString('ja-JP')}`
+      const result = await sendEmail(targetEmail, subject, message)
       emailSent = result.ok
       emailError = result.error ?? null
     }
