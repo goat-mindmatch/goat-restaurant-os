@@ -732,7 +732,7 @@ async function handleReceiptImage(lineUserId: string, messageId: string) {
     const today = new Date().toISOString().split('T')[0]
 
     const extraction = await anthropic.messages.create({
-      model: 'claude-haiku-4-5',
+      model: 'claude-sonnet-4-6-20251015',
       max_tokens: 512,
       messages: [{
         role: 'user',
@@ -743,28 +743,35 @@ async function handleReceiptImage(lineUserId: string, messageId: string) {
           },
           {
             type: 'text',
-            text: `このレシート・領収書から以下の情報をJSON形式で抽出してください。
+            text: `このレシート・領収書を正確に読み取り、以下のJSON形式で情報を抽出してください。
 不明な項目はnullにしてください。
 
 {
   "date": "YYYY-MM-DD形式の日付（不明なら今日: ${today}）",
-  "vendor": "店名・業者名",
-  "amount": 税込合計金額（数値のみ、円記号なし）,
+  "vendor": "店名・業者名・ガソリンスタンド名など",
+  "amount": レシート下部に記載の「合計」「税込合計」「お支払い金額」の最終金額（数値のみ・円記号なし・カンマなし）,
   "tax_amount": 消費税額（数値のみ、不明なら0）,
-  "category": "food/utility/consumable/equipment/rent/communication/other のいずれか",
-  "note": "品目の簡単なメモ（最大30文字）"
+  "category": "food/fuel/utility/consumable/equipment/rent/communication/transport/other のいずれか",
+  "note": "主な品目・用途の簡単なメモ（最大30文字）"
 }
 
-categoryの判定基準:
-- food: 食材・仕入れ・飲食
-- utility: 電気・ガス・水道
-- consumable: 消耗品（容器・袋・洗剤等）
-- equipment: 設備・厨房機器
-- rent: 家賃
-- communication: 通信・電話
-- other: その他
+【金額の読み取りルール】
+- 「合計」「税込合計」「お支払金額」「ご請求金額」など最終的な支払金額を使う
+- 小計・税抜金額・個別品目の金額は使わない
+- 数字のみ（例: 3850）
 
-JSONのみを返してください。前後の説明は不要です。`,
+【categoryの判定基準】
+- food: 食材・仕入れ・食品・飲料（飲食店の食材費）
+- fuel: ガソリン・軽油・灯油・ガソリンスタンドでの給油（ENEOSなど）
+- utility: 電気・ガス・水道料金
+- consumable: 消耗品（容器・袋・洗剤・紙類等）
+- equipment: 設備・厨房機器・工具
+- rent: 家賃・駐車場代
+- communication: 通信・電話・インターネット
+- transport: 交通費・駐車料金・高速代（ガソリン以外の移動費）
+- other: 上記に当てはまらないもの
+
+JSONのみを返してください。前後の説明・コードブロックは不要です。`,
           },
         ],
       }],
@@ -815,8 +822,9 @@ JSONのみを返してください。前後の説明は不要です。`,
     if (error) throw error
 
     const CATEGORY_LABELS: Record<string, string> = {
-      food: '食材費', utility: '光熱費', consumable: '消耗品',
-      equipment: '設備費', rent: '家賃', communication: '通信費', other: 'その他',
+      food: '食材費', fuel: 'ガソリン代', utility: '光熱費', consumable: '消耗品',
+      equipment: '設備費', rent: '家賃', communication: '通信費',
+      transport: '交通費', other: 'その他',
     }
     const catLabel = CATEGORY_LABELS[expense.category] ?? expense.category
 

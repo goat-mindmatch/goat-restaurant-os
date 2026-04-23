@@ -5,7 +5,7 @@ import { createServiceClient } from '@/lib/supabase'
 
 const TENANT_ID = process.env.TENANT_ID!
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY ?? ''
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL ?? 'system@goat-groups.com'
+const FROM_EMAIL = process.env.FROM_EMAIL ?? process.env.SENDGRID_FROM_EMAIL ?? ''
 const CRON_SECRET = process.env.CRON_SECRET ?? ''
 
 async function sendOrderEmail(item: {

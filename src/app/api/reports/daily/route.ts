@@ -68,10 +68,25 @@ export async function POST(req: NextRequest) {
       const client = new Anthropic({ apiKey: ANTHROPIC_KEY })
       const res = await client.messages.create({
         model: 'claude-haiku-4-5',
-        max_tokens: 400,
+        max_tokens: 600,
         messages: [{
           role: 'user',
-          content: `あなたは飲食店（まぜそば専門店）のベテラン店長です。以下の当日データを見て、店長が朝一番に確認する「日報コメント」を3〜4文で生成してください。\n\n${dataContext}\n\n要件:\n- 数字の良し悪しに触れる（目標: L比率25%以下、FL合計55%以下）\n- 気になる傾向や改善点があれば1つだけ指摘\n- 明日への前向きな一言で締める\n- ビジネス的で簡潔に。絵文字は1〜2個程度`,
+          content: `あなたは飲食店（まぜそば専門店）のベテラン店長です。以下の当日データを見て、店長が朝一番に確認する「日報コメント」を生成してください。
+
+${dataContext}
+
+【出力フォーマット】必ず以下の構成で、各セクションを改行で区切って出力してください：
+
+📊 売上サマリー
+（売上合計・注文数・月累計について1〜2文）
+
+👥 人件費
+（L比率の評価。目標25%以下。良ければ褒め、超過なら簡潔に指摘）
+
+💡 一言メモ
+（改善点または前向きなコメントを1文）
+
+各セクションは必ず空行を入れて区切ること。箇条書きは使わず、自然な文章で書くこと。`,
         }],
       })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
