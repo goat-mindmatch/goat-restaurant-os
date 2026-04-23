@@ -191,9 +191,13 @@ async function getDashboardData() {
 
 export default async function DashboardPage() {
   const data = await getDashboardData()
-  const updatedAt = new Date().toLocaleString('ja-JP', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  }) + ' 更新'
+  // JST（UTC+9）で日本語表記
+  const jst    = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const month  = jst.getUTCMonth() + 1
+  const day    = jst.getUTCDate()
+  const hour   = String(jst.getUTCHours()).padStart(2, '0')
+  const minute = String(jst.getUTCMinutes()).padStart(2, '0')
+  const updatedAt = `${month}月${day}日 ${hour}時${minute}分に更新`
 
   return (
     <main className="min-h-screen" style={{ background: 'var(--bg)' }}>

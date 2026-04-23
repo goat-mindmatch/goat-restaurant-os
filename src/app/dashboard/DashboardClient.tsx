@@ -508,7 +508,7 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
         <section className="mb-4">
           <div className="rounded-xl p-4" style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
             <p className="text-xs font-semibold text-blue-600 mb-1">🤖 AI 日報コメント</p>
-            <p className="text-sm text-blue-800">{data.today.aiComment}</p>
+            <p className="text-sm text-blue-800 leading-relaxed" style={{ whiteSpace: 'pre-wrap' }}>{data.today.aiComment}</p>
           </div>
         </section>
       )}
@@ -690,12 +690,13 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: '現金精算',   href: '/dashboard/cash-register', icon: '💴', desc: '写真で照合' },
-            { label: 'シフト管理', href: '/dashboard/shifts',    icon: '📅', desc: '確定・編集' },
-            { label: '給与計算',   href: '/dashboard/payroll',   icon: '💰', desc: '今月の給与' },
-            { label: '在庫管理',   href: '/dashboard/inventory', icon: '🗃️', desc: '食材・消耗品' },
-            { label: '口コミ',     href: '/dashboard/reviews',   icon: '⭐', desc: 'Google連携' },
-            { label: 'レシート',   href: '/dashboard/receipts',  icon: '🧾', desc: '経費・OCR' },
-            { label: '設定',       href: '/dashboard/settings',  icon: '⚙️', desc: 'LINE設定' },
+            { label: 'シフト管理', href: '/dashboard/shifts',        icon: '📅', desc: '確定・編集' },
+            { label: '給与計算',   href: '/dashboard/payroll',       icon: '💰', desc: '今月の給与' },
+            { label: '発注管理',   href: '/dashboard/orders',        icon: '📦', desc: '仕入れ発注' },
+            { label: '在庫管理',   href: '/dashboard/inventory',     icon: '🗃️', desc: '食材・消耗品' },
+            { label: '口コミ',     href: '/dashboard/reviews',       icon: '⭐', desc: 'Google連携' },
+            { label: 'レシート',   href: '/dashboard/receipts',      icon: '🧾', desc: '経費・OCR' },
+            { label: '設定',       href: '/dashboard/settings',      icon: '⚙️', desc: 'LINE設定' },
           ].map(item => (
             <a
               key={item.href}

@@ -47,14 +47,13 @@ const CATEGORIES: { title: string; items: NavItem[]; note?: string }[] = [
     ],
   },
   {
-    title: '🔮 AnyDeli移行後に本格稼働',
-    note: 'AnyDeliから自社システムへ移行後に使用',
+    title: '🏪 店舗運営',
     items: [
-      { label: 'テーブル管理', href: '/dashboard/tables',           icon: '🪑' },
-      { label: '厨房ディスプレイ', href: '/kitchen',                icon: '👨‍🍳' },
-      { label: 'モバイル注文', href: '/dashboard/menu-orders',      icon: '🍜' },
       { label: '在庫管理',    href: '/dashboard/inventory',         icon: '🗃️' },
       { label: '発注管理',    href: '/dashboard/orders',            icon: '📦' },
+      { label: 'テーブル管理', href: '/dashboard/tables',           icon: '🪑' },
+      { label: '厨房ディスプレイ', href: '/kitchen',               icon: '👨‍🍳' },
+      { label: 'モバイル注文', href: '/dashboard/menu-orders',      icon: '🍜' },
     ],
   },
   {
