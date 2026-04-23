@@ -160,19 +160,22 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
       const data = await res.json() as { email_sent: boolean; email_error?: string | null; supplier: { email: string | null; contact_method: string } }
       if (data.email_sent) {
         setSendResult(prev => prev ? { ...prev, email_sent: true, email_error: null } : prev)
-        toast(`✅ メールを送信しました${testEmail ? '（テスト）' : ''}`)
+        toast(`✅ メールを送信しました${testEmail ? `（テスト → ${testEmail}）` : ''}`)
       } else {
+        // エラー内容をモーダルにも反映
+        setSendResult(prev => prev ? { ...prev, email_error: data.email_error ?? '送信失敗' } : prev)
         toast(`❌ 送信失敗: ${data.email_error ?? '不明なエラー'}`)
       }
     } catch (e) {
+      setSendResult(prev => prev ? { ...prev, email_error: (e as Error).message } : prev)
       toast('❌ ' + (e as Error).message)
     }
     setEmailSending(false)
   }
 
-  // テスト送付（自分のメールへ）
+  // テスト送付（任意のメールアドレスへ）
   const sendTestEmail = async () => {
-    const email = window.prompt('テスト送付先のメールアドレスを入力してください：')
+    const email = window.prompt('テスト送付先のメールアドレスを入力してください：\n（例：your@email.com）')
     if (!email?.trim()) return
     await sendEmailNow(email.trim())
   }
@@ -530,23 +533,34 @@ export default function OrdersClient({ orders: initialOrders, suppliers }: { ord
               <pre className="bg-gray-50 rounded-xl p-4 text-sm whitespace-pre-wrap font-sans leading-relaxed">{sendText}</pre>
             </div>
             <div className="p-4 border-t flex flex-col gap-2">
-              {/* メール送信ボタン（メールアドレスが登録されている場合） */}
-              {sendResult?.supplier_email && !sendResult?.email_sent && (
+              {/* 送信エラー表示 */}
+              {sendResult?.email_error && !sendResult?.email_sent && (
+                <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">
+                  ⚠️ {sendResult.email_error}
+                </p>
+              )}
+
+              {!sendResult?.email_sent && (
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => sendEmailNow()}
-                    disabled={emailSending}
-                    className="flex-1 bg-green-500 disabled:bg-green-300 text-white font-bold py-3 rounded-xl text-sm">
-                    {emailSending ? '送信中...' : `📧 メールを送る`}
-                  </button>
+                  {/* 業者にメールアドレスが登録されている場合のみ表示 */}
+                  {sendResult?.supplier_email && (
+                    <button
+                      onClick={() => sendEmailNow()}
+                      disabled={emailSending}
+                      className="flex-1 bg-green-500 disabled:bg-green-300 text-white font-bold py-3 rounded-xl text-sm">
+                      {emailSending ? '送信中...' : '📧 業者に送る'}
+                    </button>
+                  )}
+                  {/* テスト送付は常に表示（メアド未登録でも試せる） */}
                   <button
                     onClick={sendTestEmail}
                     disabled={emailSending}
-                    className="px-4 bg-gray-100 disabled:opacity-50 text-gray-600 font-bold py-3 rounded-xl text-sm">
-                    🧪 テスト
+                    className={`${sendResult?.supplier_email ? 'px-4' : 'flex-1'} bg-orange-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm`}>
+                    {emailSending ? '送信中...' : '🧪 テスト送付'}
                   </button>
                 </div>
               )}
+
               <div className="flex gap-2">
                 {!sendResult?.email_sent && (
                   <button onClick={copyToClipboard}
