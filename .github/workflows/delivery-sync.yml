@@ -1,0 +1,154 @@
+name: デリバリー売上 自動同期（Uber Eats・RocketNow）
+
+on:
+  # 定時実行（JST）
+  schedule:
+    - cron: '0 0 * * *'    # 9:00 JST = 0:00 UTC（朝の同期）
+    - cron: '0 14 * * *'   # 23:00 JST = 14:00 UTC（閉店後の同期）
+
+  # Web アプリの「全サービス同期」ボタンから呼び出し
+  repository_dispatch:
+    types: [delivery-sync, uber-sync, rocketnow-sync]
+
+  # GitHub の画面からも手動実行可能
+  workflow_dispatch:
+    inputs:
+      service:
+        description: '同期するサービス（uber / rocketnow / all）'
+        required: false
+        default: 'all'
+
+env:
+  API_URL: https://goat-restaurant-os.vercel.app
+
+jobs:
+  # ─── Uber Eats ─────────────────────────────────────────────
+  uber-sync:
+    name: Uber Eats データ取込
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # uber-sync イベントまたは all の場合のみ実行
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event.action == 'delivery-sync' ||
+      github.event.action == 'uber-sync'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+
+      - name: Install Playwright
+        run: |
+          npm install playwright
+          npx playwright install-deps
+
+      - name: Start virtual display (Xvfb)
+        run: |
+          sudo apt-get install -y xvfb --quiet
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 2
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Restore Uber Eats session
+        run: |
+          mkdir -p sessions
+          echo "${{ secrets.UBER_SESSION_B64 }}" | base64 -d > sessions/uber-session.json
+          echo "セッションファイルを復元しました"
+
+      - name: Run Uber Eats sync
+        env:
+          UBER_SESSION_B64: ${{ secrets.UBER_SESSION_B64 }}
+          API_URL: ${{ env.API_URL }}
+          DISPLAY: ':99'
+        run: node scripts/cloud-uber-sync.js
+
+      - name: Notify session expired (Uber)
+        if: failure()
+        run: |
+          echo "::error::Uber Eats セッションが切れているか、スクレイピングに失敗しました。"
+          echo "::error::Mac で setup-delivery-session.js uber を実行し、UBER_SESSION_B64 Secret を更新してください。"
+
+  # ─── RocketNow ─────────────────────────────────────────────
+  rocketnow-sync:
+    name: RocketNow データ取込
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # rocketnow-sync イベントまたは all の場合のみ実行
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event.action == 'delivery-sync' ||
+      github.event.action == 'rocketnow-sync'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+
+      - name: Install Playwright
+        run: |
+          npm install playwright
+          npx playwright install-deps
+
+      - name: Start virtual display (Xvfb)
+        run: |
+          sudo apt-get install -y xvfb --quiet
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 2
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Restore RocketNow session
+        run: |
+          mkdir -p sessions
+          echo "${{ secrets.ROCKETNOW_SESSION_B64 }}" | base64 -d > sessions/rocketnow-session.json
+          echo "セッションファイルを復元しました"
+
+      - name: Run RocketNow sync
+        env:
+          ROCKETNOW_SESSION_B64: ${{ secrets.ROCKETNOW_SESSION_B64 }}
+          API_URL: ${{ env.API_URL }}
+          DISPLAY: ':99'
+        run: node scripts/cloud-rocketnow-sync.js
+
+      - name: Notify session expired (RocketNow)
+        if: failure()
+        run: |
+          echo "::error::RocketNow セッションが切れているか、スクレイピングに失敗しました。"
+          echo "::error::Mac で setup-delivery-session.js rocketnow を実行し、ROCKETNOW_SESSION_B64 Secret を更新してください。"
+
+  # ─── 完了通知 ───────────────────────────────────────────────
+  notify-complete:
+    name: 同期完了通知
+    runs-on: ubuntu-latest
+    needs: [uber-sync, rocketnow-sync]
+    if: always()
+
+    steps:
+      - name: Notify sync complete
+        run: |
+          UBER_STATUS="${{ needs.uber-sync.result }}"
+          RN_STATUS="${{ needs.rocketnow-sync.result }}"
+          echo "Uber Eats: $UBER_STATUS / RocketNow: $RN_STATUS"
+          curl -s -X POST "${{ env.API_URL }}/api/admin/sync-complete" \
+            -H "Content-Type: application/json" \
+            -d "{\"uber\": \"$UBER_STATUS\", \"rocketnow\": \"$RN_STATUS\"}" | cat

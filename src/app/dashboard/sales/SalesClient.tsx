@@ -80,16 +80,20 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
     }
   }, [router, toast])
 
-  // AnyDeli 今すぐ同期
+  // 全サービス 今すぐ同期（AnyDeli + Uber Eats + RocketNow）
   const handleSyncNow = useCallback(async () => {
     setSyncing(true)
     toast('⏳ 同期リクエストを送信中...', 'info')
     try {
-      const res  = await fetch('/api/admin/sync-trigger', { method: 'POST' })
+      const res  = await fetch('/api/admin/sync-trigger', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ services: ['anydeli', 'uber', 'rocketnow'] }),
+      })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? '送信失敗')
 
-      toast('📡 同期リクエスト送信済み。最大60秒で自動取込されます', 'info')
+      toast('📡 全サービス同期リクエスト送信済み。最大90秒で自動取込されます', 'info')
 
       // 完了まで10秒ごとにポーリング（最大90秒）
       let count = 0
@@ -257,12 +261,12 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
             className="flex items-center justify-center gap-1.5 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold disabled:opacity-50"
           >
             <span className={syncing ? 'animate-pulse' : ''}>⚡</span>
-            {syncing ? '同期中...' : 'AnyDeli 今すぐ同期'}
+            {syncing ? '同期中...' : '全サービス 今すぐ同期'}
           </button>
         </div>
         {syncing && (
           <p className="text-xs text-blue-500 text-center mt-2">
-            Macのスクレイパーを起動中です。最大60秒お待ちください...
+            AnyDeli・Uber Eats・RocketNow を同時取込中... 最大90秒お待ちください
           </p>
         )}
         <div className="mt-3 border-t pt-3">
