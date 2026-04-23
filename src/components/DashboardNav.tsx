@@ -22,9 +22,8 @@ const CATEGORIES: { title: string; items: NavItem[]; note?: string }[] = [
     items: [
       { label: '売上管理',     href: '/dashboard/sales',                    icon: '💹' },
       { label: '現金精算',     href: '/dashboard/cash-register',            icon: '💴' },
-      { label: 'PL損益',       href: '/dashboard/pl',                       icon: '📈' },
-      { label: 'レシート',     href: '/dashboard/receipts',                 icon: '🧾' },
-      { label: 'デリバリー取込', href: '/dashboard/sales/delivery-import', icon: '🛵' },
+      { label: 'PL損益',   href: '/dashboard/pl',       icon: '📈' },
+      { label: 'レシート', href: '/dashboard/receipts', icon: '🧾' },
     ],
   },
   {
@@ -51,9 +50,15 @@ const CATEGORIES: { title: string; items: NavItem[]; note?: string }[] = [
     items: [
       { label: '在庫管理',    href: '/dashboard/inventory',         icon: '🗃️' },
       { label: '発注管理',    href: '/dashboard/orders',            icon: '📦' },
-      { label: 'テーブル管理', href: '/dashboard/tables',           icon: '🪑' },
+    ],
+  },
+  {
+    title: '🔜 今後開始予定',
+    note: '準備中',
+    items: [
+      { label: 'テーブル管理',    href: '/dashboard/tables',       icon: '🪑' },
       { label: '厨房ディスプレイ', href: '/kitchen',               icon: '👨‍🍳' },
-      { label: 'モバイル注文', href: '/dashboard/menu-orders',      icon: '🍜' },
+      { label: 'モバイル注文',    href: '/dashboard/menu-orders',  icon: '🍜' },
     ],
   },
   {
