@@ -156,16 +156,20 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
   const [syncStatus, setSyncStatus]     = useState<'idle' | 'sending' | 'waiting' | 'done' | 'error'>('idle')
   const [syncMessage, setSyncMessage]   = useState('')
 
-  // AnyDeli 今すぐ同期
+  // 全サービス 今すぐ同期（AnyDeli + Uber Eats + RocketNow）
   const handleSyncNow = async () => {
     setSyncStatus('sending')
     setSyncMessage('リクエスト送信中...')
     try {
-      const res  = await fetch('/api/admin/sync-trigger', { method: 'POST' })
+      const res  = await fetch('/api/admin/sync-trigger', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ services: ['anydeli', 'uber', 'rocketnow'] }),
+      })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       setSyncStatus('waiting')
-      setSyncMessage(json.mode === 'github_actions' ? 'GitHub Actions 起動中（約90秒）' : '同期リクエスト送信済み（約60秒）')
+      setSyncMessage('起動済み。タブを閉じてもOK')
       // 15秒ごとに完了チェック（最大2分）
       let count = 0
       const requestedAt = json.requested_at
@@ -323,7 +327,7 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
       <section className="mb-4">
         <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-sub)' }}>⚡ クイックアクション</p>
         <div className="grid grid-cols-3 gap-2">
-          {/* AnyDeli 今すぐ同期 */}
+          {/* 全サービス 今すぐ同期 */}
           <button
             onClick={handleSyncNow}
             disabled={syncStatus === 'sending' || syncStatus === 'waiting'}
@@ -334,10 +338,10 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
               {syncStatus === 'sending' || syncStatus === 'waiting' ? '⏳' : syncStatus === 'done' ? '✅' : '⚡'}
             </p>
             <p className="text-xs font-semibold" style={{ color: syncStatus === 'done' ? '#16a34a' : '#1d4ed8' }}>
-              {syncStatus === 'idle' || syncStatus === 'error' ? 'AnyDeli同期' : syncStatus === 'done' ? '同期完了' : '同期中...'}
+              {syncStatus === 'idle' || syncStatus === 'error' ? '全サービス同期' : syncStatus === 'done' ? '同期完了' : '同期中...'}
             </p>
             <p className="text-[10px] mt-0.5 leading-tight" style={{ color: '#6b7280' }}>
-              {syncMessage || '今すぐ取込'}
+              {syncMessage || 'タブ閉じてもOK'}
             </p>
           </button>
 

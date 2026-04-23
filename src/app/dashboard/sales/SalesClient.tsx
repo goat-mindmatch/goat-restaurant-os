@@ -261,12 +261,12 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
             className="flex items-center justify-center gap-1.5 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold disabled:opacity-50"
           >
             <span className={syncing ? 'animate-pulse' : ''}>⚡</span>
-            {syncing ? '同期中...' : '全サービス 今すぐ同期'}
+            {syncing ? '取込中...' : '全データを一括更新'}
           </button>
         </div>
         {syncing && (
           <p className="text-xs text-blue-500 text-center mt-2">
-            AnyDeli・Uber Eats・RocketNow を同時取込中... 最大90秒お待ちください
+            全サービスのデータを取込中です。タブを閉じても続きます ✓
           </p>
         )}
         <div className="mt-3 border-t pt-3">
