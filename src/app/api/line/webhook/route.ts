@@ -352,7 +352,8 @@ async function handleClockIn(lineUserId: string, replyToken: string) {
     recorded_via: 'line',
   })
 
-  await replyLineMessage(replyToken, `✅ ${staff.name}さん、出勤打刻しました！\n日時: ${today} ${nowTime}\n\nお疲れ様です。よろしくお願いします！`)
+  // 出勤時グリーティング Flex Message を送信
+  await sendClockInGreeting(lineUserId, staff, nowTime, today, replyToken)
 }
 
 // ================================
@@ -1299,6 +1300,166 @@ async function handleSkillList(lineUserId: string, replyToken: string) {
 // ================================
 async function handleAdminMenu(lineUserId: string, replyToken: string) {
   await replyLineMessage(replyToken, '管理メニューを開きます。\n管理者パスワードをテキストで送ってください。')
+}
+
+// ================================
+// 出勤時グリーティング Flex Message
+// ================================
+async function sendClockInGreeting(
+  lineUserId: string,
+  staff: { id: string; name: string },
+  clockInTime: string,
+  today: string,
+  replyToken: string
+) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createServiceClient() as any
+    const tenantId = await getTenantId()
+    const monthStart = today.slice(0, 7) + '-01'
+
+    // 今月の出勤・口コミ・EXP を並列取得
+    const [attendRes, reviewRes, rpgRes] = await Promise.all([
+      db.from('attendance')
+        .select('date').eq('tenant_id', tenantId).eq('staff_id', staff.id)
+        .gte('date', monthStart).lte('date', today),
+      db.from('review_submissions')
+        .select('id').eq('tenant_id', tenantId).eq('staff_id', staff.id)
+        .eq('verified', true)
+        .gte('created_at', `${monthStart}T00:00:00`).lte('created_at', `${today}T23:59:59`),
+      db.from('staff_rpg')
+        .select('exp, level').eq('tenant_id', tenantId).eq('staff_id', staff.id).single(),
+    ])
+
+    const workDays: number     = (attendRes.data ?? []).length
+    const monthReviews: number = (reviewRes.data ?? []).length
+    const calcExp = workDays * 50 + monthReviews * 150
+    const exp     = rpgRes.data?.exp ?? calcExp
+    const level   = Math.floor(exp / 1000) + 1
+
+    // クラス名と今日の一言
+    const classInfo =
+      level >= 25 ? { name: '人類みなまぜそば之神 👑', msg: '神の降臨に感謝します。今日も伝説を刻もう！' } :
+      level >= 18 ? { name: '伝説のスタッフ ⚔️',    msg: 'あなたの存在がお店の力。チームを引っ張って！' } :
+      level >= 12 ? { name: '賢者 🔮',              msg: 'チームの手本として輝く一日を。' } :
+      level >= 7  ? { name: '武闘家 🥊',            msg: '口コミを積み上げてランクアップ！今日も全力で！' } :
+      level >= 3  ? { name: '僧侶 🌿',              msg: '丁寧な接客が強み。お客様の笑顔を大切に。' } :
+                    { name: '旅人 🎒',              msg: 'まずは一歩ずつ！今日も元気に接客しよう！' }
+
+    // 今月の残日数から今日の口コミ目標を計算
+    const jstNow  = new Date(Date.now() + 9 * 60 * 60 * 1000)
+    const lastDay = new Date(jstNow.getUTCFullYear(), jstNow.getUTCMonth() + 1, 0).getUTCDate()
+    const todayDay = jstNow.getUTCDate()
+    const remainDays = Math.max(1, lastDay - todayDay + 1)
+    // 月間30件目標のうち未達分を残日数で割る（最低1件）
+    const MONTHLY_REVIEW_TARGET = 30
+    const remaining = Math.max(0, MONTHLY_REVIEW_TARGET - monthReviews)
+    const dailyTarget = Math.max(1, Math.ceil(remaining / remainDays))
+
+    // プログレスバー（10マス）
+    const nextLevelExp = level * 1000
+    const progress = Math.min(100, Math.round(((exp - (level - 1) * 1000) / 1000) * 100))
+    const filled   = Math.round(progress / 10)
+    const bar      = '█'.repeat(filled) + '░'.repeat(10 - filled)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const flexContents: Record<string, any> = {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#065F46',
+        paddingAll: '16px',
+        contents: [
+          { type: 'text', text: '🌅 おはようございます！', color: '#ffffff', weight: 'bold', size: 'xl' },
+          { type: 'text', text: `${staff.name}さん · 出勤 ${clockInTime}`, color: '#A7F3D0', size: 'sm', margin: 'xs' },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '16px',
+        spacing: 'md',
+        contents: [
+          // ── 現在の成績 ──
+          { type: 'text', text: '📊 現在の成績', weight: 'bold', size: 'sm', color: '#065F46' },
+          {
+            type: 'box', layout: 'horizontal', contents: [
+              { type: 'text', text: `🎮 ${classInfo.name}`, size: 'sm', color: '#374151', flex: 3 },
+              { type: 'text', text: `Lv.${level}`, size: 'sm', weight: 'bold', color: '#EA580C', flex: 1, align: 'end' },
+            ],
+          },
+          {
+            type: 'box', layout: 'horizontal', contents: [
+              { type: 'text', text: `[${bar}]`, size: 'xs', color: '#6B7280', flex: 3 },
+              { type: 'text', text: `${progress}%`, size: 'xs', color: '#6B7280', flex: 1, align: 'end' },
+            ],
+          },
+          { type: 'text', text: `次のLvまで: あと ${(nextLevelExp - exp).toLocaleString()} EXP`, size: 'xxs', color: '#9CA3AF' },
+          { type: 'separator' },
+          // ── 今月の進捗 ──
+          { type: 'text', text: '📈 今月の進捗', weight: 'bold', size: 'sm', color: '#065F46' },
+          {
+            type: 'box', layout: 'horizontal', contents: [
+              { type: 'text', text: '📅 出勤日数', size: 'sm', color: '#555555', flex: 3 },
+              { type: 'text', text: `${workDays}日`, size: 'sm', weight: 'bold', color: '#1a1a1a', flex: 2, align: 'end' },
+            ],
+          },
+          {
+            type: 'box', layout: 'horizontal', contents: [
+              { type: 'text', text: '⭐ 口コミ獲得', size: 'sm', color: '#555555', flex: 3 },
+              {
+                type: 'text',
+                text: `${monthReviews}件 / 目標${MONTHLY_REVIEW_TARGET}件`,
+                size: 'sm', weight: 'bold',
+                color: monthReviews >= MONTHLY_REVIEW_TARGET ? '#059669' : '#1a1a1a',
+                flex: 2, align: 'end',
+              },
+            ],
+          },
+          { type: 'separator' },
+          // ── 今日の目標 ──
+          { type: 'text', text: '🎯 今日の目標', weight: 'bold', size: 'sm', color: '#065F46' },
+          {
+            type: 'box', layout: 'horizontal', contents: [
+              { type: 'text', text: '⭐ 口コミ目標', size: 'sm', color: '#555555', flex: 3 },
+              { type: 'text', text: `${dailyTarget}件`, size: 'sm', weight: 'bold', color: '#DC2626', flex: 2, align: 'end' },
+            ],
+          },
+          { type: 'text', text: `💡 ${classInfo.msg}`, size: 'xs', color: '#374151', wrap: true, margin: 'sm' },
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '12px',
+        contents: [
+          {
+            type: 'button',
+            style: 'secondary',
+            action: { type: 'uri', label: '📅 シフトを確認', uri: 'https://goat-restaurant-os.vercel.app/dashboard/shifts' },
+            height: 'sm',
+          },
+        ],
+      },
+    }
+
+    // Reply API で Flex Message 送信
+    const token = process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN!
+    await fetch('https://api.line.me/v2/bot/message/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        replyToken,
+        messages: [{ type: 'flex', altText: `🌅 ${staff.name}さん、おはようございます！今日も頑張りましょう！`, contents: flexContents }],
+      }),
+    })
+  } catch (e) {
+    // 失敗時はシンプルなテキストで返す
+    console.error('ClockIn greeting error:', e)
+    await replyLineMessage(replyToken, `✅ ${staff.name}さん、出勤打刻しました！\n\n今日もよろしくお願いします！`)
+  }
 }
 
 // ================================
