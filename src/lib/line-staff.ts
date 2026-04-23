@@ -1,10 +1,41 @@
 /**
  * LINE スタッフ用アカウント クライアント
+ *
+ * 【API使い分け方針】
+ * - Reply API  : webhook イベントへの直接返信 → 完全無料・上限なし（replyToken必須）
+ * - Push API   : 非同期通知（replyToken なし、または2通目以降）→ 月200通の無料枠を消費
+ *
+ * 通常の返信は必ず Reply API を使い、Push API は管理者通知など最小限に留める。
  */
 
 const CHANNEL_ACCESS_TOKEN = process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN!
 
-// LINE メッセージ送信
+/**
+ * Reply API でメッセージ送信（無料・上限なし）
+ * replyToken はイベントごとに1回のみ使用可。30秒以内に呼ぶこと。
+ */
+export async function replyLineMessage(replyToken: string, text: string) {
+  const res = await fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      replyToken,
+      messages: [{ type: 'text', text }],
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`LINE reply error: ${err}`)
+  }
+}
+
+/**
+ * Push API でメッセージ送信（月200通の無料枠を消費）
+ * replyToken が使えない場面（非同期処理後の通知など）でのみ使う。
+ */
 export async function sendLineMessage(userId: string, text: string) {
   const res = await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',
@@ -19,7 +50,7 @@ export async function sendLineMessage(userId: string, text: string) {
   })
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`LINE send error: ${err}`)
+    throw new Error(`LINE push error: ${err}`)
   }
 }
 
