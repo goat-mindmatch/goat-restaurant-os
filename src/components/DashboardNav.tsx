@@ -29,11 +29,12 @@ const CATEGORIES: { title: string; items: NavItem[]; note?: string }[] = [
   {
     title: '👥 スタッフ',
     items: [
-      { label: 'スタッフ',   href: '/dashboard/staff',        icon: '👥' },
-      { label: 'シフト',     href: '/dashboard/shifts',       icon: '📅' },
-      { label: 'AIシフト',   href: '/dashboard/shifts/auto',  icon: '🤖' },
-      { label: '給与計算',   href: '/dashboard/payroll',      icon: '💰' },
-      { label: 'スタッフRPG', href: '/dashboard/rpg',         icon: '⚔️' },
+      { label: 'スタッフ',    href: '/dashboard/staff',        icon: '👥' },
+      { label: 'シフト',      href: '/dashboard/shifts',       icon: '📅' },
+      { label: 'AIシフト',    href: '/dashboard/shifts/auto',  icon: '🤖' },
+      { label: '給与計算',    href: '/dashboard/payroll',      icon: '💰' },
+      { label: 'スタッフRPG', href: '/dashboard/rpg',          icon: '⚔️' },
+      { label: 'マニュアル',  href: '/dashboard/manual',       icon: '📖' },
     ],
   },
   {
@@ -43,6 +44,7 @@ const CATEGORIES: { title: string; items: NavItem[]; note?: string }[] = [
       { label: 'ロイヤルティ', href: '/dashboard/loyalty',          icon: '🎁' },
       { label: 'SNS投稿',     href: '/dashboard/sns',               icon: '📱' },
       { label: '混雑予測',    href: '/dashboard/forecast',          icon: '🔮' },
+      { label: 'メニュー分析', href: '/dashboard/menu-engineering', icon: '🧮' },
     ],
   },
   {
@@ -56,19 +58,17 @@ const CATEGORIES: { title: string; items: NavItem[]; note?: string }[] = [
     title: '🔜 今後開始予定',
     note: '準備中',
     items: [
-      { label: 'テーブル管理',    href: '/dashboard/tables',       icon: '🪑' },
-      { label: '厨房ディスプレイ', href: '/kitchen',               icon: '👨‍🍳' },
-      { label: 'モバイル注文',    href: '/dashboard/menu-orders',  icon: '🍜' },
+      { label: 'メニュー管理',    href: '/dashboard/menu-management', icon: '🍽️' },
+      { label: 'テーブル管理',    href: '/dashboard/tables',          icon: '🪑' },
+      { label: '厨房ディスプレイ', href: '/kitchen',                  icon: '👨‍🍳' },
+      { label: 'モバイル注文',    href: '/dashboard/menu-orders',     icon: '🍜' },
     ],
   },
   {
     title: '⚙️ 設定・管理',
     items: [
-      { label: 'メニュー管理', href: '/dashboard/menu-management',  icon: '🍽️' },
-      { label: 'メニュー分析', href: '/dashboard/menu-engineering', icon: '🧮' },
-      { label: '管理者ツール', href: '/dashboard/admin-tools',      icon: '🛠️' },
-      { label: 'マニュアル',   href: '/dashboard/manual',           icon: '📖' },
-      { label: '設定',         href: '/dashboard/settings',         icon: '⚙️' },
+      { label: '管理者ツール', href: '/dashboard/admin-tools', icon: '🛠️' },
+      { label: '設定',         href: '/dashboard/settings',   icon: '⚙️' },
     ],
   },
 ]
