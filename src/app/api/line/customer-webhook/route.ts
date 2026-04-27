@@ -39,8 +39,9 @@ export async function POST(req: NextRequest) {
   await Promise.all(events.map(async (event: any) => {
     const userId = event.source?.userId
     const replyToken = event.replyToken ?? null
+    const eventAge = Date.now() - (event.timestamp ?? 0)
 
-    console.log(`[customer-webhook] event: type=${event.type}, userId=${userId}, hasReplyToken=${!!replyToken}`)
+    console.log(`[customer-webhook] event: type=${event.type}, userId=${userId}, hasReplyToken=${!!replyToken}, age=${eventAge}ms`)
 
     if (!userId) {
       console.warn('[customer-webhook] userId missing, skipping')
@@ -50,6 +51,12 @@ export async function POST(req: NextRequest) {
     // replyToken がない場合は応答不要イベント（unfollow等）なのでスキップ
     if (!replyToken) {
       console.log(`[customer-webhook] no replyToken for event type=${event.type}, skip`)
+      return
+    }
+
+    // replyToken は30秒で失効 → 古いリトライイベントはスキップ
+    if (eventAge > 28000) {
+      console.warn(`[customer-webhook] event too old (${eventAge}ms), skip reply to avoid Invalid reply token`)
       return
     }
 
