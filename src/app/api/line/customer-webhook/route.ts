@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { replyCustomerLineMessage } from '@/lib/line-customer'
+import { sendCustomerMessage } from '@/lib/line-customer'
 
 const CHANNEL_SECRET = process.env.LINE_CUSTOMER_CHANNEL_SECRET ?? ''
 const BASE_URL = 'https://goat-restaurant-os.vercel.app'
@@ -76,52 +76,47 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // 友だち追加 → ウェルカムメッセージ（Reply API）
+      // 友だち追加 → ウェルカムメッセージ
       if (event.type === 'follow') {
-        await replyCustomerLineMessage(
+        const result = await sendCustomerMessage(
           replyToken,
+          userId,
           `はじめまして！🍜\n「人類みなまぜそば」公式アカウントです。\n\n「口コミを書く」と送ると口コミフォームのURLをお送りします。\n\nいつもありがとうございます！`
         )
-        console.log(`[customer-webhook] follow reply sent to ${userId}`)
+        console.log(`[customer-webhook] follow sent via ${result.method} to ${userId}`)
         return
       }
 
       if (event.type !== 'message' || event.message?.type !== 'text') return
 
-      // テキストメッセージへの返信はすべて Reply API（無料・無制限）
       const text = event.message.text.trim()
       console.log(`[customer-webhook] text="${text}"`)
 
       switch (text) {
         case '口コミを書く':
         case 'クチコミ':
-        case '⭐ 口コミを書く':
-          await replyCustomerLineMessage(
+        case '⭐ 口コミを書く': {
+          const result = await sendCustomerMessage(
             replyToken,
+            userId,
             `⭐ ご来店ありがとうございました！\n\n口コミのご協力をお願いします🙏\nタップしてフォームを開いてください👇\n${BASE_URL}/review?uid=${userId}`
           )
-          console.log(`[customer-webhook] review URL sent to ${userId}`)
+          console.log(`[customer-webhook] review URL sent via ${result.method} to ${userId}`)
           break
+        }
         case '営業情報':
         case '📅 営業情報':
-          await replyCustomerLineMessage(
-            replyToken,
-            `📍 人類みなまぜそば\n営業時間：11:00〜22:00\n定休日：不定休\n\n詳細情報は店舗へお問い合わせください。`
-          )
+          await sendCustomerMessage(replyToken, userId, `📍 人類みなまぜそば\n営業時間：11:00〜22:00\n定休日：不定休\n\n詳細情報は店舗へお問い合わせください。`)
           break
         case 'クーポン':
         case '🎟️ クーポン':
-          await replyCustomerLineMessage(
-            replyToken,
-            `🎟️ 現在配信中のクーポンはありません。\n次回配信をお楽しみに！`
-          )
+          await sendCustomerMessage(replyToken, userId, `🎟️ 現在配信中のクーポンはありません。\n次回配信をお楽しみに！`)
           break
         default:
           console.log(`[customer-webhook] unhandled text="${text}", skip`)
           break
       }
     } catch (err) {
-      // エラーをログに残す（LINEには200を返してリトライさせない）
       console.error(`[customer-webhook] ERROR for userId=${userId}:`, err)
     }
   }))
