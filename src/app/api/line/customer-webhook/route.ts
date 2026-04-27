@@ -37,11 +37,25 @@ export async function POST(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await Promise.all(events.map(async (event: any) => {
+    const now = Date.now()
     const userId = event.source?.userId
     const replyToken = event.replyToken ?? null
-    const eventAge = Date.now() - (event.timestamp ?? 0)
+    const ts = typeof event.timestamp === 'number' ? event.timestamp : null
+    const eventAge = ts !== null ? now - ts : Infinity
 
-    console.log(`[customer-webhook] event: type=${event.type}, userId=${userId}, hasReplyToken=${!!replyToken}, age=${eventAge}ms`)
+    // イベントの生データを出力（原因特定用）
+    console.log(`[customer-webhook] RAW event: ${JSON.stringify({
+      type: event.type,
+      timestamp: event.timestamp,
+      now,
+      eventAge: isFinite(eventAge) ? eventAge : 'no-timestamp',
+      replyToken: replyToken ? replyToken.slice(0, 20) + '...' : null,
+      userId,
+      messageType: event.message?.type,
+      text: event.message?.text,
+    })}`)
+
+    console.log(`[customer-webhook] event: type=${event.type}, userId=${userId}, hasReplyToken=${!!replyToken}, age=${isFinite(eventAge) ? eventAge + 'ms' : 'no-timestamp'}`)
 
     if (!userId) {
       console.warn('[customer-webhook] userId missing, skipping')
@@ -55,8 +69,9 @@ export async function POST(req: NextRequest) {
     }
 
     // replyToken は30秒で失効 → 古いリトライイベントはスキップ
-    if (eventAge > 28000) {
-      console.warn(`[customer-webhook] event too old (${eventAge}ms), skip reply to avoid Invalid reply token`)
+    // タイムスタンプがない場合も安全のためスキップ
+    if (!isFinite(eventAge) || eventAge > 28000) {
+      console.warn(`[customer-webhook] event too old or no timestamp (age=${isFinite(eventAge) ? eventAge + 'ms' : 'no-timestamp'}), skip`)
       return
     }
 
