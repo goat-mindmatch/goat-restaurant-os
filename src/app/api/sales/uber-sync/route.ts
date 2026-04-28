@@ -2,19 +2,22 @@ export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/sales/uber-sync
- * Uber Eats「お支払いの詳細」CSVを解析して daily_sales に自動反映
+ * Uber Eats CSVを解析して daily_sales に自動反映
  *
- * CSVフォーマット（実際のUber Eats Manager出力）:
- *   1行目: カラム説明文（スキップ）
- *   2行目: カラム説明文の続き（スキップ）
- *   3行目: ヘッダー行（「注文 ID」で始まる）
- *   4行目以降: データ行
+ * 対応フォーマット（2種類を自動判別）:
  *
- * 主要カラム:
- *   注文日付                      → 集計キー (YYYY/M/D → YYYY-MM-DD)
- *   合計支払い額（消費税を含む）  → uber_sales に集計（Uber手数料差引後の実入金額）
- *   売上（消費税を含む）          → 参考値（使用しない）
- *   注文 ID                       → 件数カウント（#で始まる行のみ）
+ * [Format A] お支払いの詳細CSV（旧形式）
+ *   ヘッダー行: 「注文 ID」で始まる
+ *   データ行: 注文 ID が「#」で始まる行のみ集計
+ *
+ * [Format B] 注文データエクスポートCSV（新形式 / 54列）
+ *   1行目: 英語説明文
+ *   2行目: 日本語列名（「注文日付」「合計支払い額（消費税を含む）」「注文状況」含む）
+ *   データ行: 「注文状況」が「完了」の行のみ集計
+ *
+ * 集計キー:
+ *   注文日付                      → YYYY/M/D → YYYY-MM-DD
+ *   合計支払い額（消費税を含む）  → uber_sales（Uber手数料差引後の実入金額）= AU列
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -30,34 +33,53 @@ type DaySummary = {
 }
 
 /**
- * Uber Eats「お支払いの詳細」CSVをパース
- * ヘッダー行を自動検出（「注文 ID」で始まる行）
+ * Uber Eats CSVをパース（Format A / Format B を自動判別）
+ *
+ * Format A: ヘッダー行の先頭列が「注文 ID」→ #で始まる行のみ集計
+ * Format B: ヘッダー行に「注文日付」が含まれる → 「注文状況」=「完了」行のみ集計
  */
 function parseUberCsv(csvRaw: string): DaySummary[] {
   // BOMを除去して行分割
   const content = csvRaw.replace(/^\uFEFF/, '')
   const lines = content.split('\n')
 
-  // 「注文 ID」で始まるヘッダー行を探す
-  const headerIdx = lines.findIndex(l => l.trimStart().startsWith('注文 ID'))
-  if (headerIdx === -1) {
-    return []
+  // ── フォーマット判別・ヘッダー行検出 ──────────────────────────
+  let headerIdx = -1
+  let format: 'A' | 'B' | null = null
+
+  for (let i = 0; i < Math.min(lines.length, 5); i++) {
+    const cols = parseCsvLine(lines[i])
+    // Format A: 先頭列が「注文 ID」
+    if (cols[0]?.trim() === '注文 ID') {
+      headerIdx = i
+      format = 'A'
+      break
+    }
+    // Format B: 列の中に「注文日付」が含まれる（英語説明の次行 = 日本語列名行）
+    if (cols.some(c => c.trim() === '注文日付')) {
+      headerIdx = i
+      format = 'B'
+      break
+    }
   }
 
-  // ヘッダー行をパース
+  if (headerIdx === -1 || !format) return []
+
+  // ── カラムインデックスを取得 ──────────────────────────────────
   const headers = parseCsvLine(lines[headerIdx])
 
-  // カラムインデックスを取得
-  const idxOrderId   = headers.findIndex(h => h.trim() === '注文 ID')
   const idxDate      = headers.findIndex(h => h.trim() === '注文日付')
   const idxSales     = headers.findIndex(h => h.trim() === '売上（消費税を含む）')
   const idxNetPayout = headers.findIndex(h => h.trim() === '合計支払い額（消費税を含む）')
 
-  if (idxDate === -1 || idxSales === -1) {
-    return []
-  }
+  // Format A: 注文 ID 列（#フィルタ用）
+  const idxOrderId = headers.findIndex(h => h.trim() === '注文 ID')
+  // Format B: 注文状況列（「完了」フィルタ用）
+  const idxStatus  = headers.findIndex(h => h.trim() === '注文状況')
 
-  // 日付ごとに集計
+  if (idxDate === -1) return []
+
+  // ── データ行を集計 ────────────────────────────────────────────
   const byDate: Record<string, DaySummary> = {}
 
   for (let i = headerIdx + 1; i < lines.length; i++) {
@@ -67,16 +89,22 @@ function parseUberCsv(csvRaw: string): DaySummary[] {
     const cols = parseCsvLine(line)
     if (cols.length < 5) continue
 
-    const orderId = cols[idxOrderId]?.trim() ?? ''
-    // #で始まる行（実注文）のみ集計（ヘッダー・合計行を除外）
-    if (!orderId.startsWith('#')) continue
+    if (format === 'A') {
+      // Format A: 注文 ID が「#」で始まる行のみ（ヘッダー・合計行を除外）
+      const orderId = cols[idxOrderId]?.trim() ?? ''
+      if (!orderId.startsWith('#')) continue
+    } else {
+      // Format B: 注文状況が「完了」の行のみ（キャンセル・払い戻しを除外）
+      const status = idxStatus >= 0 ? cols[idxStatus]?.trim() : ''
+      if (status !== '完了') continue
+    }
 
     // 日付変換: YYYY/M/D → YYYY-MM-DD
     const rawDate = cols[idxDate]?.trim() ?? ''
     const date = convertDate(rawDate)
     if (!date) continue
 
-    const sales     = parseNum(cols[idxSales])
+    const sales     = idxSales >= 0     ? parseNum(cols[idxSales])     : 0
     const netPayout = idxNetPayout >= 0 ? parseNum(cols[idxNetPayout]) : 0
 
     if (!byDate[date]) {
@@ -144,7 +172,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: 'CSVの形式が正しくありません',
-          hint: 'Uber Eats Manager の「お支払いの詳細」レポートCSVを使用してください',
+          hint: 'Uber Eats Manager の「注文データエクスポート」または「お支払いの詳細」CSVを使用してください',
         },
         { status: 400 }
       )
