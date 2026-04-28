@@ -201,7 +201,7 @@ export default function ReviewClient({
               <span className="text-4xl">🔍</span>
               <div className="flex-1">
                 <p className="font-bold text-gray-800 text-lg">Google で書く</p>
-                <p className="text-sm text-gray-500">特典: ¥100相当</p>
+                <p className="text-sm text-gray-500">特典: 200円以下トッピング1品無料</p>
               </div>
               <span className="text-2xl text-gray-300">›</span>
             </div>
@@ -214,7 +214,7 @@ export default function ReviewClient({
               <span className="text-4xl">🍽</span>
               <div className="flex-1">
                 <p className="font-bold text-gray-800 text-lg">食べログ で書く</p>
-                <p className="text-sm text-gray-500">特典: ¥100相当</p>
+                <p className="text-sm text-gray-500">特典: 200円以下トッピング1品無料</p>
               </div>
               <span className="text-2xl text-gray-300">›</span>
             </div>
@@ -227,7 +227,7 @@ export default function ReviewClient({
               <span className="text-4xl">🎁</span>
               <div className="flex-1">
                 <p className="font-bold text-white text-lg">両方書く（おトク！）</p>
-                <p className="text-sm text-purple-100">特典: <span className="font-bold text-white">¥200相当</span></p>
+                <p className="text-sm text-purple-100">特典: <span className="font-bold text-white">200円以下トッピング2品無料</span></p>
               </div>
               <span className="text-2xl text-white/60">›</span>
             </div>
@@ -364,15 +364,22 @@ export default function ReviewClient({
             <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
               <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-5 text-white text-center">
                 <p className="text-xs font-semibold opacity-80">口コミ特典</p>
-                <p className="text-2xl font-bold mt-1">¥{bonusAmount}相当プレゼント</p>
+                <p className="text-2xl font-bold mt-1">
+                  {platform === 'both'
+                    ? '200円以下トッピング 2品無料'
+                    : '200円以下トッピング 1品無料'}
+                </p>
               </div>
               <div className="p-6">
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-dashed border-green-300 rounded-2xl p-5 text-center">
                   <p className="text-xs text-gray-500">クーポンコード</p>
                   <p className="text-3xl font-bold text-green-600 tracking-wider my-2 select-all">{couponCode}</p>
-                  <p className="text-xs text-gray-500">次回来店時にスタッフへ提示</p>
+                  <p className="text-xs text-gray-500">次回来店時にスタッフへ提示してください</p>
                 </div>
-                <div className="mt-4 bg-blue-50 rounded-xl p-3 text-xs text-blue-800">
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                  ⚠️ 200円以下のトッピング{platform === 'both' ? '2品' : '1品'}に限り適用。他の割引との併用不可。
+                </div>
+                <div className="mt-3 bg-blue-50 rounded-xl p-3 text-xs text-blue-800">
                   📱 この画面をスクショして保存しておくと便利です
                 </div>
               </div>
@@ -385,12 +392,12 @@ export default function ReviewClient({
             <div className="text-center py-6">
               <p className="text-6xl mb-3">📩</p>
               <h1 className="text-xl font-bold text-gray-800">確認中です</h1>
-              <p className="text-sm text-gray-600 mt-2">スタッフが確認後、<b>LINEで特典コードをお送りします</b></p>
+              <p className="text-sm text-gray-600 mt-2">スタッフが確認後、<b>特典コードをお伝えします</b></p>
             </div>
             <div className="bg-white rounded-2xl shadow p-6">
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-center">
                 <p className="font-bold text-green-800 mb-1">📱 この後の流れ</p>
-                <p className="text-xs text-green-700">スタッフが内容を確認次第、<br /><b>LINEに特典コードが届きます</b>。<br />この画面を閉じて大丈夫です。</p>
+                <p className="text-xs text-green-700">スタッフが内容を確認次第、<br /><b>特典コードをお伝えします</b>。<br />この画面を閉じて大丈夫です。</p>
               </div>
               <p className="text-xs text-gray-400 text-center mt-3">通常、当日中にご連絡いたします</p>
             </div>
