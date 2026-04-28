@@ -95,12 +95,14 @@ export default async function RPGPage() {
       .eq('tenant_id', TENANT_ID)
       .gte('date', monthStart)
       .lte('date', monthEnd),
-    db.from('review_submissions')
-      .select('staff_id, created_at')
+    // QRフロー（reviews）: verified済みの口コミ＋実際のEXP
+    db.from('reviews')
+      .select('staff_id, exp_awarded, sentiment')
       .eq('tenant_id', TENANT_ID)
-      .eq('verified', true)
-      .gte('created_at', `${monthStart}T00:00:00`)
-      .lte('created_at', `${monthEnd}T23:59:59`),
+      .not('verified_at', 'is', null)
+      .not('staff_id', 'is', null)
+      .gte('clicked_at', `${monthStart}T00:00:00`)
+      .lte('clicked_at', `${monthEnd}T23:59:59`),
     // 確定シフト（出退勤基準比較用）
     db.from('shifts')
       .select('staff_id, date, start_time')
@@ -148,11 +150,14 @@ export default async function RPGPage() {
     shiftMap[s.staff_id][s.date] = s.start_time  // "HH:MM:SS"
   }
 
-  // 口コミ: スタッフ別に件数集計
+  // 口コミ: スタッフ別に「件数」と「EXP合計」を集計
   const reviewCountMap: Record<string, number> = {}
+  const reviewExpMap: Record<string, number> = {}
   for (const r of (reviewsRes.data ?? [])) {
-    if (!reviewCountMap[r.staff_id]) reviewCountMap[r.staff_id] = 0
-    reviewCountMap[r.staff_id]++
+    if (!r.staff_id) continue
+    reviewCountMap[r.staff_id] = (reviewCountMap[r.staff_id] ?? 0) + 1
+    // exp_awardedがあればそれを使う（感情分析済み）、なければ150
+    reviewExpMap[r.staff_id] = (reviewExpMap[r.staff_id] ?? 0) + (r.exp_awarded ?? 150)
   }
 
   // 店舗改善: スタッフ別EXP合計
@@ -179,12 +184,13 @@ export default async function RPGPage() {
     const records     = attendanceMap[staffId]?.records ?? []
     const myShiftMap  = shiftMap[staffId] ?? {}
     const reviewCount = reviewCountMap[staffId] ?? 0
+    const reviewExp   = reviewExpMap[staffId] ?? 0   // 感情分析済みの実EXP合計
     const impExp      = improvementExpMap[staffId] ?? 0
 
     let exp = 0
 
-    // ① 口コミ
-    exp += reviewCount * 150
+    // ① 口コミ（exp_awardedベース: positive=200 / neutral=150 / negative=120）
+    exp += reviewExp
 
     // ② 出退勤 ③ 代打
     for (const rec of records) {

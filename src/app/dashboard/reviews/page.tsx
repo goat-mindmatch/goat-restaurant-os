@@ -14,7 +14,7 @@ async function getReviewData() {
 
   const [reviewsRes, staffRes, googleCountRes, googleCacheRes] = await Promise.all([
     db.from('reviews')
-      .select('staff_id, clicked_at, completed, verified_at, staff:staff!reviews_staff_id_fkey(name)')
+      .select('staff_id, clicked_at, completed, verified_at, sentiment, exp_awarded, review_text, staff:staff!reviews_staff_id_fkey(name)')
       .eq('tenant_id', TENANT_ID)
       .gte('clicked_at', firstDay)
       .order('clicked_at', { ascending: false }),
@@ -197,21 +197,55 @@ export default async function ReviewsDashboardPage() {
         <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100">
           {reviews.length === 0 ? (
             <p className="p-4 text-center text-gray-400 text-sm">まだ履歴がありません</p>
-          ) : reviews.slice(0, 15).map((r: { staff_id: string | null; staff: { name: string } | null; clicked_at: string; completed: boolean; verified_at: string | null }, i: number) => {
+          ) : reviews.slice(0, 15).map((r: {
+              staff_id: string | null
+              staff: { name: string } | null
+              clicked_at: string
+              completed: boolean
+              verified_at: string | null
+              sentiment: string | null
+              exp_awarded: number | null
+              review_text: string | null
+            }, i: number) => {
             const d = new Date(r.clicked_at)
             const time = d.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
             const status = r.verified_at ? { icon: '✅', label: '検証済', color: 'bg-green-100 text-green-700' }
               : r.completed ? { icon: '⏳', label: '承認待ち', color: 'bg-amber-100 text-amber-700' }
               : { icon: '📝', label: '誘導のみ', color: 'bg-gray-100 text-gray-600' }
+
+            // sentimentバッジ
+            const sentimentBadge =
+              r.sentiment === 'positive' ? { label: '⭐ 褒めあり', color: 'bg-yellow-100 text-yellow-700' }
+              : r.sentiment === 'negative' ? { label: '⚠️ ネガあり', color: 'bg-red-100 text-red-700' }
+              : null
+
             return (
-              <div key={i} className="p-3 flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-medium">
-                    {status.icon} {r.staff?.name ?? '指名なし'}
-                  </p>
-                  <p className="text-xs text-gray-400">{time}</p>
+              <div key={i} className="p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {status.icon} {r.staff?.name ?? '指名なし'}
+                    </p>
+                    <p className="text-xs text-gray-400">{time}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${status.color}`}>{status.label}</span>
+                    {sentimentBadge && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${sentimentBadge.color}`}>
+                        {sentimentBadge.label}
+                      </span>
+                    )}
+                    {r.verified_at && r.exp_awarded && (
+                      <span className="text-[10px] text-orange-600 font-bold">+{r.exp_awarded} EXP</span>
+                    )}
+                  </div>
                 </div>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${status.color}`}>{status.label}</span>
+                {/* 口コミ本文プレビュー（承認待ちで本文ありの場合） */}
+                {!r.verified_at && r.completed && r.review_text && (
+                  <p className="mt-1 text-xs text-gray-500 bg-gray-50 rounded p-2 line-clamp-2">
+                    &ldquo;{r.review_text}&rdquo;
+                  </p>
+                )}
               </div>
             )
           })}

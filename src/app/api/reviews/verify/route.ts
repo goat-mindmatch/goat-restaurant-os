@@ -59,6 +59,49 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// EXPマップ
+const EXP_MAP = { positive: 200, neutral: 150, negative: 120 } as const
+type Sentiment = keyof typeof EXP_MAP
+
+/** 口コミ本文をAIで感情分析（失敗時はneutral） */
+async function analyzeSentiment(text: string): Promise<{ sentiment: Sentiment; reason: string; exp: number }> {
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 200,
+      messages: [{
+        role: 'user',
+        content: `以下は飲食店のGoogle口コミ本文です。スタッフ・店員への言及を重点的に読み判定してください。
+
+【判定基準】
+- positive: スタッフを褒める・接客を絶賛・「また来たい」などスタッフへの好意的言及がある
+- negative: スタッフへの批判・接客への不満・「態度が悪い」などの否定的言及がある
+- neutral: スタッフへの言及なし、または料理・価格のみの評価
+
+必ずJSONで返す：{"sentiment":"positive"|"neutral"|"negative","reason":"20字以内"}
+
+口コミ：${text.slice(0, 800)}`,
+      }],
+    })
+
+    const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+    const match = raw.match(/\{[\s\S]*?\}/)
+    if (!match) throw new Error('parse failed')
+
+    const parsed = JSON.parse(match[0]) as { sentiment: string; reason: string }
+    const sentiment: Sentiment = ['positive', 'neutral', 'negative'].includes(parsed.sentiment)
+      ? (parsed.sentiment as Sentiment)
+      : 'neutral'
+
+    return { sentiment, reason: parsed.reason ?? '', exp: EXP_MAP[sentiment] }
+  } catch {
+    return { sentiment: 'neutral', reason: '分析失敗（デフォルト）', exp: 150 }
+  }
+}
+
 // ================================
 // POST: 承認・却下
 // ================================
@@ -81,14 +124,25 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'approve') {
-      // レビュー情報を取得（LINE通知用）
+      // レビュー情報を取得（口コミ本文・スタッフID・LINE通知用）
       const { data: reviewData } = await db.from('reviews')
-        .select('coupon_code, customer_line_user_id')
+        .select('coupon_code, customer_line_user_id, staff_id, review_text')
         .eq('id', review_id).single()
 
+      // 口コミ本文があればAI感情分析、なければneutral
+      let sentiment: Sentiment = 'neutral'
+      let expAwarded = 150
+      if (reviewData?.review_text) {
+        const result = await analyzeSentiment(reviewData.review_text)
+        sentiment  = result.sentiment
+        expAwarded = result.exp
+      }
+
       await db.from('reviews').update({
-        verified_at: new Date().toISOString(),
-        verified_by: verifiedBy,
+        verified_at:  new Date().toISOString(),
+        verified_by:  verifiedBy,
+        sentiment,
+        exp_awarded:  expAwarded,
       }).eq('id', review_id).eq('tenant_id', TENANT_ID)
 
       // 承認後：お客様のLINEにクーポンカードを自動送信
@@ -100,6 +154,8 @@ export async function POST(req: NextRequest) {
           console.error('Flex coupon notification failed:', e)
         }
       }
+
+      return NextResponse.json({ ok: true, action, sentiment, exp_awarded: expAwarded })
     } else {
       await db.from('reviews').update({
         verified_at: null,
