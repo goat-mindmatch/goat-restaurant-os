@@ -11,10 +11,10 @@ export const dynamic = 'force-dynamic'
  *   4行目以降: データ行
  *
  * 主要カラム:
- *   注文日付         → 集計キー (YYYY/M/D → YYYY-MM-DD)
- *   売上（消費税を含む）→ uber_sales に集計
- *   合計支払い額（消費税を含む）→ 実質手取り（将来的にuber_net列追加時に利用）
- *   注文 ID          → 件数カウント（#で始まる行のみ）
+ *   注文日付                      → 集計キー (YYYY/M/D → YYYY-MM-DD)
+ *   合計支払い額（消費税を含む）  → uber_sales に集計（Uber手数料差引後の実入金額）
+ *   売上（消費税を含む）          → 参考値（使用しない）
+ *   注文 ID                       → 件数カウント（#で始まる行のみ）
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -83,8 +83,8 @@ function parseUberCsv(csvRaw: string): DaySummary[] {
       byDate[date] = { date, orders: 0, sales: 0, netPayout: 0 }
     }
     byDate[date].orders++
-    byDate[date].sales     += sales
-    byDate[date].netPayout += netPayout
+    byDate[date].sales     += sales     // 参考値（gross）
+    byDate[date].netPayout += netPayout // 実入金額（合計支払い額）
   }
 
   return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date))
@@ -168,7 +168,9 @@ export async function POST(req: NextRequest) {
       const storeSales     = Number(existing?.store_sales)     || 0
       const rocketnowSales = Number(existing?.rocketnow_sales) || 0
       const menuSales      = Number(existing?.menu_sales)      || 0
-      const uberSales      = row.sales
+      // 合計支払い額（Uber手数料差引後の実入金額）を使用
+      // netPayoutが0の場合（CSVに列がない）は売上で代用
+      const uberSales      = row.netPayout > 0 ? row.netPayout : row.sales
 
       // delivery_sales = Uber + Rocketnow + menu
       const deliverySales = uberSales + rocketnowSales + menuSales
