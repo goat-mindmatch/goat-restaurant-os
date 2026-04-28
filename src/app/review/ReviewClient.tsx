@@ -8,8 +8,8 @@ const GOOGLE_REVIEW_URL = GOOGLE_PLACE_ID
   : 'https://www.google.com/maps/search/人類みなまぜそば'
 
 // 食べログURL（吹田店）
-// 食べログ：人類みなまぜそば 吹田店
-const TABELOG_URL = 'https://s.tabelog.com/osaka/A2706/A270602/27139786/'
+// 食べログ：人類みなまぜそば 吹田店（大阪府吹田市内本町2-1-22）
+const TABELOG_URL = 'https://tabelog.com/osaka/A2706/A270602/27139786/'
 
 type Stage = 'select_staff' | 'select_platform' | 'upload_screenshot' | 'completed'
 type Platform = 'google' | 'tabelog' | 'both'
