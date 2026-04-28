@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 export default function LoginClient() {
   const router      = useRouter()
   const searchParams = useSearchParams()
-  const nextPath    = searchParams.get('next') ?? '/dashboard/tasks'
+  const nextPath    = searchParams.get('next') ?? '/staff-home'
 
   const [pin,     setPin]     = useState('')
   const [error,   setError]   = useState('')
@@ -27,10 +27,10 @@ export default function LoginClient() {
         setPin('')
         return
       }
-      // 経営者はダッシュボードへ、スタッフはタスクへ
+      // 経営者はダッシュボードへ、スタッフはスタッフホームへ
       const dest = data.role === 'manager'
         ? (nextPath.startsWith('/dashboard') ? nextPath : '/dashboard')
-        : '/dashboard/tasks'
+        : '/staff-home'
       router.replace(dest)
     } catch {
       setError('通信エラーが発生しました')

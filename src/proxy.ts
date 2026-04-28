@@ -20,10 +20,14 @@ const MANAGER_ONLY_PATHS = [
   '/dashboard/shifts/auto',           // AIシフト
   '/dashboard/admin-tools',           // 管理者ツール
   '/dashboard/settings',              // 設定
+  '/dashboard/improvements',          // 改善申告レビュー
+  '/dashboard/features',              // 機能マップ
+  '/dashboard/cash-register',         // 現金精算
 ]
 
 // 全スタッフがアクセス可能なパス（ログイン必須）
 const ALL_STAFF_PATHS = [
+  '/staff-home',            // スタッフ専用ホーム
   '/dashboard/menu-orders', // 注文管理
   '/dashboard/shifts',      // シフト確認
   '/dashboard/tables',      // テーブル管理
@@ -35,7 +39,7 @@ const ALL_STAFF_PATHS = [
 ]
 
 // 認証不要のパス
-const PUBLIC_PATHS = ['/login', '/api/', '/review', '/_next', '/favicon']
+const PUBLIC_PATHS = ['/login', '/api/', '/review', '/improve', '/_next', '/favicon']
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
@@ -60,7 +64,7 @@ export async function proxy(req: NextRequest) {
   )
   if (isManagerOnly && session.role !== 'manager') {
     // スタッフ向けトップページにリダイレクト
-    return NextResponse.redirect(new URL('/dashboard/tasks', req.url))
+    return NextResponse.redirect(new URL('/staff-home', req.url))
   }
 
   // セッション情報をヘッダーに付与（ASCII安全な値のみ）

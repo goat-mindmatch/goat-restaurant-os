@@ -76,6 +76,7 @@ const CATEGORIES: { title: string; items: NavItem[]; note?: string }[] = [
     title: '⚙️ 設定・管理',
     items: [
       { label: '改善申告',     href: '/dashboard/improvements', icon: '📋' },
+      { label: '機能一覧',     href: '/dashboard/features',     icon: '🗺️' },
       { label: '管理者ツール', href: '/dashboard/admin-tools',  icon: '🛠️' },
       { label: '設定',         href: '/dashboard/settings',    icon: '⚙️' },
     ],
