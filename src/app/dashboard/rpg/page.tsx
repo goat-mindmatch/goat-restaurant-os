@@ -2,13 +2,14 @@
  * スタッフRPGシステム
  * /dashboard/rpg
  *
- * EXP計算ロジック（v2）:
- *   ① Google口コミ獲得1件    = +150 EXP
+ * EXP計算ロジック（v3）:
+ *   ① Google口コミ獲得1件    = +150〜200 EXP（内容による感情分析）
  *   ② 出退勤（確定シフト基準）
  *        早い / 時間通り      = +50 EXP
  *        遅刻（5分超）        = −30 EXP
  *        シフト未登録日の出勤 = +20 EXP
- *   ③ シフト代打（is_substitute=true）= +200 EXP
+ *        規定終了より早く退勤 = +100 EXP
+ *   ③ シフト代打（is_substitute=true）= +100 EXP
  *   ④ 店舗改善承認（store_improvements）= 管理者設定EXP
  * レベル = Math.floor(EXP / 1000) + 1
  */
@@ -105,7 +106,7 @@ export default async function RPGPage() {
       .lte('clicked_at', `${monthEnd}T23:59:59`),
     // 確定シフト（出退勤基準比較用）
     db.from('shifts')
-      .select('staff_id, date, start_time')
+      .select('staff_id, date, start_time, end_time')
       .eq('tenant_id', TENANT_ID)
       .gte('date', monthStart)
       .lte('date', monthEnd),
@@ -128,7 +129,7 @@ export default async function RPGPage() {
   const attendanceMap: Record<string, {
     dates: string[]
     clockIns: string[]
-    records: { date: string; clock_in: string | null; is_substitute: boolean }[]
+    records: { date: string; clock_in: string | null; clock_out: string | null; is_substitute: boolean }[]
   }> = {}
   for (const a of (attendanceRes.data ?? [])) {
     if (!attendanceMap[a.staff_id]) {
@@ -137,17 +138,21 @@ export default async function RPGPage() {
     attendanceMap[a.staff_id].dates.push(a.date)
     if (a.clock_in) attendanceMap[a.staff_id].clockIns.push(a.date)
     attendanceMap[a.staff_id].records.push({
-      date: a.date,
-      clock_in: a.clock_in ?? null,
+      date:          a.date,
+      clock_in:      a.clock_in  ?? null,
+      clock_out:     a.clock_out ?? null,
       is_substitute: a.is_substitute ?? false,
     })
   }
 
-  // 確定シフト: スタッフ×日付 → start_time のマップ
-  const shiftMap: Record<string, Record<string, string>> = {}
+  // 確定シフト: スタッフ×日付 → { start_time, end_time } のマップ
+  const shiftMap: Record<string, Record<string, { start: string; end: string | null }>> = {}
   for (const s of (shiftsRes.data ?? [])) {
     if (!shiftMap[s.staff_id]) shiftMap[s.staff_id] = {}
-    shiftMap[s.staff_id][s.date] = s.start_time  // "HH:MM:SS"
+    shiftMap[s.staff_id][s.date] = {
+      start: s.start_time,          // "HH:MM:SS"
+      end:   s.end_time ?? null,    // "HH:MM:SS" or null
+    }
   }
 
   // 口コミ: スタッフ別に「件数」と「EXP合計」を集計
@@ -174,36 +179,39 @@ export default async function RPGPage() {
   }
 
   /**
-   * EXP計算（v2）
-   * ① 口コミ +150
-   * ② 出退勤（確定シフト基準）: 早い/時間通り +50 / 遅刻(5分超) −30 / シフトなし日 +20
-   * ③ 代打 +200
-   * ④ 改善承認 管理者設定EXP
+   * EXP計算（v3）
+   * ① 口コミ（感情分析ベース: positive=200 / neutral=150 / negative=120）
+   * ② 出退勤（確定シフト基準）
+   *    - 早い/時間通り（±5分）: +50
+   *    - 遅刻（5分超）:         −30
+   *    - シフトなし日の出勤:    +20
+   *    - 規定より早く退勤:      +100（5分以上早い場合）
+   * ③ 代打（is_substitute=true）: +100
+   * ④ 改善承認EXP
    */
   function calcExp(staffId: string): number {
-    const records     = attendanceMap[staffId]?.records ?? []
-    const myShiftMap  = shiftMap[staffId] ?? {}
-    const reviewCount = reviewCountMap[staffId] ?? 0
-    const reviewExp   = reviewExpMap[staffId] ?? 0   // 感情分析済みの実EXP合計
-    const impExp      = improvementExpMap[staffId] ?? 0
+    const records    = attendanceMap[staffId]?.records ?? []
+    const myShiftMap = shiftMap[staffId] ?? {}
+    const reviewExp  = reviewExpMap[staffId] ?? 0   // 感情分析済みの実EXP合計
+    const impExp     = improvementExpMap[staffId] ?? 0
 
     let exp = 0
 
-    // ① 口コミ（exp_awardedベース: positive=200 / neutral=150 / negative=120）
+    // ① 口コミ
     exp += reviewExp
 
     // ② 出退勤 ③ 代打
     for (const rec of records) {
-      // 代打ボーナス
+      // 代打ボーナス（+100）
       if (rec.is_substitute) {
-        exp += 200
+        exp += 100
         continue  // 代打日は通常出勤EXPと重複させない
       }
 
-      const shiftStart = myShiftMap[rec.date]  // 確定シフトの開始時刻
+      const shift = myShiftMap[rec.date]  // { start, end } or undefined
 
-      if (!shiftStart) {
-        // シフト未登録日の出勤（自主出勤など）→ 基本 +20
+      if (!shift) {
+        // シフト未登録日の出勤 → +20
         exp += 20
         continue
       }
@@ -214,14 +222,26 @@ export default async function RPGPage() {
         continue
       }
 
-      const shiftMin   = timeToMinutes(shiftStart)
-      const clockMin   = timeToMinutes(rec.clock_in)
-      const diffMin    = clockMin - shiftMin  // 正=遅刻、負=早い
+      // 出勤時刻チェック
+      const shiftStartMin = timeToMinutes(shift.start)
+      const clockInMin    = timeToMinutes(rec.clock_in)
+      const inDiff        = clockInMin - shiftStartMin  // 正=遅刻、負=早い
 
-      if (diffMin <= 5) {
+      if (inDiff <= 5) {
         exp += 50  // 早い or ±5分以内 → 出勤ボーナス
       } else {
         exp -= 30  // 5分超遅刻 → マイナス
+      }
+
+      // 退勤時刻チェック（規定より早く終わった場合 +100）
+      if (shift.end && rec.clock_out) {
+        const shiftEndMin = timeToMinutes(shift.end)
+        const clockOutMin = timeToMinutes(rec.clock_out)
+        const outDiff     = shiftEndMin - clockOutMin  // 正=早く終わった
+
+        if (outDiff >= 5) {
+          exp += 100  // 5分以上早く業務終了 → ボーナス
+        }
       }
     }
 
@@ -260,8 +280,9 @@ export default async function RPGPage() {
     const shiftDays  = records.filter(r => myShiftMap[r.date] && !r.is_substitute)
     if (shiftDays.length === 0) return false
     return shiftDays.every(r => {
-      if (!r.clock_in || !myShiftMap[r.date]) return false
-      const diff = timeToMinutes(r.clock_in) - timeToMinutes(myShiftMap[r.date])
+      const shift = myShiftMap[r.date]
+      if (!r.clock_in || !shift) return false
+      const diff = timeToMinutes(r.clock_in) - timeToMinutes(shift.start)
       return diff <= 5
     })
   }
