@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>スタッフ向け説明書｜LINEシステム導入のご案内</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      background: #f5f0eb;
+      color: #333;
+      line-height: 1.8;
+      font-size: 16px;
+    }
+
+    /* ===== ヘッダー ===== */
+    .hero {
+      background: linear-gradient(135deg, #e85d04, #f48c06);
+      color: white;
+      padding: 40px 20px 30px;
+      text-align: center;
+    }
+    .hero .emoji { font-size: 56px; margin-bottom: 10px; }
+    .hero h1 { font-size: 22px; font-weight: bold; letter-spacing: 0.05em; }
+    .hero p  { font-size: 14px; opacity: 0.9; margin-top: 8px; }
+
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.25);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      margin-top: 12px;
+    }
+
+    /* ===== セクション共通 ===== */
+    .section {
+      padding: 28px 16px 20px;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    .section + .section { padding-top: 0; }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #e85d04;
+      border-left: 4px solid #e85d04;
+      padding-left: 10px;
+      margin-bottom: 16px;
+    }
+
+    /* ===== カード ===== */
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      margin-bottom: 14px;
+    }
+
+    /* ===== ビフォーアフター ===== */
+    .before-after {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .before, .after {
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+    }
+    .before {
+      background: #f0f0f0;
+      border: 2px solid #ccc;
+    }
+    .after {
+      background: #fff4e6;
+      border: 2px solid #e85d04;
+    }
+    .before .label { font-size: 12px; color: #888; font-weight: bold; }
+    .after  .label { font-size: 12px; color: #e85d04; font-weight: bold; }
+    .before h3, .after h3 { font-size: 14px; margin: 6px 0; }
+    .before .icon { font-size: 30px; margin-bottom: 4px; }
+    .after  .icon { font-size: 30px; margin-bottom: 4px; }
+
+    .arrow-row {
+      text-align: center;
+      font-size: 28px;
+      margin: 6px 0 14px;
+      color: #e85d04;
+    }
+
+    /* ===== ポイント表 ===== */
+    .point-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .point-table th {
+      background: #e85d04;
+      color: white;
+      padding: 10px 12px;
+      font-size: 14px;
+      text-align: left;
+    }
+    .point-table td {
+      padding: 12px;
+      border-bottom: 1px solid #f0e8df;
+      font-size: 14px;
+    }
+    .point-table tr:last-child td { border-bottom: none; }
+    .point-table tr:nth-child(even) td { background: #fff8f3; }
+    .point-big {
+      font-size: 18px;
+      font-weight: bold;
+      color: #e85d04;
+    }
+
+    /* ===== ステップ ===== */
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px dashed #ede0d4;
+    }
+    .step:last-child { border-bottom: none; }
+    .step-num {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #e85d04;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-body h3 { font-size: 15px; font-weight: bold; margin-bottom: 4px; }
+    .step-body p  { font-size: 13px; color: #666; }
+
+    /* ===== フロー図 ===== */
+    .flow {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .flow-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: white;
+      border-radius: 12px;
+      margin-bottom: 4px;
+      border: 1.5px solid #f0e8df;
+    }
+    .flow-item .flow-icon { font-size: 24px; flex-shrink: 0; }
+    .flow-item .flow-text { font-size: 14px; }
+    .flow-item .flow-text strong { display: block; font-size: 15px; }
+    .flow-arrow {
+      text-align: center;
+      font-size: 20px;
+      color: #aaa;
+      line-height: 1;
+      margin: 2px 0;
+    }
+    .flow-item.green  { border-color: #4caf50; background: #f1fdf3; }
+    .flow-item.orange { border-color: #e85d04; background: #fff4e6; }
+    .flow-item.blue   { border-color: #1976d2; background: #e8f4fd; }
+    .flow-item.purple { border-color: #9c27b0; background: #faf0ff; }
+
+    /* ===== 中地さんへの指示 ===== */
+    .nakachi-box {
+      background: linear-gradient(135deg, #1a237e, #283593);
+      color: white;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+    .nakachi-box h3 { font-size: 16px; font-weight: bold; margin-bottom: 12px; }
+    .nakachi-line {
+      background: rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .nakachi-line .tag {
+      font-size: 11px;
+      background: rgba(255,255,255,0.25);
+      border-radius: 8px;
+      padding: 2px 8px;
+      margin-right: 8px;
+    }
+
+    /* ===== 注意ボックス ===== */
+    .notice {
+      background: #fff8e1;
+      border-left: 4px solid #ffc107;
+      border-radius: 0 12px 12px 0;
+      padding: 14px;
+      margin-bottom: 14px;
+      font-size: 14px;
+    }
+    .notice strong { color: #e65100; }
+
+    /* ===== タグ ===== */
+    .tag-green  { background: #e8f5e9; color: #2e7d32; border-radius: 8px; padding: 2px 10px; font-size: 12px; font-weight: bold; }
+    .tag-orange { background: #fff3e0; color: #e65100; border-radius: 8px; padding: 2px 10px; font-size: 12px; font-weight: bold; }
+    .tag-red    { background: #ffebee; color: #c62828; border-radius: 8px; padding: 2px 10px; font-size: 12px; font-weight: bold; }
+
+    /* ===== FAQ ===== */
+    .faq-item { margin-bottom: 14px; }
+    .faq-q {
+      font-weight: bold;
+      font-size: 15px;
+      color: #e85d04;
+      margin-bottom: 6px;
+    }
+    .faq-q::before { content: 'Q. '; }
+    .faq-a {
+      font-size: 14px;
+      color: #444;
+      background: #f9f9f9;
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .faq-a::before { content: 'A. '; font-weight: bold; color: #555; }
+
+    /* ===== フッター ===== */
+    footer {
+      background: #333;
+      color: #aaa;
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      margin-top: 30px;
+    }
+
+    /* ===== 業務連絡バナー ===== */
+    .announce-banner {
+      background: linear-gradient(90deg, #e85d04, #f48c06);
+      color: white;
+      padding: 16px 20px;
+      font-size: 15px;
+      font-weight: bold;
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+
+    /* 印刷用 */
+    @media print {
+      body { background: white; }
+      .section { padding: 10px 0; }
+    }
+
+    /* スマホ最適化 */
+    @media (max-width: 400px) {
+      .before-after { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ヘッダー -->
+<div class="hero">
+  <div class="emoji">🍜</div>
+  <h1>スタッフの皆さんへ</h1>
+  <p>LINEシステム導入のご案内</p>
+  <div class="badge">📋 スタッフ用マニュアル｜2026年4月</div>
+</div>
+
+<!-- 業務連絡 -->
+<div class="announce-banner">
+  📣 全スタッフ必読！新しい仕組みが始まります
+</div>
+
+
+<!-- ===== 1. 何が変わるの？ ===== -->
+<div class="section">
+  <div class="section-title">① 何が変わるの？</div>
+
+  <div class="card">
+    <p style="font-size:14px; color:#666; margin-bottom:12px;">一言で言うと…</p>
+    <p style="font-size:18px; font-weight:bold; color:#e85d04; line-height:1.6;">
+      お客様に口コミを書いてもらう仕組みが<br>
+      スマホ１つで全部できるようになります 📱
+    </p>
+    <p style="font-size:13px; color:#777; margin-top:10px;">
+      これまで「口コミをお願いします」と口で伝えるだけだったのが、
+      QRコードをスキャンするだけで、お客様が自分でサクサクできるようになります。
+    </p>
+  </div>
+
+  <div class="before-after">
+    <div class="before">
+      <div class="label">😓 これまで</div>
+      <div class="icon">🗣️</div>
+      <h3>口頭でお願い</h3>
+      <p style="font-size:12px; color:#888; margin-top:6px;">「Googleに口コミをお願いします…」と伝えるだけ。書いてもらえたか確認できなかった。</p>
+    </div>
+    <div class="after">
+      <div class="label">😊 これから</div>
+      <div class="icon">📱</div>
+      <h3>QRで完結</h3>
+      <p style="font-size:12px; color:#e85d04; margin-top:6px;">お客様がLINEからQRを読むだけ。書いてくれたか自動で記録される！</p>
+    </div>
+  </div>
+
+  <div class="card" style="background:#fff4e6; border:2px solid #e85d04;">
+    <p style="font-size:14px; font-weight:bold; margin-bottom:8px;">✅ スタッフにとって何が楽になる？</p>
+    <ul style="font-size:14px; color:#555; padding-left:20px; line-height:2.2;">
+      <li>口コミのお願いを言わなくていい</li>
+      <li>書いてもらえたかどうかが自動でわかる</li>
+      <li>どのスタッフが何件もらったか記録される</li>
+      <li>シフト希望もLINEで提出できる（後述）</li>
+    </ul>
+  </div>
+</div>
+
+
+<!-- ===== 2. ポイント制度 ===== -->
+<div class="section">
+  <div class="section-title">② ポイント制度について</div>
+
+  <div class="card">
+    <p style="font-size:14px; color:#666; margin-bottom:12px;">口コミを書いてくれたお客様に特典をプレゼント！</p>
+
+    <table class="point-table">
+      <tr>
+        <th>書いた場所</th>
+        <th>もらえる特典</th>
+      </tr>
+      <tr>
+        <td>🔍 Googleで書く</td>
+        <td><span class="point-big">¥100</span> 相当</td>
+      </tr>
+      <tr>
+        <td>🍽 食べログで書く</td>
+        <td><span class="point-big">¥100</span> 相当</td>
+      </tr>
+      <tr>
+        <td>🎁 両方書く（おトク！）</td>
+        <td><span class="point-big">¥200</span> 相当</td>
+      </tr>
+    </table>
+
+    <div class="notice" style="margin-top:12px; margin-bottom:0;">
+      <strong>特典の使い方：</strong><br>
+      お客様のスマホに「クーポンコード」が表示されます。<br>
+      次回来店のときに、そのコードを見せてもらえば割引適用です！
+    </div>
+  </div>
+
+  <div class="card">
+    <p style="font-size:14px; font-weight:bold; margin-bottom:8px;">🤖 AIが自動で確認してくれる</p>
+    <p style="font-size:13px; color:#666; line-height:1.8;">
+      お客様がスクリーンショットを送ると、<b>AIが自動で本物か確認</b>します。
+      本物だと判断されたら、クーポンコードが即座にお客様の画面に表示されます。
+      スタッフが確認する手間はほぼありません！
+    </p>
+  </div>
+</div>
+
+
+<!-- ===== 3. お客様の流れ（スタッフが知っておく） ===== -->
+<div class="section">
+  <div class="section-title">③ お客様がどう動くか（知っておこう）</div>
+
+  <div class="card">
+    <p style="font-size:13px; color:#888; margin-bottom:14px;">※ スタッフが操作するわけではありません。お客様の流れを把握しておきましょう。</p>
+
+    <div class="flow">
+      <div class="flow-item orange">
+        <div class="flow-icon">📱</div>
+        <div class="flow-text">
+          <strong>① QRコードをスキャン</strong>
+          LINE上でURLが届く
+        </div>
+      </div>
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-item">
+        <div class="flow-icon">👤</div>
+        <div class="flow-text">
+          <strong>② 担当スタッフを選ぶ</strong>
+          名前ボタンをタップするだけ
+        </div>
+      </div>
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-item">
+        <div class="flow-icon">⭐</div>
+        <div class="flow-text">
+          <strong>③ 書く場所を選ぶ</strong>
+          Google / 食べログ / 両方
+        </div>
+      </div>
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-item blue">
+        <div class="flow-icon">✍️</div>
+        <div class="flow-text">
+          <strong>④ 口コミを書く</strong>
+          自動でGoogleまたは食べログが開く
+        </div>
+      </div>
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-item">
+        <div class="flow-icon">📸</div>
+        <div class="flow-text">
+          <strong>⑤ 投稿完了画面をスクショして送る</strong>
+          画面を撮影してアップロード
+        </div>
+      </div>
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-item green">
+        <div class="flow-icon">🎉</div>
+        <div class="flow-text">
+          <strong>⑥ クーポンコードが表示される</strong>
+          AIが自動で確認して即座に発行！
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== 4. スタッフがやること ===== -->
+<div class="section">
+  <div class="section-title">④ スタッフがやること（具体的な手順）</div>
+
+  <div class="card">
+    <p style="font-size:14px; font-weight:bold; color:#e85d04; margin-bottom:14px;">
+      📌 基本的にはお客様が全部やってくれます。<br>スタッフがやることは３つだけ！
+    </p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>会計のときにひと言伝える</h3>
+        <p>「こちらのQRから口コミを書くと、割引クーポンがもらえます！」<br>
+        QRコードの載った台紙やPOPをレジ横に置いておきます。</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>困っているお客様がいたらサポートする</h3>
+        <p>「スクショってどうやるの？」と聞かれたら教えてあげましょう。<br>
+        iPhoneの場合：電源ボタン＋音量ボタンを同時に押す</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>「確認中」の通知がきたら対応する（たまにある）</h3>
+        <p>AIが判断できなかった場合、スタッフのLINEに通知が届きます。<br>
+        その場合だけ、店長（中地さん）に報告してください。</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- スクショの撮り方 -->
+  <div class="card">
+    <p style="font-size:14px; font-weight:bold; margin-bottom:12px;">📱 スクリーンショットの撮り方（お客様に教えるとき）</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px;">
+      <div style="background:#f5f5f5; border-radius:10px; padding:12px; text-align:center;">
+        <div style="font-size:24px; margin-bottom:6px;">🍎</div>
+        <strong>iPhone</strong>
+        <p style="margin-top:6px; color:#555;">電源ボタン ＋<br>音量を上げるボタン<br>を同時に押す</p>
+      </div>
+      <div style="background:#f5f5f5; border-radius:10px; padding:12px; text-align:center;">
+        <div style="font-size:24px; margin-bottom:6px;">🤖</div>
+        <strong>Android</strong>
+        <p style="margin-top:6px; color:#555;">電源ボタン ＋<br>音量を下げるボタン<br>を同時に押す</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== 5. 中地さんへの指示内容 ===== -->
+<div class="section">
+  <div class="section-title">⑤ 中地さんへの指示内容</div>
+
+  <div class="nakachi-box">
+    <h3>👔 中地さん（リーダー）がやること</h3>
+
+    <div class="nakachi-line">
+      <span class="tag">毎日</span>
+      ダッシュボードで口コミ数を確認する<br>
+      <span style="font-size:12px; opacity:0.7;">→ 管理画面のログインIDとパスワードは別途共有します</span>
+    </div>
+
+    <div class="nakachi-line">
+      <span class="tag">毎日</span>
+      スタッフへの声かけを徹底する<br>
+      <span style="font-size:12px; opacity:0.7;">→「今日は何件口コミ取れた？」と確認する</span>
+    </div>
+
+    <div class="nakachi-line">
+      <span class="tag">AIが迷ったとき</span>
+      LINEに「確認が必要」と通知が届く<br>
+      <span style="font-size:12px; opacity:0.7;">→ お客様に「本当に書いたか」を確認してクーポンを手動で渡す</span>
+    </div>
+
+    <div class="nakachi-line">
+      <span class="tag">月1回</span>
+      口コミ数を集計して店長に報告<br>
+      <span style="font-size:12px; opacity:0.7;">→ ダッシュボードの数字をスクショして送ればOK</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <p style="font-size:14px; font-weight:bold; margin-bottom:10px;">📢 中地さんからスタッフへの伝え方（例文）</p>
+    <div style="background:#f9f9f9; border-radius:10px; padding:14px; font-size:14px; color:#444; line-height:1.9; border-left: 4px solid #e85d04;">
+      「みんな、会計のときにQRコードを渡してね。<br>
+      お客さんが口コミを書いてくれたら<b>自動でクーポンが出る</b>から、
+      こっちは何もしなくていいよ。<br>
+      ただ、困ってそうなお客さんがいたら
+      スクショの撮り方だけ教えてあげてね！」
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== 6. シフト提出もLINEでできる！（おまけ） ===== -->
+<div class="section">
+  <div class="section-title">⑥ シフト提出もLINEでできます</div>
+
+  <div class="card">
+    <p style="font-size:14px; color:#666; margin-bottom:12px;">口コミだけじゃなく、シフト希望の提出もLINEからできます。</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>LINEで「シフト」と送る</h3>
+        <p>お店のLINE公式アカウントに「シフト」とメッセージを送るとURLが届く</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>カレンダーで出勤できる日をタップ</h3>
+        <p>カレンダー形式で選ぶだけ。時間も入力できます。</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>「提出する」を押して完了</h3>
+        <p>紙のシフト表に書く必要がなくなります。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== よくある質問 ===== -->
+<div class="section">
+  <div class="section-title">❓ よくある質問</div>
+
+  <div class="card">
+    <div class="faq-item">
+      <div class="faq-q">スマホを持っていないお客様はどうすればいい？</div>
+      <div class="faq-a">無理にお願いしなくて大丈夫です。「もしよければ」程度で声をかけてください。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">お客様がクーポンコードをなくしてしまったら？</div>
+      <div class="faq-a">店長（中地さん）に報告してください。管理画面から再確認できます。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">口コミを書いてくれたのにコードが出ないと言われたら？</div>
+      <div class="faq-a">スクリーンショットが不鮮明だった可能性があります。もう一度撮り直してもらうか、中地さんに報告してください。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">自分の名前で何件口コミを取れたか知りたい</div>
+      <div class="faq-a">中地さんに聞けばわかります。毎週共有してもらいましょう！</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">システムが動いていないように見える</div>
+      <div class="faq-a">まず中地さんに報告してください。店長→GOAT担当者に確認します。</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== まとめ ===== -->
+<div class="section">
+  <div class="card" style="background: linear-gradient(135deg, #e85d04, #f48c06); color:white; text-align:center; padding:24px;">
+    <p style="font-size:32px; margin-bottom:10px;">🙌</p>
+    <h2 style="font-size:18px; margin-bottom:12px;">スタッフのみんなへ</h2>
+    <p style="font-size:14px; line-height:2; opacity:0.95;">
+      口コミが増えると、お店に新しいお客様が来てくれます。<br>
+      新しいお客様が増えると、みんなのお仕事がもっと楽しくなります。<br><br>
+      <strong>やることはひと言だけ。「QRコードどうぞ！」</strong><br><br>
+      一緒にお店を盛り上げていきましょう！
+    </p>
+  </div>
+</div>
+
+
+<footer>
+  <p>このマニュアルはGOAT株式会社が作成しました</p>
+  <p style="margin-top:4px;">不明な点は中地さんまたは店長にご確認ください</p>
+</footer>
+
+</body>
+</html>

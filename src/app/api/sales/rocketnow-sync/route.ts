@@ -7,9 +7,11 @@ export const dynamic = 'force-dynamic'
  *
  * body: { csv: string }
  *
- * CSVフォーマット（柔軟対応）:
- *   日付, 注文数, 売上金額  （カンマ or タブ区切り）
- *   YYYY-MM-DD, 3, 4500
+ * CSVフォーマット（2パターン対応）:
+ *   ① ヘッダーに「精算予定金額」列がある場合 → その列を使用
+ *   ② ヘッダーなし or 列名不明の場合 → 一番右端の列を使用（Excelエクスポート対応）
+ *
+ *   日付列は「注文日」「日付」「date」などの列名 or 最初のYYYY-MM-DD形式の列を使用
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -19,6 +21,33 @@ const TENANT_ID = process.env.TENANT_ID!
 
 type DeliveryRow = { date: string; orders: number; amount: number }
 
+/** 日付文字列を YYYY-MM-DD に変換 */
+function normalizeDate(raw: string): string | null {
+  // YYYY/M/D または YYYY/MM/DD
+  if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(raw)) {
+    const [y, m, d] = raw.split('/')
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+  // YYYY-M-D または YYYY-MM-DD
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(raw)) {
+    const [y, m, d] = raw.split('-')
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+  return null
+}
+
+/** CSV/TSV行をカラム配列に分割 */
+function splitLine(line: string): string[] {
+  return line.split(/[,\t]/).map(c => c.trim().replace(/^"|"$/g, '').trim())
+}
+
+/** 数値文字列をパース（カンマ・円記号・空白対応） */
+function parseAmount(s: string | undefined): number {
+  if (!s) return 0
+  const n = parseInt(s.replace(/[^0-9\-]/g, ''), 10)
+  return isNaN(n) ? 0 : n
+}
+
 function parseRocketnowCsv(csv: string): DeliveryRow[] {
   // BOM除去
   const content = csv.replace(/^\uFEFF/, '')
@@ -27,43 +56,65 @@ function parseRocketnowCsv(csv: string): DeliveryRow[] {
 
   const results: DeliveryRow[] = []
 
-  // ヘッダー行をスキップ（数字で始まらない行）
-  let dataStart = 0
-  for (let i = 0; i < lines.length; i++) {
-    const first = lines[i].trim().split(/[,\t]/)[0]?.replace(/"/g, '').trim()
-    if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(first)) {
-      dataStart = i
+  // ── ヘッダー行を探す ──────────────────────────────
+  // 「精算予定金額」「注文日」などのキーワードを含む行をヘッダーとして検出
+  let headerIdx = -1
+  let idxDate   = -1
+  let idxAmount = -1  // 精算予定金額の列インデックス
+  let idxOrders = -1
+
+  // ヘッダーはExcelの場合4行の注記の後（最大10行以内）に出現する
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    const cols = splitLine(lines[i])
+    // 「精算予定金額」が含まれていればヘッダー行確定
+    const hasSettlement = cols.some(c => c.includes('精算予定金額'))
+    if (hasSettlement) {
+      headerIdx = i
+      idxAmount = cols.findIndex(c => c.includes('精算予定金額'))
+      // 取引日・注文日・日付・date いずれかの列を日付列とする
+      idxDate   = cols.findIndex(c =>
+        c.includes('取引日') || c.includes('注文日') || c.includes('日付') || c.toLowerCase().includes('date')
+      )
+      idxOrders = cols.findIndex(c => c.includes('注文数') || c.includes('件数') || c.toLowerCase().includes('count'))
+      if (idxDate === -1) {
+        // 日付列が見つからなければ最初に日付形式の値が入っている列を動的に探す
+        idxDate = 0
+      }
       break
     }
-    dataStart = i + 1
   }
 
-  for (const line of lines.slice(dataStart)) {
-    const cols = line.split(/[,\t]/).map(c => c.trim().replace(/"/g, ''))
+  // ── データ行の処理 ──────────────────────────────
+  const dataStart = headerIdx >= 0 ? headerIdx + 1 : 0
+
+  for (let i = dataStart; i < lines.length; i++) {
+    const cols = splitLine(lines[i])
     if (cols.length < 2) continue
 
+    // ヘッダーありパターン
+    if (headerIdx >= 0) {
+      const rawDate = cols[idxDate] ?? ''
+      const date = normalizeDate(rawDate)
+      if (!date) continue
+
+      const amount = parseAmount(cols[idxAmount])
+      const orders = idxOrders >= 0 ? parseAmount(cols[idxOrders]) : 1
+      if (amount === 0) continue
+
+      results.push({ date, orders, amount })
+      continue
+    }
+
+    // ヘッダーなしパターン：日付 + 右端列（精算予定金額）
     const rawDate = cols[0]
-    let date = rawDate
+    const date = normalizeDate(rawDate)
+    if (!date) continue
 
-    // YYYY/M/D → YYYY-MM-DD
-    if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(rawDate)) {
-      const [y, m, d] = rawDate.split('/')
-      date = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-    }
-    // YYYY-M-D → YYYY-MM-DD
-    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(rawDate)) {
-      const [y, m, d] = rawDate.split('-')
-      date = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-    }
-
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
-
-    const orders = cols.length >= 3 ? parseInt(cols[1].replace(/[^0-9]/g, '')) || 0 : 0
-    const amount = cols.length >= 3
-      ? parseInt(cols[2].replace(/[^0-9]/g, '')) || 0
-      : parseInt(cols[1].replace(/[^0-9]/g, '')) || 0
-
-    if (amount === 0 && orders === 0) continue
+    // 右端列が精算予定金額（Excelエクスポート仕様）
+    const amount = parseAmount(cols[cols.length - 1])
+    // 注文数は2列目があれば使用、なければ1件として扱う
+    const orders = cols.length >= 3 ? parseAmount(cols[1]) : 1
+    if (amount === 0) continue
 
     results.push({ date, orders, amount })
   }

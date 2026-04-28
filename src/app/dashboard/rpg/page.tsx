@@ -2,10 +2,14 @@
  * スタッフRPGシステム
  * /dashboard/rpg
  *
- * EXP計算ロジック:
- *   勤怠1日 = 50 EXP
- *   口コミ獲得1件 = 150 EXP
- *   遅刻なし週 = 100 EXP（全曜日でclock_inが存在する週）
+ * EXP計算ロジック（v2）:
+ *   ① Google口コミ獲得1件    = +150 EXP
+ *   ② 出退勤（確定シフト基準）
+ *        早い / 時間通り      = +50 EXP
+ *        遅刻（5分超）        = −30 EXP
+ *        シフト未登録日の出勤 = +20 EXP
+ *   ③ シフト代打（is_substitute=true）= +200 EXP
+ *   ④ 店舗改善承認（store_improvements）= 管理者設定EXP
  * レベル = Math.floor(EXP / 1000) + 1
  */
 export const dynamic = 'force-dynamic'
@@ -77,7 +81,7 @@ export default async function RPGPage() {
   } catch { /* use defaults */ }
 
   // 並列取得
-  const [staffRes, rpgRes, attendanceRes, reviewsRes] = await Promise.all([
+  const [staffRes, rpgRes, attendanceRes, reviewsRes, shiftsRes, improvementsRes] = await Promise.all([
     db.from('staff')
       .select('id, name')
       .eq('tenant_id', TENANT_ID)
@@ -87,7 +91,7 @@ export default async function RPGPage() {
       .select('staff_id, level, exp, title, badges')
       .eq('tenant_id', TENANT_ID),
     db.from('attendance')
-      .select('staff_id, date, clock_in, clock_out')
+      .select('staff_id, date, clock_in, clock_out, is_substitute')
       .eq('tenant_id', TENANT_ID)
       .gte('date', monthStart)
       .lte('date', monthEnd),
@@ -97,6 +101,19 @@ export default async function RPGPage() {
       .eq('verified', true)
       .gte('created_at', `${monthStart}T00:00:00`)
       .lte('created_at', `${monthEnd}T23:59:59`),
+    // 確定シフト（出退勤基準比較用）
+    db.from('shifts')
+      .select('staff_id, date, start_time')
+      .eq('tenant_id', TENANT_ID)
+      .gte('date', monthStart)
+      .lte('date', monthEnd),
+    // 承認済み店舗改善（EXP付与用）
+    db.from('store_improvements')
+      .select('staff_id, exp_reward')
+      .eq('tenant_id', TENANT_ID)
+      .eq('status', 'approved')
+      .gte('reviewed_at', `${monthStart}T00:00:00`)
+      .lte('reviewed_at', `${monthEnd}T23:59:59`),
   ])
 
   const staffList: { id: string; name: string }[] = staffRes.data ?? []
@@ -106,13 +123,29 @@ export default async function RPGPage() {
   }
 
   // 勤怠: スタッフ別に集計
-  const attendanceMap: Record<string, { dates: string[]; clockIns: string[] }> = {}
+  const attendanceMap: Record<string, {
+    dates: string[]
+    clockIns: string[]
+    records: { date: string; clock_in: string | null; is_substitute: boolean }[]
+  }> = {}
   for (const a of (attendanceRes.data ?? [])) {
     if (!attendanceMap[a.staff_id]) {
-      attendanceMap[a.staff_id] = { dates: [], clockIns: [] }
+      attendanceMap[a.staff_id] = { dates: [], clockIns: [], records: [] }
     }
     attendanceMap[a.staff_id].dates.push(a.date)
     if (a.clock_in) attendanceMap[a.staff_id].clockIns.push(a.date)
+    attendanceMap[a.staff_id].records.push({
+      date: a.date,
+      clock_in: a.clock_in ?? null,
+      is_substitute: a.is_substitute ?? false,
+    })
+  }
+
+  // 確定シフト: スタッフ×日付 → start_time のマップ
+  const shiftMap: Record<string, Record<string, string>> = {}
+  for (const s of (shiftsRes.data ?? [])) {
+    if (!shiftMap[s.staff_id]) shiftMap[s.staff_id] = {}
+    shiftMap[s.staff_id][s.date] = s.start_time  // "HH:MM:SS"
   }
 
   // 口コミ: スタッフ別に件数集計
@@ -122,39 +155,74 @@ export default async function RPGPage() {
     reviewCountMap[r.staff_id]++
   }
 
-  // 遅刻ゼロ週の判定: 週単位で全日clock_inが存在するか
-  function calcNoPunctualWeeks(staffId: string): number {
-    const clockInSet = new Set(attendanceMap[staffId]?.clockIns ?? [])
-    const allDates   = attendanceMap[staffId]?.dates ?? []
-    if (allDates.length === 0) return 0
-
-    // 週に分割して、その週の出勤日全てにclock_inがあれば1週間カウント
-    const weekMap: Record<string, { total: number; onTime: number }> = {}
-    for (const dateStr of allDates) {
-      const d = new Date(dateStr)
-      // 週の月曜日を週キーとする
-      const dow  = d.getDay() // 0=日
-      const diff = dow === 0 ? -6 : 1 - dow
-      const monday = new Date(d)
-      monday.setDate(d.getDate() + diff)
-      const weekKey = monday.toISOString().split('T')[0]
-      if (!weekMap[weekKey]) weekMap[weekKey] = { total: 0, onTime: 0 }
-      weekMap[weekKey].total++
-      if (clockInSet.has(dateStr)) weekMap[weekKey].onTime++
-    }
-    let count = 0
-    for (const w of Object.values(weekMap)) {
-      if (w.total > 0 && w.total === w.onTime) count++
-    }
-    return count
+  // 店舗改善: スタッフ別EXP合計
+  const improvementExpMap: Record<string, number> = {}
+  for (const imp of (improvementsRes.data ?? [])) {
+    if (!imp.staff_id) continue
+    improvementExpMap[imp.staff_id] = (improvementExpMap[imp.staff_id] ?? 0) + (imp.exp_reward ?? 0)
   }
 
-  // EXP計算
+  /** TIME文字列 "HH:MM:SS" を分に変換 */
+  function timeToMinutes(t: string): number {
+    const [h, m] = t.split(':').map(Number)
+    return h * 60 + m
+  }
+
+  /**
+   * EXP計算（v2）
+   * ① 口コミ +150
+   * ② 出退勤（確定シフト基準）: 早い/時間通り +50 / 遅刻(5分超) −30 / シフトなし日 +20
+   * ③ 代打 +200
+   * ④ 改善承認 管理者設定EXP
+   */
   function calcExp(staffId: string): number {
-    const workDays    = (attendanceMap[staffId]?.dates ?? []).length
+    const records     = attendanceMap[staffId]?.records ?? []
+    const myShiftMap  = shiftMap[staffId] ?? {}
     const reviewCount = reviewCountMap[staffId] ?? 0
-    const noPunctual  = calcNoPunctualWeeks(staffId)
-    return workDays * 50 + reviewCount * 150 + noPunctual * 100
+    const impExp      = improvementExpMap[staffId] ?? 0
+
+    let exp = 0
+
+    // ① 口コミ
+    exp += reviewCount * 150
+
+    // ② 出退勤 ③ 代打
+    for (const rec of records) {
+      // 代打ボーナス
+      if (rec.is_substitute) {
+        exp += 200
+        continue  // 代打日は通常出勤EXPと重複させない
+      }
+
+      const shiftStart = myShiftMap[rec.date]  // 確定シフトの開始時刻
+
+      if (!shiftStart) {
+        // シフト未登録日の出勤（自主出勤など）→ 基本 +20
+        exp += 20
+        continue
+      }
+
+      if (!rec.clock_in) {
+        // シフトがあるのに打刻なし → 遅刻扱い −30
+        exp -= 30
+        continue
+      }
+
+      const shiftMin   = timeToMinutes(shiftStart)
+      const clockMin   = timeToMinutes(rec.clock_in)
+      const diffMin    = clockMin - shiftMin  // 正=遅刻、負=早い
+
+      if (diffMin <= 5) {
+        exp += 50  // 早い or ±5分以内 → 出勤ボーナス
+      } else {
+        exp -= 30  // 5分超遅刻 → マイナス
+      }
+    }
+
+    // ④ 店舗改善
+    exp += impExp
+
+    return Math.max(0, exp)  // 0未満にはしない
   }
 
   // バッジ判定に必要な口コミ最大件数
@@ -179,11 +247,17 @@ export default async function RPGPage() {
     return false
   }
 
-  // 遅刻ゼロ（今月の全出勤にclock_inがある）
+  // 遅刻ゼロ（確定シフトのある日に全て5分以内で出勤）
   function hasZeroLate(staffId: string): boolean {
-    const all    = attendanceMap[staffId]?.dates ?? []
-    const onTime = attendanceMap[staffId]?.clockIns ?? []
-    return all.length > 0 && all.length === onTime.length
+    const records    = attendanceMap[staffId]?.records ?? []
+    const myShiftMap = shiftMap[staffId] ?? {}
+    const shiftDays  = records.filter(r => myShiftMap[r.date] && !r.is_substitute)
+    if (shiftDays.length === 0) return false
+    return shiftDays.every(r => {
+      if (!r.clock_in || !myShiftMap[r.date]) return false
+      const diff = timeToMinutes(r.clock_in) - timeToMinutes(myShiftMap[r.date])
+      return diff <= 5
+    })
   }
 
   // 全スタッフのRPGデータを組み立て
