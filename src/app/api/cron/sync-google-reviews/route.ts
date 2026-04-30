@@ -40,7 +40,7 @@ type PlaceDetails = {
 async function fetchPlaceDetails(): Promise<PlaceDetails | null> {
   if (!PLACE_ID || !API_KEY) return null
 
-  const url = `https://places.googleapis.com/v1/places/${PLACE_ID}`
+  const url = `https://places.googleapis.com/v1/places/${PLACE_ID}?languageCode=ja`
   const res = await fetch(url, {
     headers: {
       'X-Goog-Api-Key': API_KEY,

@@ -20,22 +20,22 @@ const R = [0, 843]           // 各行の y 開始座標
 const H = 843                // 行の高さ
 
 // ─────────────────────────────────────────
-// スタッフ用（全スタッフに表示）
-// 上段: 出勤 / 退勤 / シフト希望提出
-// 下段: 経営メニューへ / ⚔️ランク確認 / シフト確認
+// スタッフ用（全スタッフに表示）v5
+// 上段: 出勤打刻 / 退勤打刻 / ダッシュボード
+// 下段: シフト提出 / 自分のランク / 意見箱
 // ─────────────────────────────────────────
 export const STAFF_MENU_DEF = {
   size: { width: 2500, height: 1686 },
   selected: true,
-  name: 'GOAT Staff Menu v4',
+  name: 'GOAT Staff Menu v5',
   chatBarText: 'スタッフメニュー',
   areas: [
-    { bounds: { x: C[0], y: R[0], width: W[0], height: H }, action: { type: 'message', label: '出勤打刻',      text: '出勤'            } },
-    { bounds: { x: C[1], y: R[0], width: W[1], height: H }, action: { type: 'message', label: '退勤打刻',      text: '退勤'            } },
-    { bounds: { x: C[2], y: R[0], width: W[2], height: H }, action: { type: 'message', label: 'シフト希望提出', text: 'シフト希望提出'  } },
-    { bounds: { x: C[0], y: R[1], width: W[0], height: H }, action: { type: 'message', label: '経営メニューへ', text: '経営メニューへ切替' } },
-    { bounds: { x: C[1], y: R[1], width: W[1], height: H }, action: { type: 'message', label: 'ランク確認',    text: '自分のランク'    } },
-    { bounds: { x: C[2], y: R[1], width: W[2], height: H }, action: { type: 'message', label: 'シフト確認',    text: 'シフト確認'      } },
+    { bounds: { x: C[0], y: R[0], width: W[0], height: H }, action: { type: 'message', label: '出勤打刻',        text: '出勤'                             } },
+    { bounds: { x: C[1], y: R[0], width: W[1], height: H }, action: { type: 'message', label: '退勤打刻',        text: '退勤'                             } },
+    { bounds: { x: C[2], y: R[0], width: W[2], height: H }, action: { type: 'uri',     label: 'ダッシュボード',  uri: `${BASE_URL}/staff-home`            } },
+    { bounds: { x: C[0], y: R[1], width: W[0], height: H }, action: { type: 'message', label: 'シフト提出',      text: 'シフト希望提出'                   } },
+    { bounds: { x: C[1], y: R[1], width: W[1], height: H }, action: { type: 'uri',     label: '自分のランク',    uri: `${BASE_URL}/dashboard/rpg`         } },
+    { bounds: { x: C[2], y: R[1], width: W[2], height: H }, action: { type: 'uri',     label: '意見箱',          uri: `${BASE_URL}/improve`               } },
   ],
 } as const
 
@@ -59,5 +59,5 @@ export const MANAGER_MENU_DEF = {
   ],
 } as const
 
-export const STAFF_MENU_NAME   = STAFF_MENU_DEF.name    // 'GOAT Staff Menu v4'
+export const STAFF_MENU_NAME   = STAFF_MENU_DEF.name    // 'GOAT Staff Menu v5'
 export const MANAGER_MENU_NAME = MANAGER_MENU_DEF.name  // 'GOAT Manager Menu v3'

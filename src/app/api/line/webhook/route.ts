@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
 import { sendLineMessage, replyLineMessage } from '@/lib/line-staff'
+import { STAFF_MENU_NAME, MANAGER_MENU_NAME } from '@/lib/richmenu-defs'
 
 const CHANNEL_SECRET = process.env.LINE_STAFF_CHANNEL_SECRET!
 // TENANT_ID にはUUID（b78c555f-47c9-4552-bdaf-28656814c1f9）を直接設定
@@ -929,7 +930,7 @@ async function handleMenuSwitch(lineUserId: string, to: 'staff' | 'manager', rep
   const listData = await listRes.json() as { richmenus: { richMenuId: string; name: string }[] }
   const menus = listData.richmenus ?? []
 
-  const targetName = to === 'manager' ? 'GOAT Manager Menu v3' : 'GOAT Staff Menu v4'
+  const targetName = to === 'manager' ? MANAGER_MENU_NAME : STAFF_MENU_NAME
   const targetMenu = menus.find(m => m.name === targetName)
 
   if (!targetMenu) {
