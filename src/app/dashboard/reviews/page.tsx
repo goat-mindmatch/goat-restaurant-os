@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createServiceClient } from '@/lib/supabase'
 import DashboardNav from '@/components/DashboardNav'
+import ExpandableText from '@/components/ExpandableText'
 
 const TENANT_ID = process.env.TENANT_ID!
 
@@ -120,17 +121,34 @@ export default async function ReviewsDashboardPage() {
             <div className="space-y-2 border-t pt-3">
               <p className="text-xs text-gray-400">直近の口コミ（Google自動取得）</p>
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {google.cache.map((r: any, i: number) => (
-                <div key={i} className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-xs font-semibold text-gray-700">{r.reviewer_name ?? '匿名'}</p>
-                    <p className="text-xs text-yellow-500">{'★'.repeat(Number(r.star_rating) || 0)}</p>
+              {google.cache.map((r: any, i: number) => {
+                const postedAt = r.created_time
+                  ? new Date(r.created_time).toLocaleString('ja-JP', {
+                      timeZone: 'Asia/Tokyo',
+                      year: 'numeric',
+                      month: 'numeric',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : null
+                return (
+                  <div key={i} className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex justify-between items-start mb-1">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700">{r.reviewer_name ?? '匿名'}</p>
+                        {postedAt && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">{postedAt}</p>
+                        )}
+                      </div>
+                      <p className="text-xs text-yellow-500 shrink-0 ml-2">{'★'.repeat(Number(r.star_rating) || 0)}</p>
+                    </div>
+                    {r.comment && (
+                      <ExpandableText text={r.comment} className="mt-1" />
+                    )}
                   </div>
-                  {r.comment && (
-                    <p className="text-xs text-gray-600 line-clamp-2">{r.comment}</p>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -240,11 +258,11 @@ export default async function ReviewsDashboardPage() {
                     )}
                   </div>
                 </div>
-                {/* 口コミ本文プレビュー（承認待ちで本文ありの場合） */}
-                {!r.verified_at && r.completed && r.review_text && (
-                  <p className="mt-1 text-xs text-gray-500 bg-gray-50 rounded p-2 line-clamp-2">
-                    &ldquo;{r.review_text}&rdquo;
-                  </p>
+                {/* 口コミ本文（本文ありの場合は折りたたみ表示） */}
+                {r.completed && r.review_text && (
+                  <div className="mt-1 bg-gray-50 rounded p-2">
+                    <ExpandableText text={`"${r.review_text}"`} />
+                  </div>
                 )}
               </div>
             )
