@@ -558,9 +558,10 @@ function TeamChallenge({ stats }: { stats: TeamStats }) {
 
 // ─── デイリーミッション ───────────────────────────────
 const DAILY_MISSIONS = [
-  { icon: '⭐', title: '口コミを1件獲得する', exp: 150, hint: 'お客様にQRを渡してみよう' },
-  { icon: '🕐', title: '定時に出勤する',       exp: 100, hint: 'シフト開始5分前には準備完了' },
-  { icon: '📋', title: 'タスクを3つ完了する',   exp: 150, hint: '仕込みリストをチェック' },
+  { icon: '⭐', title: '口コミを1件獲得する',       exp: 150, hint: 'お客様にQRを渡してみよう（褒めコメントで+200）' },
+  { icon: '🕐', title: '定時に出勤する',             exp: 50,  hint: 'シフト開始5分前には準備完了' },
+  { icon: '🏃', title: '規定より早く業務を終わらせる', exp: 100, hint: '退勤打刻がシフト終了より5分以上早ければOK' },
+  { icon: '🔄', title: 'シフト代打で出勤する',       exp: 100, hint: '誰かの代わりに入ったシフトが対象' },
 ]
 
 function DailyMissions() {
@@ -593,7 +594,7 @@ function DailyMissions() {
         ))}
       </div>
       <p className="text-[10px] text-gray-600 text-center mt-3">
-        ※ ミッション達成は打刻・タスク・口コミが自動で集計されます
+        ※ ミッション達成は打刻・口コミ・代打が自動で集計されます
       </p>
     </div>
   )
@@ -730,9 +731,11 @@ export default function RPGClient({ staffList, currentMonth, teamStats, rewards 
 
         {/* EXP凡例 */}
         <div className="flex flex-wrap gap-3 mt-3 text-[10px] text-gray-400">
-          <span>出勤1日 = 50 EXP</span>
-          <span>口コミ1件 = 150 EXP</span>
-          <span>遅刻ゼロ週 = 100 EXP</span>
+          <span>口コミ獲得 = 150〜200 EXP</span>
+          <span>定時出勤 = 50 EXP</span>
+          <span>早退ボーナス = 100 EXP</span>
+          <span>代打出勤 = 100 EXP</span>
+          <span>改善提案承認 = 100〜300 EXP</span>
         </div>
       </div>
 

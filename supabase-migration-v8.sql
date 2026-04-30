@@ -1,9 +1,10 @@
 -- ============================================================
 -- Migration v8: 口コミ感情分析（sentiment）カラム追加
 -- ============================================================
--- reviews テーブルに sentiment・exp_awarded を追加
+-- reviews テーブルに必要なカラムを追加
 
 ALTER TABLE reviews
+  ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW(),
   ADD COLUMN IF NOT EXISTS sentiment    TEXT CHECK (sentiment IN ('positive', 'neutral', 'negative')),
   ADD COLUMN IF NOT EXISTS exp_awarded  INTEGER DEFAULT 150;
 
