@@ -82,9 +82,24 @@ const TOOLS: Tool[] = [
     category: 'LINE設定',
     confirm: 'リッチメニューを全削除して再作成します。実行後は必ず設定ページから画像を再アップロードしてください。よろしいですか？',
   },
+  {
+    id: 'reset-google-reviews',
+    label: 'Google口コミ キャッシュリセット',
+    description: '英語口コミが表示されている場合に実行。キャッシュを全削除してGoogleから日本語で再取得します',
+    icon: '🌐',
+    category: '口コミ',
+    confirm: '現在キャッシュされている口コミをすべて削除し、Googleから再取得します。よろしいですか？',
+  },
+  {
+    id: 'sync-google-reviews',
+    label: 'Google口コミ 今すぐ同期',
+    description: '毎日深夜に自動実行される口コミ取得を手動で実行します',
+    icon: '🔄',
+    category: '口コミ',
+  },
 ]
 
-const CATEGORIES = ['レポート', 'LINE送信', '在庫・発注', 'LINE設定']
+const CATEGORIES = ['レポート', 'LINE送信', '在庫・発注', 'LINE設定', '口コミ']
 
 export default function AdminToolsClient() {
   const [results, setResults] = useState<Record<string, ToolResult | null>>({})

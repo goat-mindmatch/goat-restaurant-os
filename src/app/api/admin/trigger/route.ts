@@ -21,13 +21,15 @@ const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://goat-restaurant-os.
 const SECRET   = process.env.CRON_SECRET ?? ''
 
 const ACTION_MAP: Record<string, { path: string; method: 'GET' | 'POST' }> = {
-  'weekly-report':    { path: '/api/reports/weekly',        method: 'GET' },
-  'ai-manager-check': { path: '/api/ai-manager/check',      method: 'GET' },
-  'daily-report':     { path: '/api/line/daily-report',     method: 'GET' },
-  'send-mission':     { path: '/api/line/send-mission',     method: 'POST' },
-  'send-payslips':    { path: '/api/payroll/send-slip',     method: 'GET' },
-  'auto-order':       { path: '/api/inventory/auto-order',  method: 'GET' },
-  'setup-richmenu':   { path: '/api/line/setup-richmenu',   method: 'POST' },
+  'weekly-report':       { path: '/api/reports/weekly',           method: 'GET' },
+  'ai-manager-check':    { path: '/api/ai-manager/check',         method: 'GET' },
+  'daily-report':        { path: '/api/line/daily-report',        method: 'GET' },
+  'send-mission':        { path: '/api/line/send-mission',        method: 'POST' },
+  'send-payslips':       { path: '/api/payroll/send-slip',        method: 'GET' },
+  'auto-order':          { path: '/api/inventory/auto-order',     method: 'GET' },
+  'setup-richmenu':      { path: '/api/line/setup-richmenu',      method: 'POST' },
+  'reset-google-reviews':{ path: '/api/reviews/reset-cache',      method: 'POST' },
+  'sync-google-reviews': { path: '/api/cron/sync-google-reviews', method: 'GET' },
 }
 
 export async function POST(req: NextRequest) {
