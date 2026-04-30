@@ -55,8 +55,14 @@ async function fetchPlaceDetails(): Promise<PlaceDetails | null> {
 }
 
 export async function GET(req: NextRequest) {
+  // Vercel Cron: Authorization ヘッダー or 管理ツール: ?secret= クエリの両方を受け付ける
   const auth = req.headers.get('authorization')
-  if (CRON_SECRET && auth !== `Bearer ${CRON_SECRET}`) {
+  const querySecret = req.nextUrl.searchParams.get('secret')
+  const isAuthorized =
+    !CRON_SECRET ||
+    auth === `Bearer ${CRON_SECRET}` ||
+    querySecret === CRON_SECRET
+  if (!isAuthorized) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 

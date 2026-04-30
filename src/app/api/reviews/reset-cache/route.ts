@@ -37,8 +37,11 @@ export async function POST() {
 
     // 2. 日本語で再取得（sync-google-reviews を呼ぶ）
     const syncRes = await fetch(
-      `${BASE_URL}/api/cron/sync-google-reviews?secret=${encodeURIComponent(CRON_SECRET)}`,
-      { method: 'GET' }
+      `${BASE_URL}/api/cron/sync-google-reviews`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${CRON_SECRET}` },
+      }
     )
     const syncData = await syncRes.json()
 
