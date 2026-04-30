@@ -58,13 +58,15 @@ export async function POST(req: NextRequest) {
   const menuDef  = MENU_DEFS[menuType]
   const menuName = menuDef.name
 
-  // 1. 既存の同名メニューを削除（IDを変えるため）
+  // 1. 同種の古いメニューをすべて削除
+  //    （v4→v5など旧バージョンが残らないよう、名前の完全一致ではなくキーワードで全削除）
   const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers: auth })
   if (listRes.ok) {
     const listData = await listRes.json() as { richmenus: { richMenuId: string; name: string }[] }
-    const oldMenu = (listData.richmenus ?? []).find(m => m.name === menuName)
-    if (oldMenu) {
-      await fetch(`https://api.line.me/v2/bot/richmenu/${oldMenu.richMenuId}`, {
+    const keyword  = menuType === 'staff' ? 'Staff' : 'Manager'
+    const oldMenus = (listData.richmenus ?? []).filter(m => m.name.includes(keyword))
+    for (const old of oldMenus) {
+      await fetch(`https://api.line.me/v2/bot/richmenu/${old.richMenuId}`, {
         method: 'DELETE', headers: auth,
       })
     }
