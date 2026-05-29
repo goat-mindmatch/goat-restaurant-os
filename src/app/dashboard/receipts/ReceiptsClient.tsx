@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 
 type ExpenseWithStaff = {
@@ -17,21 +18,25 @@ type ExpenseWithStaff = {
 
 const CATEGORY_LABELS: Record<string, string> = {
   food: '食材費',
+  fuel: 'ガソリン代',
   utility: '光熱費',
   consumable: '消耗品',
   equipment: '設備費',
   rent: '家賃',
   communication: '通信費',
+  transport: '交通費',
   other: 'その他',
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
   food: 'bg-orange-100 text-orange-700',
+  fuel: 'bg-amber-100 text-amber-700',
   utility: 'bg-yellow-100 text-yellow-700',
   consumable: 'bg-green-100 text-green-700',
   equipment: 'bg-blue-100 text-blue-700',
   rent: 'bg-purple-100 text-purple-700',
   communication: 'bg-pink-100 text-pink-700',
+  transport: 'bg-cyan-100 text-cyan-700',
   other: 'bg-gray-100 text-gray-600',
 }
 
@@ -39,15 +44,64 @@ type Props = {
   expenses: ExpenseWithStaff[]
   staffStats: { id: string; name: string; count: number; total: number }[]
   month: string
+  monthOptions: string[]
 }
 
-export default function ReceiptsClient({ expenses, staffStats, month }: Props) {
-  const [selectedImage, setSelectedImage] = useState<ExpenseWithStaff | null>(null)
+export default function ReceiptsClient({ expenses, staffStats, month, monthOptions }: Props) {
+  const router = useRouter()
+  const [selected, setSelected] = useState<ExpenseWithStaff | null>(null)
   const [filterStaff, setFilterStaff] = useState<string>('all')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({ category: '', vendor: '', note: '', amount: 0, date: '' })
+  const [saving, setSaving] = useState(false)
 
-  // フィルタ適用
+  const onMonthChange = (m: string) => {
+    router.push(`/dashboard/receipts?month=${m}`)
+  }
+
+  const openEdit = (exp: ExpenseWithStaff) => {
+    setEditForm({
+      category: exp.category,
+      vendor: exp.vendor ?? '',
+      note: exp.note ?? '',
+      amount: exp.amount,
+      date: exp.date,
+    })
+    setIsEditing(true)
+  }
+
+  const saveEdit = async () => {
+    if (!selected) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/expenses/${selected.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: editForm.category,
+          vendor:   editForm.vendor || null,
+          note:     editForm.note || null,
+          amount:   Number(editForm.amount),
+          date:     editForm.date,
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok) {
+        alert(`保存失敗: ${j.error ?? res.status}`)
+        return
+      }
+      setIsEditing(false)
+      setSelected(null)
+      router.refresh()
+    } catch (e) {
+      alert(`保存失敗: ${(e as Error).message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const filtered = expenses.filter(e => {
     if (filterStaff !== 'all' && e.staff?.name !== filterStaff) return false
     if (filterCategory !== 'all' && e.category !== filterCategory) return false
@@ -59,12 +113,26 @@ export default function ReceiptsClient({ expenses, staffStats, month }: Props) {
 
   return (
     <div className="pb-28">
+      {/* 月セレクタ */}
+      <div className="mx-4 mt-4 bg-white rounded-xl shadow-sm p-3 flex items-center gap-3">
+        <span className="text-xs font-semibold text-gray-500">📅 月</span>
+        <select
+          value={month}
+          onChange={e => onMonthChange(e.target.value)}
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-medium bg-white"
+        >
+          {monthOptions.map(m => (
+            <option key={m} value={m}>{m.replace('-', '年') + '月'}</option>
+          ))}
+        </select>
+      </div>
+
       {/* スタッフ別サマリー */}
       <div className="mx-4 mt-4">
         <h2 className="text-sm font-bold text-gray-700 mb-2">👤 スタッフ別 送付枚数</h2>
         <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100">
           {staffStats.length === 0 ? (
-            <p className="p-4 text-sm text-gray-400">今月のレシート提出なし</p>
+            <p className="p-4 text-sm text-gray-400">{month} のレシート提出なし</p>
           ) : (
             staffStats.map(s => (
               <button
@@ -149,7 +217,7 @@ export default function ReceiptsClient({ expenses, staffStats, month }: Props) {
                 {withImage.map(exp => (
                   <button
                     key={exp.id}
-                    onClick={() => setSelectedImage(exp)}
+                    onClick={() => setSelected(exp)}
                     className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 shadow-sm hover:opacity-90"
                   >
                     <Image
@@ -177,7 +245,11 @@ export default function ReceiptsClient({ expenses, staffStats, month }: Props) {
               <p className="text-xs text-gray-400 mb-2">画像なし（手動入力）({withoutImage.length}件)</p>
               <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100">
                 {withoutImage.map(exp => (
-                  <div key={exp.id} className="flex items-center justify-between px-4 py-3">
+                  <button
+                    key={exp.id}
+                    onClick={() => setSelected(exp)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50"
+                  >
                     <div>
                       <p className="text-sm font-medium text-gray-800">{exp.vendor ?? '（業者名なし）'}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
@@ -188,7 +260,7 @@ export default function ReceiptsClient({ expenses, staffStats, month }: Props) {
                       </div>
                     </div>
                     <p className="font-bold text-gray-900">¥{exp.amount.toLocaleString()}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </>
@@ -208,10 +280,9 @@ export default function ReceiptsClient({ expenses, staffStats, month }: Props) {
             filtered.map(exp => (
               <button
                 key={exp.id}
-                onClick={() => exp.receipt_url ? setSelectedImage(exp) : null}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left ${exp.receipt_url ? 'hover:bg-gray-50' : ''}`}
+                onClick={() => setSelected(exp)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50"
               >
-                {/* サムネイル or アイコン */}
                 <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                   {exp.receipt_url ? (
                     <Image src={exp.receipt_url} alt="" width={48} height={48} className="w-full h-full object-cover" unoptimized />
@@ -219,7 +290,6 @@ export default function ReceiptsClient({ expenses, staffStats, month }: Props) {
                     <div className="w-full h-full flex items-center justify-center text-gray-300 text-xl">📄</div>
                   )}
                 </div>
-                {/* テキスト */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <p className="text-sm font-semibold text-gray-800 truncate">{exp.vendor ?? '（業者名なし）'}</p>
@@ -236,7 +306,6 @@ export default function ReceiptsClient({ expenses, staffStats, month }: Props) {
                   </div>
                   {exp.note && <p className="text-xs text-gray-500 mt-0.5 truncate">{exp.note}</p>}
                 </div>
-                {/* 金額 */}
                 <p className="font-bold text-gray-900 flex-shrink-0">¥{exp.amount.toLocaleString()}</p>
               </button>
             ))
@@ -244,61 +313,144 @@ export default function ReceiptsClient({ expenses, staffStats, month }: Props) {
         </div>
       )}
 
-      {/* 画像モーダル */}
-      {selectedImage && (
+      {/* 詳細・編集モーダル */}
+      {selected && (
         <div
           className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedImage(null)}
+          onClick={() => { setSelected(null); setIsEditing(false) }}
         >
           <div
-            className="bg-white rounded-2xl w-full max-w-sm overflow-hidden"
+            className="bg-white rounded-2xl w-full max-w-sm overflow-hidden max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
-            {/* 画像 */}
-            <div className="relative w-full aspect-[3/4] bg-gray-100">
-              <Image
-                src={selectedImage.receipt_url!}
-                alt="レシート"
-                fill
-                className="object-contain"
-                unoptimized
-              />
-            </div>
-            {/* 情報 */}
+            {selected.receipt_url && (
+              <div className="relative w-full aspect-[3/4] bg-gray-100">
+                <Image
+                  src={selected.receipt_url}
+                  alt="レシート"
+                  fill
+                  className="object-contain"
+                  unoptimized
+                />
+              </div>
+            )}
+
             <div className="p-4">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <p className="font-bold text-gray-900">{selectedImage.vendor ?? '（業者名なし）'}</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`text-xs px-2 py-0.5 rounded font-semibold ${CATEGORY_COLORS[selectedImage.category] ?? CATEGORY_COLORS.other}`}>
-                      {CATEGORY_LABELS[selectedImage.category] ?? selectedImage.category}
-                    </span>
-                    {selectedImage.ai_extracted && (
-                      <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded">AI自動抽出</span>
+              {!isEditing ? (
+                <>
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <p className="font-bold text-gray-900">{selected.vendor ?? '（業者名なし）'}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded font-semibold ${CATEGORY_COLORS[selected.category] ?? CATEGORY_COLORS.other}`}>
+                          {CATEGORY_LABELS[selected.category] ?? selected.category}
+                        </span>
+                        {selected.ai_extracted && (
+                          <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded">AI自動抽出</span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xl font-bold text-gray-900">¥{selected.amount.toLocaleString()}</p>
+                  </div>
+                  <div className="text-sm text-gray-500 space-y-1">
+                    <div className="flex justify-between">
+                      <span>日付</span><span className="font-medium text-gray-700">{selected.date}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>送付者</span><span className="font-medium text-gray-700">{selected.staff?.name ?? '不明'}</span>
+                    </div>
+                    {selected.note && (
+                      <div className="flex justify-between">
+                        <span>メモ</span><span className="font-medium text-gray-700">{selected.note}</span>
+                      </div>
                     )}
                   </div>
-                </div>
-                <p className="text-xl font-bold text-gray-900">¥{selectedImage.amount.toLocaleString()}</p>
-              </div>
-              <div className="text-sm text-gray-500 space-y-1">
-                <div className="flex justify-between">
-                  <span>日付</span><span className="font-medium text-gray-700">{selectedImage.date}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>送付者</span><span className="font-medium text-gray-700">{selectedImage.staff?.name ?? '不明'}</span>
-                </div>
-                {selectedImage.note && (
-                  <div className="flex justify-between">
-                    <span>メモ</span><span className="font-medium text-gray-700">{selectedImage.note}</span>
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    <button
+                      onClick={() => openEdit(selected)}
+                      className="bg-blue-600 text-white font-semibold py-3 rounded-xl text-sm"
+                    >
+                      ✏️ 編集
+                    </button>
+                    <button
+                      onClick={() => { setSelected(null); setIsEditing(false) }}
+                      className="bg-gray-100 text-gray-700 font-semibold py-3 rounded-xl text-sm"
+                    >
+                      閉じる
+                    </button>
                   </div>
-                )}
-              </div>
-              <button
-                onClick={() => setSelectedImage(null)}
-                className="w-full mt-4 bg-gray-100 text-gray-700 font-semibold py-3 rounded-xl text-sm"
-              >
-                閉じる
-              </button>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-gray-900 mb-3">編集</p>
+                  <div className="space-y-3 text-sm">
+                    <label className="block">
+                      <span className="text-xs text-gray-500">カテゴリ</span>
+                      <select
+                        value={editForm.category}
+                        onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                        className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 bg-white"
+                      >
+                        {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500">業者名</span>
+                      <input
+                        type="text"
+                        value={editForm.vendor}
+                        onChange={e => setEditForm({ ...editForm, vendor: e.target.value })}
+                        className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500">金額</span>
+                      <input
+                        type="number"
+                        value={editForm.amount}
+                        onChange={e => setEditForm({ ...editForm, amount: Number(e.target.value) })}
+                        className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500">日付</span>
+                      <input
+                        type="date"
+                        value={editForm.date}
+                        onChange={e => setEditForm({ ...editForm, date: e.target.value })}
+                        className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500">メモ</span>
+                      <textarea
+                        value={editForm.note}
+                        onChange={e => setEditForm({ ...editForm, note: e.target.value })}
+                        className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2"
+                        rows={2}
+                      />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      disabled={saving}
+                      className="bg-gray-100 text-gray-700 font-semibold py-3 rounded-xl text-sm"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={saveEdit}
+                      disabled={saving}
+                      className="bg-blue-600 text-white font-semibold py-3 rounded-xl text-sm disabled:opacity-50"
+                    >
+                      {saving ? '保存中...' : '💾 保存'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

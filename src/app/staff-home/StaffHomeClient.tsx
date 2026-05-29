@@ -108,6 +108,21 @@ export default function StaffHomeClient({
 
       <div style={{ padding: '0 16px' }}>
 
+        {/* ━━━ 📊 本日の売上ダッシュボード ━━━━━━━━━━━━━━━━━ */}
+        <Section icon="📊" title="本日の売上" color="#10b981">
+          <Card
+            icon="📈"
+            iconBg="#064e3b"
+            title="昼/夜売上 + 目標判定 (×/◯/◎)"
+            description="15時／21時／23時に自動取込された売上を判定付きで表示。スタッフ飯入力・報告文の自動生成つき。"
+            badge={null}
+          >
+            <a href="/staff-home/sales" style={btnStyle('#10b981')}>
+              ダッシュボードを開く →
+            </a>
+          </Card>
+        </Section>
+
         {/* ━━━ 🕐 今日の勤務 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         <Section icon="🕐" title="今日の勤務" color="#3b82f6">
 
