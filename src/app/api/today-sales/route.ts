@@ -44,7 +44,8 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any
 
-  const [todayRes, monthRes, tenantRes, mealsTodayRes, mealsMonthRes] = await Promise.all([
+  // 当日Google口コミ件数: history の最新2件で delta を出す
+  const [todayRes, monthRes, tenantRes, mealsTodayRes, mealsMonthRes, reviewHistoryRes, reviewMonthRes] = await Promise.all([
     db.from('daily_sales')
       .select('date, total_sales, store_sales, delivery_sales, lunch_sales, dinner_sales, anydeli_sales, anydeli_cash_sales, anydeli_online_sales, uber_sales, rocketnow_sales')
       .eq('tenant_id', TENANT_ID)
@@ -68,6 +69,17 @@ export async function GET(req: NextRequest) {
       .eq('tenant_id', TENANT_ID)
       .gte('date', firstDay)
       .lte('date', date),
+    db.from('google_review_count_history')
+      .select('count, checked_at')
+      .eq('tenant_id', TENANT_ID)
+      .order('checked_at', { ascending: false })
+      .limit(2),
+    db.from('reviews')
+      .select('id')
+      .eq('tenant_id', TENANT_ID)
+      .gte('verified_at', `${firstDay}T00:00:00`)
+      .lte('verified_at', `${date}T23:59:59`)
+      .not('verified_at', 'is', null),
   ])
 
   const today = todayRes.data as null | {
@@ -88,6 +100,12 @@ export async function GET(req: NextRequest) {
   const tenant = (tenantRes.data ?? {}) as { monthly_target: number | null; lunch_target_ratio: number | null }
   const mealsToday = (mealsTodayRes.data ?? []) as Array<{ amount: number }>
   const mealsMonth = (mealsMonthRes.data ?? []) as Array<{ amount: number }>
+  const reviewHist = (reviewHistoryRes.data ?? []) as Array<{ count: number; checked_at: string }>
+  const reviewMonth = (reviewMonthRes.data ?? []) as Array<{ id: string }>
+
+  const reviewTotalCount = reviewHist[0]?.count ?? 0
+  const reviewDelta = reviewHist.length >= 2 ? Math.max(0, reviewHist[0].count - reviewHist[1].count) : 0
+  const reviewMonthAttributed = reviewMonth.length
 
   const monthlyTarget = Number(tenant.monthly_target ?? 0)
   const lunchRatio    = Number(tenant.lunch_target_ratio ?? 0.6)
@@ -149,6 +167,11 @@ export async function GET(req: NextRequest) {
     staff_meals: {
       today: mealsTodayTotal,
       month: mealsMonthTotal,
+    },
+    google_reviews: {
+      total_count: reviewTotalCount,
+      delta_today: reviewDelta,
+      month_attributed: reviewMonthAttributed,
     },
   })
 }

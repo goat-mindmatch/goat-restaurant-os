@@ -42,6 +42,11 @@ type TodaySalesResponse = {
     today: number
     month: number
   }
+  google_reviews: {
+    total_count: number
+    delta_today: number
+    month_attributed: number
+  }
 }
 
 const yen = (n: number) => `¥${(n ?? 0).toLocaleString()}`
@@ -244,6 +249,28 @@ export default function SalesDashboardClient() {
             <div className="w-full h-2 bg-gray-100 rounded-full mt-2 overflow-hidden">
               <div className="h-full bg-blue-500" style={{ width: `${Math.min(data.month.progress_pct, 100)}%` }} />
             </div>
+          </div>
+
+          {/* Google口コミ */}
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <p className="text-xs font-semibold text-gray-500 mb-3">⭐ Google口コミ</p>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{data.google_reviews.total_count}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">総件数</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-amber-600">+{data.google_reviews.delta_today}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">本日増加</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-blue-600">{data.google_reviews.month_attributed}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">月EXP配分</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-400 text-center mt-3">
+              ※ Places APIで自動取得。出勤スタッフへ自動配分されます（スクショ送付不要）
+            </p>
           </div>
 
           {/* スタッフ飯入力 */}

@@ -126,15 +126,45 @@ export async function GET(req: NextRequest) {
       newCached++
     }
 
-    // ※ 自動承認は停止済み（スクショ検証方式に移行）
-    // Places API は「通知 + 統計」のみに使用。
-    // 未検証クリック数だけカウント
-    const { data: pendingRows } = await db.from('reviews')
-      .select('id')
-      .eq('tenant_id', TENANT_ID)
-      .is('verified_at', null)
-      .eq('completed', true)
-    const pendingCount = pendingRows?.length ?? 0
+    // 2026-05-29 移行: Places API の delta を出勤スタッフへ自動配分する
+    //   背景: スクショ送付・検証コード運用が現場負担。スタッフ報告フローを廃止し、
+    //         「投稿は自由 / 反映件数は API で自動取得 / EXP は出勤者で按分」に変更。
+    const todayJst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
+    let attributed = 0
+    let onDutyCount = 0
+
+    if (delta > 0) {
+      // 当日に出勤したスタッフ（clock_in 済み）
+      const { data: onDuty } = await db.from('attendance')
+        .select('staff_id')
+        .eq('tenant_id', TENANT_ID)
+        .eq('date', todayJst)
+        .not('clock_in', 'is', null)
+
+      const staffIds = Array.from(new Set(
+        ((onDuty ?? []) as Array<{ staff_id: string }>).map(a => a.staff_id)
+      ))
+      onDutyCount = staffIds.length
+
+      if (staffIds.length > 0) {
+        // delta 件を staff にラウンドロビンで配分
+        const rows = Array.from({ length: delta }).map((_, i) => ({
+          tenant_id: TENANT_ID,
+          staff_id: staffIds[i % staffIds.length],
+          completed: true,
+          verified_at: new Date().toISOString(),
+          exp_awarded: 150,
+          auto_attributed: true,
+          note: 'auto-attributed from Places API delta',
+        }))
+        const { error: insertError, data: inserted } = await db.from('reviews').insert(rows).select('id')
+        if (!insertError) {
+          attributed = inserted?.length ?? 0
+        } else {
+          console.error('[sync-google-reviews] auto-attribute insert失敗:', insertError)
+        }
+      }
+    }
 
     // 管理者に日次レポート
     const { data: managers } = await db.from('staff')
@@ -142,11 +172,16 @@ export async function GET(req: NextRequest) {
       .eq('tenant_id', TENANT_ID).eq('role', 'manager')
       .not('line_user_id', 'is', null)
 
+    const attributionMsg = delta > 0
+      ? (onDutyCount > 0
+          ? `\n👥 出勤${onDutyCount}名で${attributed}件をEXP配分済み`
+          : `\n⚠️ 出勤スタッフが0名のためEXP配分なし`)
+      : ''
+
     for (const m of managers ?? []) {
       try {
-        const pendingMsg = pendingCount > 0 ? `\n⏳ スクショ未提出: ${pendingCount}件` : ''
         await sendStaffLineMessage(m.line_user_id,
-          `📊 Google口コミ日次レポート\n\n総件数: ${currentCount}件（前日比 +${delta}）\n平均評価: ★${place.rating ?? '-'}${pendingMsg}`)
+          `📊 Google口コミ日次レポート\n\n総件数: ${currentCount}件（前日比 +${delta}）\n平均評価: ★${place.rating ?? '-'}${attributionMsg}`)
       } catch {}
     }
 
@@ -156,7 +191,8 @@ export async function GET(req: NextRequest) {
       current_count: currentCount,
       previous_count: previousCount,
       delta,
-      pending_count: pendingCount,
+      on_duty_count: onDutyCount,
+      auto_attributed: attributed,
       new_cached_reviews: newCached,
     })
   } catch (e) {
