@@ -64,7 +64,7 @@ export default function CashRegisterPage() {
         {/* ヘッダー */}
         <div className="bg-white rounded-xl shadow-sm p-4">
           <h1 className="text-xl font-bold text-gray-800">💴 現金売上</h1>
-          <p className="text-sm text-gray-500 mt-1">AnyDeliから自動取込（9時・12時・23時）</p>
+          <p className="text-sm text-gray-500 mt-1">AnyDeliから自動取込（15時・21時・23時）</p>
           <div className="mt-3 flex gap-2">
             <button
               onClick={() => setDate(jstDate(0))}
@@ -112,7 +112,7 @@ export default function CashRegisterPage() {
                 <div className="text-center py-6 text-gray-400">
                   <div className="text-3xl mb-2">📭</div>
                   <div className="text-sm">この日のデータがまだ取込まれていません</div>
-                  <div className="text-xs mt-1">自動取込は 9:00 / 12:00 / 23:00 に実行されます</div>
+                  <div className="text-xs mt-1">自動取込は 15:00 / 21:00 / 23:00 に実行されます</div>
                 </div>
               ) : (
                 <>
@@ -179,9 +179,9 @@ export default function CashRegisterPage() {
         {/* 取込スケジュール説明 */}
         <div className="bg-gray-100 rounded-xl p-3 text-xs text-gray-500 space-y-1">
           <div className="font-medium text-gray-600">🕐 自動取込スケジュール</div>
-          <div>9:00 — 昨日の確定データ＋今日の早朝分</div>
-          <div>12:00 — 今日のランチタイム集計</div>
-          <div>23:00 — 今日の営業終了後の最終データ</div>
+          <div>15:00 — 昼営業終了後の売上確認</div>
+          <div>21:00 — 夜営業終了後の売上確認</div>
+          <div>23:00 — 営業終了後の最終データ</div>
         </div>
       </div>
     </div>

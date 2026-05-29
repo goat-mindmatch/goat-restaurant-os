@@ -1,5 +1,7 @@
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// レシートOCR・各種同期処理が10秒超になるケースがあるため明示的に60秒を確保
+export const maxDuration = 60
 
 /**
  * LINE Webhook エンドポイント（スタッフ用）
@@ -28,6 +30,46 @@ const TENANT_ID = process.env.TENANT_ID!
 // 互換性のため関数形式を維持
 async function getTenantId(): Promise<string> {
   return TENANT_ID
+}
+
+// ================================
+// 名前正規化（畑中問題の再発防止）
+//   - 全角/半角空白の除去
+//   - 全角英数字 → 半角
+//   - 比較側DB値にも同じ処理を当てた上で includes 判定する
+// ================================
+function normalizeName(input: string): string {
+  return input
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+}
+
+// 経営者ロールのスタッフ全員に Push 通知を送る（未登録試行アラート等）
+async function notifyManagers(message: string) {
+  try {
+    const sb = createServiceClient()
+    const { data: managers } = await sb
+      .from('staff')
+      .select('line_user_id')
+      .eq('tenant_id', TENANT_ID)
+      .eq('role', 'manager')
+      .not('line_user_id', 'is', null)
+    const uniqueIds = Array.from(
+      new Set((managers ?? [])
+        .map((m: { line_user_id: string | null }) => m.line_user_id)
+        .filter((v): v is string => !!v))
+    )
+    for (const uid of uniqueIds) {
+      try {
+        await sendLineMessage(uid, message)
+      } catch (e) {
+        console.error('[notifyManagers] push失敗:', uid, e)
+      }
+    }
+  } catch (e) {
+    console.error('[notifyManagers] 失敗:', e)
+  }
 }
 
 // ================================
@@ -91,7 +133,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   // メニュー系のボタンが押されたら、古いセッションをクリア（詰まり防止）
-  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '本日の売上', '売上入力', 'スキル一覧', 'ヘルプ', '使い方', '経営メニューへ切替', 'スタッフメニューへ切替', 'メニュー更新', 'メニューリセット', '自分のランク']
+  const MENU_KEYWORDS = ['出勤', '退勤', 'シフト希望提出', 'シフト確認', 'シフトボード', '発注依頼', '管理メニュー', '口コミテスト', '口コミを書く', '書きました', '口コミ書きました', '完了', '検証', 'クーポン検証', 'クーポン', '本日の売上', '売上入力', 'スキル一覧', 'ヘルプ', '使い方', '経営メニューへ切替', 'スタッフメニューへ切替', '経営', '経営メニュー', '経営メニューへ', 'スタッフ', 'スタッフメニュー', 'スタッフメニューへ', '切替', 'メニュー更新', 'メニューリセット', '自分のランク']
   if (MENU_KEYWORDS.includes(text)) {
     const sb = createServiceClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -159,9 +201,16 @@ async function handleEvent(event: LineEvent) {
       await handleSkillList(userId, replyToken)
       break
     case '経営メニューへ切替':
+    case '経営メニューへ':
+    case '経営メニュー':
+    case '経営':
+    case '切替':
       await handleMenuSwitch(userId, 'manager', replyToken)
       break
     case 'スタッフメニューへ切替':
+    case 'スタッフメニューへ':
+    case 'スタッフメニュー':
+    case 'スタッフ':
       await handleMenuSwitch(userId, 'staff', replyToken)
       break
     case 'メニュー更新':
@@ -233,24 +282,97 @@ async function checkPendingRegistration(lineUserId: string): Promise<boolean> {
 
 // ================================
 // 名前入力 → LINE ID 登録
+//   - 正規化（空白除去・全角→半角）した上で部分一致
+//   - 複数マッチ・未検出時は明示的に運用導線へ
+//   - 失敗時は staff_registration_attempts に記録し、経営者へ通知
+//   - 経営者ロールで登録された場合は MANAGER メニューを自動で割り当てる
 // ================================
 async function handleNameInput(lineUserId: string, name: string, replyToken: string) {
   const supabase = createServiceClient()
+  const tenantId = await getTenantId()
+  const normalized = normalizeName(name)
 
-  // staffテーブルで名前照合
-  const { data: staffData } = await supabase
-    .from('staff')
-    .select('id, name')
-    .eq('tenant_id', await getTenantId())
-    .ilike('name', `%${name}%`)
-    .single()
-
-  const staff = staffData as { id: string; name: string } | null
-
-  if (!staff) {
+  // 1文字のみ・空白だけは弾く
+  if (normalized.length < 2) {
     await replyLineMessage(
       replyToken,
-      `「${name}」のスタッフ情報が見つかりませんでした。\n\n名字のみで入力してください（例：「中地」「河野」）\nそれでも見つからない場合は管理者に連絡してください。`
+      'お名前は名字のみで2文字以上入力してください（例：「中地」「河野」）'
+    )
+    return
+  }
+
+  // 広めにilikeで取得 → JSで正規化マッチ
+  const head = normalized.slice(0, 1)
+  const { data: candidates } = await supabase
+    .from('staff')
+    .select('id, name, role, line_user_id')
+    .eq('tenant_id', tenantId)
+    .ilike('name', `%${head}%`)
+
+  const list = (candidates ?? []) as Array<{ id: string; name: string; role: string | null; line_user_id: string | null }>
+  const matched = list.filter((s) => normalizeName(s.name).includes(normalized))
+
+  // 未検出: 経営者へ通知 + 試行ログ
+  if (matched.length === 0) {
+    try {
+      await (supabase as any).from('staff_registration_attempts').insert({
+        tenant_id: tenantId,
+        input_name: name,
+        normalized_name: normalized,
+        line_user_id: lineUserId,
+      })
+    } catch (e) {
+      console.error('[handleNameInput] attempts insert失敗:', e)
+    }
+    const jstNow = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+    await notifyManagers(
+      `🚨 未登録スタッフから登録試行がありました\n\n` +
+      `入力名: 「${name}」\n` +
+      `時刻: ${jstNow}\n` +
+      `LINE userId: ${lineUserId}\n\n` +
+      `→ ダッシュボードでスタッフ追加 or 名前の登録ゆれを確認してください。`
+    )
+    await replyLineMessage(
+      replyToken,
+      `「${name}」のスタッフ情報が見つかりませんでした。\n\n` +
+      `名字のみで入力してください（例：「中地」「河野」）\n` +
+      `管理者へ確認連絡を送信しましたので、しばらくお待ちください。`
+    )
+    return
+  }
+
+  // 複数マッチ（同姓・名寄せ漏れ）: 明示的に運用導線へ
+  if (matched.length > 1) {
+    console.warn('[handleNameInput] multiple matches', { name, normalized, ids: matched.map((m) => m.id) })
+    await notifyManagers(
+      `⚠️ 同名スタッフが複数件登録されています\n\n` +
+      `名前: 「${name}」\n` +
+      `件数: ${matched.length}件\n` +
+      `IDs: ${matched.map((m) => m.id).join(', ')}\n\n` +
+      `→ ダッシュボードで重複統合をお願いします。`
+    )
+    await replyLineMessage(
+      replyToken,
+      `同じ「${name}」さんが複数登録されているため、ご本人の特定ができませんでした。\n` +
+      `管理者へ確認連絡を送信しましたので、しばらくお待ちください。`
+    )
+    return
+  }
+
+  const staff = matched[0]
+
+  // すでに別人がそのスタッフIDで登録済みの場合は弾く
+  if (staff.line_user_id && staff.line_user_id !== lineUserId) {
+    await notifyManagers(
+      `⚠️ ${staff.name} のLINE紐付け衝突\n\n` +
+      `既存LINE userId: ${staff.line_user_id}\n` +
+      `今回のLINE userId: ${lineUserId}\n\n` +
+      `→ 退職者・引き継ぎなどで紐付けを上書きしたい場合はダッシュボードから操作してください。`
+    )
+    await replyLineMessage(
+      replyToken,
+      `「${staff.name}」さんはすでに別のLINEで登録済みです。\n` +
+      `引き継ぎが必要な場合は管理者にご連絡ください。`
     )
     return
   }
@@ -267,9 +389,46 @@ async function handleNameInput(lineUserId: string, name: string, replyToken: str
     .delete()
     .eq('line_user_id', lineUserId)
 
+  // 該当する未解決の試行ログがあれば解決マークを付ける
+  try {
+    await (supabase as any)
+      .from('staff_registration_attempts')
+      .update({ resolved_at: new Date().toISOString(), resolved_staff_id: staff.id })
+      .eq('tenant_id', tenantId)
+      .eq('line_user_id', lineUserId)
+      .is('resolved_at', null)
+  } catch (e) {
+    console.error('[handleNameInput] attempts resolve失敗:', e)
+  }
+
+  // 経営者ロールならMANAGERメニューを自動割当（切替の手間を削減）
+  if (staff.role === 'manager') {
+    try {
+      const token = process.env.LINE_STAFF_CHANNEL_ACCESS_TOKEN!
+      const h = { Authorization: `Bearer ${token}` }
+      const listRes = await fetch('https://api.line.me/v2/bot/richmenu/list', { headers: h })
+      if (listRes.ok) {
+        const listData = await listRes.json() as { richmenus: { richMenuId: string; name: string }[] }
+        const target = listData.richmenus?.find((m) => m.name === MANAGER_MENU_NAME)
+        if (target) {
+          await fetch(
+            `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${target.richMenuId}`,
+            { method: 'POST', headers: h }
+          )
+        }
+      }
+    } catch (e) {
+      console.error('[handleNameInput] manager menu自動割当失敗:', e)
+    }
+  }
+
   await replyLineMessage(
     replyToken,
-    `✅ ${staff.name}さん、登録完了しました！\n\n出勤・退勤ボタンが使えるようになりました。\nよろしくお願いします！`
+    `✅ ${staff.name}さん、登録完了しました！\n\n` +
+    (staff.role === 'manager'
+      ? '経営者ロールで登録されました。経営メニューを自動で割り当てています。\n'
+      : '') +
+    `出勤・退勤ボタンが使えるようになりました。\nよろしくお願いします！`
   )
 }
 
@@ -842,11 +1001,24 @@ JSONのみを返してください。前後の説明・コードブロックは�
       `\n内容が違う場合はダッシュボードで修正できます。`
     )
   } catch (e) {
-    console.error('Receipt OCR error:', e)
-    await sendLineMessage(
+    const errMessage = e instanceof Error ? e.message : String(e)
+    console.error('[receipt-ocr] failed', {
       lineUserId,
-      '⚠️ レシードの読み取りに失敗しました。\n再度送信するか、手動でダッシュボードから入力してください。'
-    )
+      messageId,
+      staffId: staff?.id,
+      error: errMessage,
+      stack: e instanceof Error ? e.stack : undefined,
+    })
+    try {
+      await sendLineMessage(
+        lineUserId,
+        `❌ レシートの読み取りに失敗しました。\n\n` +
+        `理由: ${errMessage.slice(0, 150) || '不明（タイムアウトの可能性）'}\n\n` +
+        `もう一度撮影しなおして送信するか、ダッシュボードから手動入力してください。`
+      )
+    } catch (pushError) {
+      console.error('[receipt-ocr] error push notification failed:', pushError)
+    }
   }
 }
 
@@ -878,7 +1050,7 @@ async function handleMenuReset(lineUserId: string, replyToken: string) {
     .select('name, role').eq('tenant_id', TENANT_ID).eq('line_user_id', lineUserId).single()
 
   const isManager = staff?.role === 'manager'
-  const targetName = isManager ? 'GOAT Manager Menu v3' : 'GOAT Staff Menu v4'
+  const targetName = isManager ? MANAGER_MENU_NAME : STAFF_MENU_NAME
   const targetMenu = listData.richmenus.find(m => m.name === targetName)
 
   if (!targetMenu) {

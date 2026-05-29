@@ -9,9 +9,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { STAFF_MENU_NAME, MANAGER_MENU_NAME } from '@/lib/richmenu-defs'
 
-const STAFF_MENU_NAME  = 'GOAT Staff Menu v4'
-const MANAGER_MENU_NAME = 'GOAT Manager Menu v3'
 const TENANT_ID = process.env.TENANT_ID!
 
 export async function POST() {

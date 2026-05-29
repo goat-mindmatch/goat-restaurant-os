@@ -45,17 +45,17 @@ export async function GET() {
     })),
   }))
 
-  // 期待値
+  // 期待値（v6: 中央下が「経営メニューへ切替」に変更）
   const expected = {
     staff: {
-      name: 'GOAT Staff Menu v4',
+      name: 'GOAT Staff Menu v6',
       buttons: [
         { position: 1, sends: '出勤' },
         { position: 2, sends: '退勤' },
-        { position: 3, sends: 'シフト希望提出' },
-        { position: 4, sends: '経営メニューへ切替' },
-        { position: 5, sends: '自分のランク' },  // ← ここが「発注依頼」になっていると問題
-        { position: 6, sends: 'シフト確認' },
+        { position: 3, sends: 'https://goat-restaurant-os.vercel.app/staff-home' },
+        { position: 4, sends: 'シフト希望提出' },
+        { position: 5, sends: '経営メニューへ切替' },
+        { position: 6, sends: 'https://goat-restaurant-os.vercel.app/improve' },
       ],
     },
     manager: {
