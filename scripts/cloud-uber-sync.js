@@ -103,7 +103,8 @@ async function main() {
 
     // Uber Eats Manager の注文API をキャプチャ
     // 例: /v2/eats/orders, /v2/orders/stores/xxx/summary など
-    if (!url.includes('restaurant.uber.com') && !url.includes('uber.com/v2')) return
+    // 旧: restaurant.uber.com / 新: merchants.ubereats.com（2026年移行）
+    if (!url.includes('restaurant.uber.com') && !url.includes('merchants.ubereats.com') && !url.includes('uber.com/v2')) return
     if (!url.match(/orders|payments|reporting|summary/i)) return
 
     try {
@@ -118,22 +119,39 @@ async function main() {
 
   try {
     // ─── Uber Eats Manager にアクセス ──────────────────────────
-    await page.goto('https://restaurant.uber.com/', {
-      waitUntil: 'domcontentloaded',
-      timeout:   30000,
-    })
-    await page.waitForTimeout(3000)
+    // 2026年移行: restaurant.uber.com → merchants.ubereats.com
+    const entryUrls = [
+      'https://merchants.ubereats.com/',
+      'https://restaurant.uber.com/',
+    ]
+    let loggedIn = false
+    for (const entryUrl of entryUrls) {
+      try {
+        await page.goto(entryUrl, { waitUntil: 'domcontentloaded', timeout: 30000 })
+        await page.waitForTimeout(3000)
+        const cur = page.url()
+        // login.uber.com やリダイレクト後の auth ドメインは未ログイン扱い
+        if (cur.includes('login.uber.com') || /\bauth\b/.test(cur)) continue
+        if (cur.includes('login') && !cur.includes('merchants')) continue
+        log(`✅ ログイン確認 OK: ${cur} (from ${entryUrl})`)
+        loggedIn = true
+        break
+      } catch (e) {
+        log(`⚠️ ${entryUrl} にアクセス失敗: ${e.message}`)
+      }
+    }
 
-    // ログイン確認
-    if (page.url().includes('login') || page.url().includes('auth')) {
+    if (!loggedIn) {
       log('❌ Uber Eats セッション切れ。Mac で setup-delivery-session.js uber を実行し、UBER_SESSION_B64 Secret を更新してください')
       process.exit(2)
     }
-    log(`✅ ログイン確認 OK: ${page.url()}`)
 
     // ─── 注文レポートページへ移動 ────────────────────────────
     // レポートページに移動してデータを取得
     const reportUrls = [
+      'https://merchants.ubereats.com/v2/n/reporting/orders',
+      'https://merchants.ubereats.com/v2/n/reporting/payments',
+      'https://merchants.ubereats.com/v2/n/reporting',
       'https://restaurant.uber.com/v2/n/reporting/orders',
       'https://restaurant.uber.com/v2/n/reporting/payments',
       'https://restaurant.uber.com/v2/n/reporting',
@@ -154,7 +172,7 @@ async function main() {
 
     if (!reportLoaded) {
       // トップページから注文ページを探す
-      await page.goto('https://restaurant.uber.com/', { waitUntil: 'domcontentloaded', timeout: 20000 })
+      await page.goto('https://merchants.ubereats.com/', { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(3000)
     }
 

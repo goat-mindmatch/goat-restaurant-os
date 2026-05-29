@@ -23,9 +23,9 @@ const SERVICE = process.argv[2]
 const SERVICES = {
   uber: {
     name:    'Uber Eats',
-    url:     'https://restaurant.uber.com/',
-    message: 'Uber Eats Manager にログインしてください。ログイン完了後、Enter を押してください。',
-    check:   (url) => !url.includes('login') && !url.includes('auth'),
+    url:     'https://merchants.ubereats.com/',  // 2026年移行: restaurant.uber.com → merchants.ubereats.com
+    message: 'Uber Eats Merchant Portal にログインしてください。ログイン完了後、Enter を押してください。',
+    check:   (url) => !url.includes('login.uber.com') && !/\bauth\b/.test(url),
     secret:  'UBER_SESSION_B64',
   },
   rocketnow: {
