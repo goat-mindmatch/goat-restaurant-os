@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       .gte('date', firstDay)
       .lte('date', date),
     db.from('tenants')
-      .select('monthly_target, lunch_target_ratio')
+      .select('monthly_target, lunch_target_ratio, lunch_target, dinner_target')
       .eq('id', TENANT_ID)
       .single(),
     db.from('staff_meals')
@@ -97,7 +97,12 @@ export async function GET(req: NextRequest) {
   }
 
   const monthRows = (monthRes.data ?? []) as Array<{ total_sales: number | null }>
-  const tenant = (tenantRes.data ?? {}) as { monthly_target: number | null; lunch_target_ratio: number | null }
+  const tenant = (tenantRes.data ?? {}) as {
+    monthly_target: number | null
+    lunch_target_ratio: number | null
+    lunch_target: number | null
+    dinner_target: number | null
+  }
   const mealsToday = (mealsTodayRes.data ?? []) as Array<{ amount: number }>
   const mealsMonth = (mealsMonthRes.data ?? []) as Array<{ amount: number }>
   const reviewHist = (reviewHistoryRes.data ?? []) as Array<{ count: number; checked_at: string }>
@@ -109,12 +114,17 @@ export async function GET(req: NextRequest) {
 
   const monthlyTarget = Number(tenant.monthly_target ?? 0)
   const lunchRatio    = Number(tenant.lunch_target_ratio ?? 0.6)
-  // 簡易: 月次目標 / 月日数
+  // 日次目標: 月次目標 / 月日数
   const [y, m] = monthStr.split('-').map(Number)
   const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate()
   const dailyTarget   = monthlyTarget > 0 ? Math.round(monthlyTarget / daysInMonth) : 0
-  const lunchTarget   = Math.round(dailyTarget * lunchRatio)
-  const dinnerTarget  = Math.round(dailyTarget * (1 - lunchRatio))
+  // 昼/夜目標: 管理画面で明示設定があればそれを優先、なければ比率で自動算出（後方互換）
+  const lunchTarget   = tenant.lunch_target  != null && tenant.lunch_target  >= 0
+    ? Number(tenant.lunch_target)
+    : Math.round(dailyTarget * lunchRatio)
+  const dinnerTarget  = tenant.dinner_target != null && tenant.dinner_target >= 0
+    ? Number(tenant.dinner_target)
+    : Math.round(dailyTarget * (1 - lunchRatio))
 
   // 売上集計
   const storeSales   = Number(today?.store_sales    ?? 0)

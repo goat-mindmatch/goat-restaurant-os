@@ -17,7 +17,7 @@ export async function GET() {
     const db = createServiceClient() as any
     const { data, error } = await db
       .from('tenants')
-      .select('id, name, monthly_target, change_fund')
+      .select('id, name, monthly_target, change_fund, lunch_target, dinner_target, lunch_target_ratio')
       .eq('id', TENANT_ID)
       .single()
 
@@ -32,11 +32,14 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
-    const update: Record<string, string | number> = {}
+    const update: Record<string, string | number | null> = {}
 
     if (body.name           !== undefined) update.name           = String(body.name).trim()
     if (body.monthly_target !== undefined) update.monthly_target = Number(body.monthly_target)
     if (body.change_fund    !== undefined) update.change_fund    = Number(body.change_fund)
+    // 昼/夜の日次目標。空文字・null は「自動算出に戻す」=NULL扱い
+    if (body.lunch_target   !== undefined) update.lunch_target   = body.lunch_target  === null || body.lunch_target  === '' ? null : Number(body.lunch_target)
+    if (body.dinner_target  !== undefined) update.dinner_target  = body.dinner_target === null || body.dinner_target === '' ? null : Number(body.dinner_target)
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'no fields to update' }, { status: 400 })

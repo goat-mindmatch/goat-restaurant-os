@@ -35,6 +35,8 @@ function Toast({ msg, type }: { msg: string; type: 'success' | 'error' }) {
 function StoreTab() {
   const [name, setName]           = useState('')
   const [target, setTarget]       = useState('')
+  const [lunchTarget, setLunchTarget]   = useState('')
+  const [dinnerTarget, setDinnerTarget] = useState('')
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
   const [toast, setToast]         = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
@@ -42,9 +44,11 @@ function StoreTab() {
   useEffect(() => {
     fetch('/api/settings/tenant')
       .then(r => r.json())
-      .then((d: { name?: string; monthly_target?: number }) => {
+      .then((d: { name?: string; monthly_target?: number; lunch_target?: number | null; dinner_target?: number | null }) => {
         setName(d.name ?? '')
         setTarget(String(d.monthly_target ?? 0))
+        setLunchTarget(d.lunch_target != null ? String(d.lunch_target) : '')
+        setDinnerTarget(d.dinner_target != null ? String(d.dinner_target) : '')
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -57,7 +61,13 @@ function StoreTab() {
       const res = await fetch('/api/settings/tenant', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, monthly_target: Number(target) }),
+        body: JSON.stringify({
+          name,
+          monthly_target: Number(target),
+          // 空欄なら null（=自動算出に戻す）
+          lunch_target:  lunchTarget  === '' ? null : Number(lunchTarget),
+          dinner_target: dinnerTarget === '' ? null : Number(dinnerTarget),
+        }),
       })
       const d = await res.json() as { ok?: boolean; error?: string }
       if (d.ok) setToast({ msg: '✅ 保存しました', type: 'success' })
@@ -68,6 +78,8 @@ function StoreTab() {
       setSaving(false)
     }
   }
+
+  const dailyAuto = Number(target) > 0 ? Math.round(Number(target) / 30) : 0
 
   if (loading) return <p className="text-sm text-gray-400 py-4 text-center">読み込み中...</p>
 
@@ -99,9 +111,44 @@ function StoreTab() {
         />
         {Number(target) > 0 && (
           <p className="text-xs text-gray-400 mt-1">
-            ≈ 月 {(Number(target) / 10000).toFixed(0)}万円 ／ 日平均 {Math.round(Number(target) / 30).toLocaleString()}円
+            ≈ 月 {(Number(target) / 10000).toFixed(0)}万円 ／ 日平均 {dailyAuto.toLocaleString()}円
           </p>
         )}
+      </div>
+
+      {/* 昼/夜の日次目標（スタッフ売上ダッシュボードの ×/◯/◎ 判定に使用） */}
+      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 space-y-3">
+        <div>
+          <p className="text-xs font-semibold text-emerald-700">🎯 昼/夜の日次売上目標</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">
+            スタッフダッシュボードの判定（×=未達 / ◯=達成 / ◎=+¥15,000以上）に使われます。
+            <br />空欄なら「日平均 {dailyAuto.toLocaleString()}円」を昼6:夜4で自動配分します。
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs text-gray-500 mb-0.5">☀️ 昼目標（円/日）</label>
+            <input
+              type="number"
+              value={lunchTarget}
+              onChange={e => setLunchTarget(e.target.value)}
+              className="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+              placeholder={`自動: ${Math.round(dailyAuto * 0.6).toLocaleString()}`}
+              min={0}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-0.5">🌙 夜目標（円/日）</label>
+            <input
+              type="number"
+              value={dinnerTarget}
+              onChange={e => setDinnerTarget(e.target.value)}
+              className="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+              placeholder={`自動: ${Math.round(dailyAuto * 0.4).toLocaleString()}`}
+              min={0}
+            />
+          </div>
+        </div>
       </div>
 
       <button
