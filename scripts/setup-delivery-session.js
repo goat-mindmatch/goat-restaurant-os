@@ -30,8 +30,8 @@ const SERVICES = {
   },
   rocketnow: {
     name:    'RocketNow',
-    url:     'https://merchant.rocketnow.jp/',
-    message: 'RocketNow パートナーポータルにログインしてください。ログイン完了後、Enter を押してください。',
+    url:     'https://store.rocketnow.co.jp/merchant/login',  // 2026年移行: merchant.rocketnow.jp → store.rocketnow.co.jp
+    message: 'RocketNow 加盟店管理画面にログインしてください。ログイン完了後、Enter を押してください。',
     check:   (url) => !url.includes('login') && !url.includes('signin'),
     secret:  'ROCKETNOW_SESSION_B64',
   },

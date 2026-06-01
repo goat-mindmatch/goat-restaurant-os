@@ -114,8 +114,8 @@ async function main() {
 
   try {
     // ─── RocketNow パートナーポータルにアクセス ───────────────
-    // RocketNow の加盟店管理画面URL（セッション取得時と同じURL）
-    const portalUrl = 'https://merchant.rocketnow.jp/'
+    // 2026年移行: merchant.rocketnow.jp → store.rocketnow.co.jp/merchant
+    const portalUrl = 'https://store.rocketnow.co.jp/merchant/'
     await page.goto(portalUrl, {
       waitUntil: 'domcontentloaded',
       timeout:   30000,
@@ -132,10 +132,10 @@ async function main() {
 
     // ─── 売上・注文レポートページへ移動 ─────────────────────
     const reportUrls = [
-      'https://merchant.rocketnow.jp/sales',
-      'https://merchant.rocketnow.jp/orders',
-      'https://merchant.rocketnow.jp/reports',
-      'https://merchant.rocketnow.jp/statistics',
+      'https://store.rocketnow.co.jp/merchant/sales',
+      'https://store.rocketnow.co.jp/merchant/orders',
+      'https://store.rocketnow.co.jp/merchant/reports',
+      'https://store.rocketnow.co.jp/merchant/statistics',
     ]
 
     for (const url of reportUrls) {
