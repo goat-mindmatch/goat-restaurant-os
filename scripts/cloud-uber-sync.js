@@ -97,20 +97,34 @@ async function main() {
   // 取得した売上データ蓄積用
   const captured = {}  // { 'YYYY-MM-DD': { orders, sales } }
 
+  // 診断モード: UBER_DEBUG=1 のとき、マーチャント系ドメインのJSON応答URL+キーをログ出力
+  const DEBUG = process.env.UBER_DEBUG === '1'
+
   // ─── ネットワーク応答を監視 ─────────────────────────────────
   context.on('response', async res => {
     const url = res.url()
 
-    // Uber Eats Manager の注文API をキャプチャ
-    // 例: /v2/eats/orders, /v2/orders/stores/xxx/summary など
-    // 旧: restaurant.uber.com / 新: merchants.ubereats.com（2026年移行）
-    if (!url.includes('restaurant.uber.com') && !url.includes('merchants.ubereats.com') && !url.includes('uber.com/v2')) return
-    if (!url.match(/orders|payments|reporting|summary/i)) return
+    // Uber 系ドメインに限定（新旧ポータル + API サブドメイン）
+    const isUberDomain = url.includes('restaurant.uber.com')
+      || url.includes('merchants.ubereats.com')
+      || url.includes('ubereats.com')
+      || url.includes('uber.com')
+    if (!isUberDomain) return
 
     try {
       const contentType = res.headers()['content-type'] ?? ''
       if (!contentType.includes('application/json')) return
       const json = await res.json()
+
+      // 診断: 売上っぽいデータを含むAPIを発見するためURL+トップレベルキーを出力
+      if (DEBUG) {
+        const keys = json && typeof json === 'object' ? Object.keys(json).slice(0, 12) : []
+        const dataKeys = json?.data && typeof json.data === 'object' ? Object.keys(json.data).slice(0, 12) : []
+        log(`🔍 [debug] ${url.slice(0, 120)} keys=[${keys.join(',')}]${dataKeys.length ? ` data.keys=[${dataKeys.join(',')}]` : ''}`)
+      }
+
+      // パース対象は orders|payments|reporting|summary|sales を含むURLに限定
+      if (!url.match(/orders|payments|reporting|summary|sales|revenue|finance/i)) return
       parseUberResponse(json, captured)
     } catch {
       // JSON パース失敗は無視

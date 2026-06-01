@@ -72,6 +72,8 @@ jobs:
           UBER_SESSION_B64: ${{ secrets.UBER_SESSION_B64 }}
           API_URL: ${{ env.API_URL }}
           DISPLAY: ':99'
+          # 新ポータル(merchants.ubereats.com)のAPI構造特定用。判明後に外す。
+          UBER_DEBUG: '1'
         run: node scripts/cloud-uber-sync.js
 
       - name: Notify session expired (Uber)
