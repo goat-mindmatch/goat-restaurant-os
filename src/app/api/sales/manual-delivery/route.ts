@@ -80,7 +80,8 @@ export async function POST(req: NextRequest) {
       .eq('date', date)
       .maybeSingle()
 
-    const storeSales = Number(existing?.store_sales) || 0
+    // store_sales / anydeli_sales はここでは触らない（AnyDeli同期が管理）。
+    // delivery_sales の再計算に menu_sales のみ使用。
     const menuSales  = Number(existing?.menu_sales)  || 0
 
     const uberSales      = hasUber   ? num(body.uber_sales)      : (Number(existing?.uber_sales) || 0)

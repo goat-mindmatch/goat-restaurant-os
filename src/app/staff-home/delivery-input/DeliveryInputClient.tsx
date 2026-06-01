@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 
 type Current = {
@@ -41,23 +41,40 @@ export default function DeliveryInputClient() {
   const [savingRocket, setSavingRocket] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
+  // 入力中フラグ: ユーザーが触った欄は load() の自動プリフィルで上書きしない（競合防止）
+  const touched = useRef<{ uber: boolean; rocket: boolean }>({ uber: false, rocket: false })
+  // load の採番。新しいload開始時に古いloadの結果を破棄する（ref共有なのでクロージャを跨いで機能する）
+  const loadSeq = useRef(0)
+
+  const load = useCallback(async (opts?: { force?: boolean }) => {
+    const seq = ++loadSeq.current
     setLoading(true)
     try {
       const res = await fetch(`/api/sales/manual-delivery?date=${date}`, { cache: 'no-store' })
       const j = await res.json()
+      // より新しいloadが開始されていたら、この結果は破棄（stale防止・採番方式）
+      if (seq !== loadSeq.current) return
       setCurrent(j.current ?? {})
-      // 既存値を入力欄の初期値に（確認して上書きできる）
-      setUberSales(j.current?.uber_sales ? String(j.current.uber_sales) : '')
-      setUberOrders(j.current?.uber_orders ? String(j.current.uber_orders) : '')
-      setRocketSales(j.current?.rocketnow_sales ? String(j.current.rocketnow_sales) : '')
-      setRocketOrders(j.current?.rocketnow_orders ? String(j.current.rocketnow_orders) : '')
+      // 未入力 or 強制(保存直後)の欄のみプリフィル。入力中の欄は保持。
+      if (opts?.force || !touched.current.uber) {
+        setUberSales(j.current?.uber_sales ? String(j.current.uber_sales) : '')
+        setUberOrders(j.current?.uber_orders ? String(j.current.uber_orders) : '')
+      }
+      if (opts?.force || !touched.current.rocket) {
+        setRocketSales(j.current?.rocketnow_sales ? String(j.current.rocketnow_sales) : '')
+        setRocketOrders(j.current?.rocketnow_orders ? String(j.current.rocketnow_orders) : '')
+      }
     } finally {
-      setLoading(false)
+      // 最新loadのみがローディングを解除（古いloadは触らない）
+      if (seq === loadSeq.current) setLoading(false)
     }
   }, [date])
 
-  useEffect(() => { load() }, [load])
+  // 日付が変わったら touched をリセットして新しい日付の値をプリフィル
+  useEffect(() => {
+    touched.current = { uber: false, rocket: false }
+    load({ force: true })
+  }, [date, load])
 
   const flash = (msg: string) => {
     setToast(msg)
@@ -80,6 +97,7 @@ export default function DeliveryInputClient() {
       const j = await res.json()
       if (!res.ok) { alert(`保存失敗: ${j.error ?? res.status}`); return }
       setCurrent(j.saved ?? current)
+      touched.current.uber = false  // 保存済み→プリフィル許可に戻す
       flash('✅ Uber売上を保存しました')
     } finally {
       setSavingUber(false)
@@ -102,6 +120,7 @@ export default function DeliveryInputClient() {
       const j = await res.json()
       if (!res.ok) { alert(`保存失敗: ${j.error ?? res.status}`); return }
       setCurrent(j.saved ?? current)
+      touched.current.rocket = false
       flash('✅ RocketNow売上を保存しました')
     } finally {
       setSavingRocket(false)
@@ -174,7 +193,7 @@ export default function DeliveryInputClient() {
             <input
               type="number" inputMode="numeric" placeholder="例: 35000"
               value={uberSales}
-              onChange={e => setUberSales(e.target.value)}
+              onChange={e => { touched.current.uber = true; setUberSales(e.target.value) }}
               className="w-full mt-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-bold focus:border-blue-500 outline-none"
             />
           </label>
@@ -183,7 +202,7 @@ export default function DeliveryInputClient() {
             <input
               type="number" inputMode="numeric" placeholder="例: 12"
               value={uberOrders}
-              onChange={e => setUberOrders(e.target.value)}
+              onChange={e => { touched.current.uber = true; setUberOrders(e.target.value) }}
               className="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none"
             />
           </label>
@@ -217,7 +236,7 @@ export default function DeliveryInputClient() {
             <input
               type="number" inputMode="numeric" placeholder="例: 4000"
               value={rocketSales}
-              onChange={e => setRocketSales(e.target.value)}
+              onChange={e => { touched.current.rocket = true; setRocketSales(e.target.value) }}
               className="w-full mt-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-bold focus:border-red-500 outline-none"
             />
           </label>
@@ -226,7 +245,7 @@ export default function DeliveryInputClient() {
             <input
               type="number" inputMode="numeric" placeholder="例: 2"
               value={rocketOrders}
-              onChange={e => setRocketOrders(e.target.value)}
+              onChange={e => { touched.current.rocket = true; setRocketOrders(e.target.value) }}
               className="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 outline-none"
             />
           </label>

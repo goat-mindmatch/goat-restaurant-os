@@ -14,6 +14,21 @@ import { createServiceClient } from '@/lib/supabase'
 
 const TENANT_ID = process.env.TENANT_ID!
 
+// 同名重複（UNIQUE staff_tenant_name_unique）違反を分かりやすいメッセージに変換。
+// 正当に同姓スタッフを登録したい場合は名前に区別子を付ける運用（例:「田中」「田中A」）。
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function uniqueNameError(e: any, name: string): NextResponse | null {
+  const code = e?.code ?? e?.details ?? ''
+  const msg  = String(e?.message ?? '')
+  if (code === '23505' || msg.includes('staff_tenant_name_unique') || msg.includes('duplicate key')) {
+    return NextResponse.json({
+      error: `「${name}」さんは既に登録されています。同姓の別スタッフを登録する場合は、` +
+             `名前に区別子を付けてください（例：「${name}A」「${name}（ホール）」）。`,
+    }, { status: 409 })
+  }
+  return null
+}
+
 export async function GET() {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,7 +81,11 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', body.id)
         .eq('tenant_id', TENANT_ID)
-      if (error) throw error
+      if (error) {
+        const friendly = uniqueNameError(error, String(body.name).trim())
+        if (friendly) return friendly
+        throw error
+      }
       return NextResponse.json({ ok: true })
     }
 
@@ -88,7 +107,11 @@ export async function POST(req: NextRequest) {
       .select('id, name, role, hourly_wage, transport_fee, is_active, line_user_id')
       .single()
 
-    if (error) throw error
+    if (error) {
+      const friendly = uniqueNameError(error, name.trim())
+      if (friendly) return friendly
+      throw error
+    }
     return NextResponse.json(data, { status: 201 })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'error'

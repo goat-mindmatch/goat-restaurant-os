@@ -10,6 +10,7 @@ type TodaySalesResponse = {
   hour_jst: number
   show_lunch: boolean
   show_total: boolean
+  lunch_confirmed: boolean
   targets: {
     monthly: number
     daily: number
@@ -71,6 +72,7 @@ export default function SalesDashboardClient() {
   const [mealAmount, setMealAmount] = useState('')
   const [mealSaving, setMealSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [confirmingLunch, setConfirmingLunch] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -114,6 +116,39 @@ export default function SalesDashboardClient() {
     }
   }
 
+  const confirmLunch = async () => {
+    if (!data) return
+    const ok = window.confirm(
+      `現在の総売上 ${yen(data.sales.total)} を「昼売上」として確定します。\n` +
+      `（夜売上 = 総売上 − 昼売上 で自動計算されます）\nよろしいですか？`
+    )
+    if (!ok) return
+    setConfirmingLunch(true)
+    try {
+      const res = await fetch('/api/today-sales/confirm-lunch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date }),
+      })
+      const j = await res.json()
+      if (!res.ok) { alert(`確定失敗: ${j.error ?? res.status}`); return }
+      await load()
+    } finally {
+      setConfirmingLunch(false)
+    }
+  }
+
+  const cancelLunch = async () => {
+    if (!window.confirm('昼の確定を取り消しますか？')) return
+    setConfirmingLunch(true)
+    try {
+      await fetch(`/api/today-sales/confirm-lunch?date=${date}`, { method: 'DELETE' })
+      await load()
+    } finally {
+      setConfirmingLunch(false)
+    }
+  }
+
   const reportText = useMemo(() => {
     if (!data) return ''
     const [y, mo, d] = data.date.split('-').map(Number)
@@ -131,8 +166,13 @@ export default function SalesDashboardClient() {
     lines.push(`◾️${mo}月売上合計 ${yen(data.month.total)}`)
     lines.push(`◾️出前売上 ${yen(data.sales.anydeli + data.sales.uber + data.sales.rocketnow)}`)
     if (data.sales.rocketnow > 0) lines.push(`◾️ロケットなう ${yen(data.sales.rocketnow)}`)
-    lines.push(`◾️昼 ${lunchJ} ${yen(data.sales.lunch)}`)
-    lines.push(`◾️夜 ${dinnerJ} ${yen(data.sales.dinner)}`)
+    if (data.lunch_confirmed) {
+      lines.push(`◾️昼 ${lunchJ} ${yen(data.sales.lunch)}`)
+      lines.push(`◾️夜 ${dinnerJ} ${yen(data.sales.dinner)}`)
+    } else {
+      lines.push(`◾️昼 （昼を確定すると表示）`)
+      lines.push(`◾️夜 （昼を確定すると表示）`)
+    }
     lines.push(`◾️スタッフ飯 ${yen(data.staff_meals.today)}`)
     lines.push(`◾️月間スタッフ飯 ${yen(data.staff_meals.month)}`)
     return lines.join('\n')
@@ -184,42 +224,68 @@ export default function SalesDashboardClient() {
             <p className="text-xs text-gray-400 mt-1">日次目標 {yen(data.targets.daily)} ／ ◎は +¥15,000 以上</p>
           </div>
 
+          {/* 昼を確定（昼営業終了時に1タップ） */}
+          {!data.lunch_confirmed ? (
+            <button
+              onClick={confirmLunch}
+              disabled={confirmingLunch}
+              className="w-full bg-amber-500 active:bg-amber-600 text-white rounded-2xl shadow-sm p-4 text-left disabled:opacity-50"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold">☀️ 昼を確定する</p>
+                  <p className="text-xs opacity-80 mt-0.5">
+                    昼営業終了時にタップ → 現在の総売上 {yen(data.sales.total)} を昼として記録
+                  </p>
+                </div>
+                <span className="text-xl">{confirmingLunch ? '…' : '✓'}</span>
+              </div>
+            </button>
+          ) : (
+            <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
+              <p className="text-xs text-amber-700">☀️ 昼確定済み（{yen(data.sales.lunch)}）</p>
+              <button onClick={cancelLunch} disabled={confirmingLunch} className="text-xs text-amber-600 underline">
+                取り消す
+              </button>
+            </div>
+          )}
+
           {/* 昼 / 夜カード */}
           <div className="grid grid-cols-2 gap-3">
-            <div className={`rounded-2xl shadow-sm p-4 ${data.show_lunch ? 'bg-white' : 'bg-gray-50'}`}>
+            <div className={`rounded-2xl shadow-sm p-4 ${data.lunch_confirmed ? 'bg-white' : 'bg-gray-50'}`}>
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs font-semibold text-gray-500">☀️ 昼売上</p>
-                {data.show_lunch && (
+                {data.lunch_confirmed && (
                   <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${judgementColor(data.judgements.lunch)}`}>
                     {data.judgements.lunch}
                   </span>
                 )}
               </div>
-              {data.show_lunch ? (
+              {data.lunch_confirmed ? (
                 <>
                   <p className="text-xl font-bold text-gray-900">{yen(data.sales.lunch)}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">目標 {yen(data.targets.lunch)}</p>
                 </>
               ) : (
-                <p className="text-xs text-gray-400 mt-2">15時以降に表示</p>
+                <p className="text-xs text-gray-400 mt-2">「昼を確定」で表示</p>
               )}
             </div>
-            <div className={`rounded-2xl shadow-sm p-4 ${data.show_total ? 'bg-white' : 'bg-gray-50'}`}>
+            <div className={`rounded-2xl shadow-sm p-4 ${data.lunch_confirmed ? 'bg-white' : 'bg-gray-50'}`}>
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs font-semibold text-gray-500">🌙 夜売上</p>
-                {data.show_total && (
+                {data.lunch_confirmed && (
                   <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${judgementColor(data.judgements.dinner)}`}>
                     {data.judgements.dinner}
                   </span>
                 )}
               </div>
-              {data.show_total ? (
+              {data.lunch_confirmed ? (
                 <>
                   <p className="text-xl font-bold text-gray-900">{yen(data.sales.dinner)}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">目標 {yen(data.targets.dinner)}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">目標 {yen(data.targets.dinner)} ／ 総−昼</p>
                 </>
               ) : (
-                <p className="text-xs text-gray-400 mt-2">21時以降に表示</p>
+                <p className="text-xs text-gray-400 mt-2">昼確定後に表示</p>
               )}
             </div>
           </div>

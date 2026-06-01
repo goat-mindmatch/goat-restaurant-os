@@ -132,8 +132,15 @@ export async function GET(req: NextRequest) {
     const todayJst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
     let attributed = 0
     let onDutyCount = 0
+    let deltaCapped = false
 
-    if (delta > 0) {
+    // 安全弁: 1回の delta が異常に大きい場合は自動配分しない（EXP暴発防止）。
+    //   - 履歴の欠損/復元で previousCount=0 になり巨大 delta が出るケース
+    //   - 初回(isFirstRun)は既に delta=0 だが、二重に上限も設ける
+    const DELTA_CAP = 20
+    const safeDelta = delta
+
+    if (safeDelta > 0 && safeDelta <= DELTA_CAP) {
       // 当日に出勤したスタッフ（clock_in 済み）
       const { data: onDuty } = await db.from('attendance')
         .select('staff_id')
@@ -148,7 +155,7 @@ export async function GET(req: NextRequest) {
 
       if (staffIds.length > 0) {
         // delta 件を staff にラウンドロビンで配分
-        const rows = Array.from({ length: delta }).map((_, i) => ({
+        const rows = Array.from({ length: safeDelta }).map((_, i) => ({
           tenant_id: TENANT_ID,
           staff_id: staffIds[i % staffIds.length],
           completed: true,
@@ -164,6 +171,10 @@ export async function GET(req: NextRequest) {
           console.error('[sync-google-reviews] auto-attribute insert失敗:', insertError)
         }
       }
+    } else if (safeDelta > DELTA_CAP) {
+      // 上限超過: 自動配分せず経営者に手動確認を促す
+      deltaCapped = true
+      console.warn('[sync-google-reviews] delta exceeds cap, skip auto-attribution', { delta: safeDelta, cap: DELTA_CAP })
     }
 
     // 管理者に日次レポート
@@ -172,11 +183,13 @@ export async function GET(req: NextRequest) {
       .eq('tenant_id', TENANT_ID).eq('role', 'manager')
       .not('line_user_id', 'is', null)
 
-    const attributionMsg = delta > 0
-      ? (onDutyCount > 0
-          ? `\n👥 出勤${onDutyCount}名で${attributed}件をEXP配分済み`
-          : `\n⚠️ 出勤スタッフが0名のためEXP配分なし`)
-      : ''
+    const attributionMsg = deltaCapped
+      ? `\n⚠️ 増加が+${delta}件と異常に大きいため自動EXP配分を保留しました。\n手動でご確認ください（履歴リセット等の可能性）。`
+      : (delta > 0
+          ? (onDutyCount > 0
+              ? `\n👥 出勤${onDutyCount}名で${attributed}件をEXP配分済み`
+              : `\n⚠️ 出勤スタッフが0名のためEXP配分なし`)
+          : '')
 
     for (const m of managers ?? []) {
       try {
@@ -191,6 +204,7 @@ export async function GET(req: NextRequest) {
       current_count: currentCount,
       previous_count: previousCount,
       delta,
+      delta_capped: deltaCapped,
       on_duty_count: onDutyCount,
       auto_attributed: attributed,
       new_cached_reviews: newCached,

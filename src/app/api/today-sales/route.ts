@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   // 当日Google口コミ件数: history の最新2件で delta を出す
   const [todayRes, monthRes, tenantRes, mealsTodayRes, mealsMonthRes, reviewHistoryRes, reviewMonthRes] = await Promise.all([
     db.from('daily_sales')
-      .select('date, total_sales, store_sales, delivery_sales, lunch_sales, dinner_sales, anydeli_sales, anydeli_cash_sales, anydeli_online_sales, uber_sales, rocketnow_sales')
+      .select('date, total_sales, store_sales, delivery_sales, lunch_sales, dinner_sales, lunch_confirmed_at, anydeli_sales, anydeli_cash_sales, anydeli_online_sales, uber_sales, rocketnow_sales')
       .eq('tenant_id', TENANT_ID)
       .eq('date', date)
       .maybeSingle(),
@@ -89,6 +89,7 @@ export async function GET(req: NextRequest) {
     delivery_sales: number | null
     lunch_sales: number | null
     dinner_sales: number | null
+    lunch_confirmed_at: string | null
     anydeli_sales: number | null
     anydeli_cash_sales: number | null
     anydeli_online_sales: number | null
@@ -131,11 +132,15 @@ export async function GET(req: NextRequest) {
   const anydeliSales = Number(today?.anydeli_sales  ?? 0)
   const uberSales    = Number(today?.uber_sales     ?? 0)
   const rocketSales  = Number(today?.rocketnow_sales ?? 0)
-  const lunchSales   = Number(today?.lunch_sales    ?? 0)
-  const dinnerSales  = Number(today?.dinner_sales   ?? 0)
   const totalSales   = Number(today?.total_sales    ?? 0)
 
-  // lunch/dinner_sales が未設定なら anydeli を昼夜に分けられないので 0 扱い
+  // 昼/夜売上はスナップショット方式:
+  //   昼確定(lunch_confirmed_at)済み → lunch_sales が「昼の総売上」、夜 = 総 - 昼
+  //   未確定 → 昼/夜とも判定不能（—）。誤った×を出さない。
+  const lunchConfirmed = today?.lunch_confirmed_at != null
+  const lunchSales   = lunchConfirmed ? Number(today?.lunch_sales ?? 0) : 0
+  const dinnerSales  = lunchConfirmed ? Math.max(0, totalSales - lunchSales) : 0
+
   const monthTotal = monthRows.reduce((s, r) => s + Number(r.total_sales ?? 0), 0)
   const mealsTodayTotal = mealsToday.reduce((s, r) => s + r.amount, 0)
   const mealsMonthTotal = mealsMonth.reduce((s, r) => s + r.amount, 0)
@@ -146,6 +151,7 @@ export async function GET(req: NextRequest) {
     hour_jst: hour,
     show_lunch:  hour >= 15 || date < jstDateString(),
     show_total:  hour >= 21 || date < jstDateString(),
+    lunch_confirmed: lunchConfirmed,
     targets: {
       monthly: monthlyTarget,
       daily:   dailyTarget,
@@ -165,8 +171,9 @@ export async function GET(req: NextRequest) {
       anydeli_online: Number(today?.anydeli_online_sales ?? 0),
     },
     judgements: {
-      lunch:  judge(lunchSales,  lunchTarget),
-      dinner: judge(dinnerSales, dinnerTarget),
+      // 昼未確定のあいだは判定を出さない（— = 判定不能）
+      lunch:  lunchConfirmed ? judge(lunchSales,  lunchTarget)  : '—',
+      dinner: lunchConfirmed ? judge(dinnerSales, dinnerTarget) : '—',
       day:    judge(totalSales,  dailyTarget),
     },
     month: {
