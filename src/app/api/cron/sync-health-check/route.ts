@@ -62,34 +62,36 @@ export async function GET(req: NextRequest) {
   }
 
   const issues: string[] = []
-  const services: Array<{ key: keyof SalesRow; salesKey: keyof SalesRow; label: string }> = [
-    { key: 'anydeli_synced_at',   salesKey: 'anydeli_sales',   label: 'AnyDeli' },
-    { key: 'uber_synced_at',      salesKey: 'uber_sales',      label: 'Uber Eats' },
-    { key: 'rocketnow_synced_at', salesKey: 'rocketnow_sales', label: 'RocketNow' },
-  ]
 
-  for (const svc of services) {
+  // ── AnyDeli: 完全自動同期チャネル。停止＝障害なので厳しく監視 ──
+  {
     const latest = list[0]
-    const lastSync = latest[svc.key] as string | null
+    const lastSync = latest.anydeli_synced_at
     const stale = hoursSince(lastSync)
-
-    // 同期が完全に止まっている
     if (stale > STALE_HOURS) {
       issues.push(
-        `❌ ${svc.label}: 最終同期から ${Math.round(stale)} 時間経過 ` +
-        `(最終: ${lastSync ?? '記録なし'})`
+        `❌ AnyDeli: 最終同期から ${Math.round(stale)} 時間経過 ` +
+        `(最終: ${lastSync ?? '記録なし'})\n` +
+        `→ GitHub Actions の実行履歴を確認。セッション切れなら\n` +
+        `  node scripts/setup-delivery-session.js anydeli を実行`
       )
-      continue
     }
+  }
 
-    // 同期は走っているが3日連続で売上0 → セッション切れの可能性
+  // ── Uber / RocketNow: 2026-06 から手動入力運用。 ──
+  // 自動同期の停止は異常ではないため staleness では警告しない。
+  // 代わりに「3日連続で売上も入力もゼロ」なら入力忘れリマインドを出す。
+  const manualServices: Array<{ salesKey: keyof SalesRow; label: string }> = [
+    { salesKey: 'uber_sales',      label: 'Uber Eats' },
+    { salesKey: 'rocketnow_sales', label: 'RocketNow' },
+  ]
+  for (const svc of manualServices) {
     const recent3 = list.slice(0, 3)
-    const allZero = recent3.every((r) => (Number(r[svc.salesKey] ?? 0) === 0))
-    const anySync = recent3.some((r) => r[svc.key] != null)
-    if (allZero && anySync) {
+    const allZero = recent3.length >= 3 && recent3.every((r) => Number(r[svc.salesKey] ?? 0) === 0)
+    if (allZero) {
       issues.push(
-        `⚠️ ${svc.label}: 直近3日連続で売上 ¥0 ` +
-        `（同期は実行されているがセッション切れ・データ取得失敗の可能性）`
+        `📝 ${svc.label}: 直近3日 売上¥0。手動入力忘れの可能性。\n` +
+        `→ /staff-home/delivery-input から入力をお願いします（売上が実際に0なら問題ありません）`
       )
     }
   }

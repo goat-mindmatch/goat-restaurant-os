@@ -121,6 +121,18 @@ export default function StaffHomeClient({
               ダッシュボードを開く →
             </a>
           </Card>
+
+          <Card
+            icon="🛵"
+            iconBg="#1e293b"
+            title="デリバリー売上入力（Uber / RocketNow）"
+            description="UberとRocketNowはアプリの数字を見て入力するだけ。店頭・エニデリは自動取込なので入力不要です。"
+            badge={null}
+          >
+            <a href="/staff-home/delivery-input" style={btnStyle('#0f172a')}>
+              入力画面を開く →
+            </a>
+          </Card>
         </Section>
 
         {/* ━━━ 🕐 今日の勤務 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}

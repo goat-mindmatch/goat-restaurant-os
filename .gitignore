@@ -43,3 +43,6 @@ next-env.d.ts
 
 # claude code local settings (personal permission overrides)
 .claude/settings.local.json
+
+# デリバリーセッション（認証トークンを含むため絶対にコミットしない）
+sessions/

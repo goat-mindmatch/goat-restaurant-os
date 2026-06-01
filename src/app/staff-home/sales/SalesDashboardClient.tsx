@@ -224,6 +224,17 @@ export default function SalesDashboardClient() {
             </div>
           </div>
 
+          {/* デリバリー手動入力への導線 */}
+          <Link href="/staff-home/delivery-input" className="block bg-slate-900 rounded-2xl shadow-sm p-4 text-white active:opacity-90">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold">🛵 Uber / RocketNow 売上入力</p>
+                <p className="text-xs opacity-70 mt-0.5">アプリの数字を見て入力するだけ</p>
+              </div>
+              <span className="text-xl">→</span>
+            </div>
+          </Link>
+
           {/* 内訳 */}
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <p className="text-xs font-semibold text-gray-500 mb-3">📋 売上内訳</p>

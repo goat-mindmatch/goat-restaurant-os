@@ -1,11 +1,10 @@
 name: デリバリー売上 自動同期（Uber Eats・RocketNow）
 
 on:
-  # 定時実行（JST） — 2026-05-29 に 9/23 → 15/21/23 へ変更（3点化）
-  schedule:
-    - cron: '0 6 * * *'    # 15:00 JST = 6:00 UTC（昼営業終了後）
-    - cron: '0 12 * * *'   # 21:00 JST = 12:00 UTC（夜営業終了後）
-    - cron: '0 14 * * *'   # 23:00 JST = 14:00 UTC（最終確認）
+  # 2026-06-01: Uber/RocketNow は新ポータル(SPA化)で自動取得が不能になったため
+  # 定時実行を停止。売上は /staff-home/delivery-input から手動入力する運用に移行。
+  # 将来スクレイパーを再構築できたら schedule を復活させる。
+  # （手動での再試行用に workflow_dispatch と repository_dispatch は残す）
 
   # Web アプリの「全サービス同期」ボタンから呼び出し
   repository_dispatch:
@@ -72,8 +71,8 @@ jobs:
           UBER_SESSION_B64: ${{ secrets.UBER_SESSION_B64 }}
           API_URL: ${{ env.API_URL }}
           DISPLAY: ':99'
-          # 新ポータル(merchants.ubereats.com)のAPI構造特定用。判明後に外す。
-          UBER_DEBUG: '1'
+          # 新ポータルのAPI構造調査用。手動再試行時に有効化したい場合は '1' に。
+          UBER_DEBUG: '0'
         run: node scripts/cloud-uber-sync.js
 
       - name: Notify session expired (Uber)
