@@ -39,6 +39,22 @@
     {
       "path": "/api/cron/sync-health-check",
       "schedule": "30 14 * * *"
+    },
+    {
+      "path": "/api/cron/sales-input-reminder?phase=lunch",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/sales-input-reminder?phase=lunch_urgent",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/sales-input-reminder?phase=dinner",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/sales-input-reminder?phase=dinner_urgent",
+      "schedule": "0 14 * * *"
     }
   ]
 }
