@@ -77,6 +77,8 @@ export default function SalesDashboardClient() {
   const [lunchFormOpen, setLunchFormOpen] = useState(false)
   const [uberLunch, setUberLunch] = useState('')
   const [rocketLunch, setRocketLunch] = useState('')
+  const [storeSyncing, setStoreSyncing] = useState(false)
+  const [storeSyncMsg, setStoreSyncMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -94,6 +96,49 @@ export default function SalesDashboardClient() {
   }, [date])
 
   useEffect(() => { load() }, [load])
+
+  // 店頭(AnyDeli)を今すぐ最新化する。GitHub Actions cron の遅延に依存せず、
+  // 昼確定の直前に最新の店頭売上を取り込むための機能。
+  const syncStore = useCallback(async () => {
+    setStoreSyncing(true)
+    setStoreSyncMsg('🔄 店頭(エニデリ)を最新化中…（最大90秒）')
+    try {
+      const res = await fetch('/api/admin/sync-trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ services: ['anydeli'] }),
+      })
+      const j = await res.json()
+      const requestedAt = j.requested_at
+      if (!res.ok) { setStoreSyncMsg('⚠️ 最新化リクエストに失敗しました'); return }
+
+      // 完了まで最大90秒ポーリング
+      for (let i = 0; i < 18; i++) {
+        await new Promise(r => setTimeout(r, 5000))
+        try {
+          const sres = await fetch('/api/admin/sync-status', { cache: 'no-store' })
+          const sj = await sres.json()
+          if (sj.completed && (!requestedAt || sj.completed_at >= requestedAt)) {
+            await load()
+            setStoreSyncMsg('✅ 店頭を最新化しました')
+            return
+          }
+        } catch { /* retry */ }
+      }
+      // タイムアウトしても現在値で続行可能
+      await load()
+      setStoreSyncMsg('⏱️ 最新化が時間内に完了しませんでした。表示値で確定するか、少し待って再度お試しください。')
+    } finally {
+      setStoreSyncing(false)
+    }
+  }, [load])
+
+  // 昼確定フォームを開くと同時に店頭を最新化（cron遅延対策）
+  const openLunchForm = useCallback(() => {
+    setLunchFormOpen(true)
+    setStoreSyncMsg(null)
+    syncStore()
+  }, [syncStore])
 
   const saveMeal = async () => {
     const amount = Number(mealAmount)
@@ -235,20 +280,31 @@ export default function SalesDashboardClient() {
             </div>
             <p className="text-3xl font-bold text-gray-900">{yen(data.sales.total)}</p>
             <p className="text-xs text-gray-400 mt-1">日次目標 {yen(data.targets.daily)} ／ ◎は +¥15,000 以上</p>
+            <div className="mt-3 flex items-center justify-between border-t pt-2">
+              <span className="text-[11px] text-gray-400">店頭(エニデリ) {yen(data.sales.store)}</span>
+              <button
+                onClick={syncStore}
+                disabled={storeSyncing}
+                className="text-xs font-semibold text-blue-600 disabled:opacity-50"
+              >{storeSyncing ? '🔄 更新中…' : '🔄 店頭を最新化'}</button>
+            </div>
+            {storeSyncMsg && !lunchFormOpen && (
+              <p className={`text-[11px] mt-1 ${storeSyncing ? 'text-blue-600' : 'text-green-600'}`}>{storeSyncMsg}</p>
+            )}
           </div>
 
           {/* 昼を確定（昼営業終了=15時頃に実施） */}
           {!data.lunch_confirmed ? (
             !lunchFormOpen ? (
               <button
-                onClick={() => setLunchFormOpen(true)}
+                onClick={openLunchForm}
                 className="w-full bg-amber-500 active:bg-amber-600 text-white rounded-2xl shadow-sm p-4 text-left"
               >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-bold">☀️ 昼を確定する</p>
                     <p className="text-xs opacity-80 mt-0.5">
-                      昼営業終了時にタップ → Uber/RocketNowの昼分を入力して確定
+                      タップすると店頭(エニデリ)を最新化 → Uber/RocketNowの昼分を入力して確定
                     </p>
                   </div>
                   <span className="text-xl">→</span>
@@ -257,8 +313,19 @@ export default function SalesDashboardClient() {
             ) : (
               <div className="bg-white rounded-2xl shadow-sm p-4 border-2 border-amber-300 space-y-3">
                 <p className="text-sm font-bold text-amber-700">☀️ 昼を確定</p>
+                {/* 店頭最新化ステータス */}
+                {storeSyncMsg && (
+                  <div className={`rounded-lg p-2 text-xs ${storeSyncing ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'}`}>
+                    {storeSyncMsg}
+                  </div>
+                )}
                 <div className="bg-amber-50 rounded-lg p-2 text-xs text-gray-600">
-                  店頭/エニデリ昼は自動取込済み: <span className="font-bold">{yen(data.sales.store_lunch)}</span>
+                  店頭/エニデリ昼（自動取込）: <span className="font-bold">{yen(data.sales.store_lunch)}</span>
+                  <button
+                    onClick={syncStore}
+                    disabled={storeSyncing}
+                    className="ml-2 text-blue-600 underline disabled:opacity-50"
+                  >{storeSyncing ? '更新中…' : '🔄 最新化'}</button>
                   <br />Uber/RocketNowアプリで<b>昼分</b>を確認して入力してください（無ければ0でOK）
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -290,9 +357,9 @@ export default function SalesDashboardClient() {
                     className="bg-gray-100 text-gray-700 font-semibold py-2.5 rounded-xl text-sm">
                     キャンセル
                   </button>
-                  <button onClick={confirmLunch} disabled={confirmingLunch}
+                  <button onClick={confirmLunch} disabled={confirmingLunch || storeSyncing}
                     className="bg-amber-500 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">
-                    {confirmingLunch ? '確定中...' : '☀️ 昼を確定'}
+                    {confirmingLunch ? '確定中...' : storeSyncing ? '店頭最新化中…' : '☀️ 昼を確定'}
                   </button>
                 </div>
               </div>
