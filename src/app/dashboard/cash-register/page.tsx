@@ -8,6 +8,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
+type Recent3Row = {
+  date:          string
+  anydeli_sales: number
+  cash_sales:    number
+  online_sales:  number
+  total_sales:   number
+}
+
 type RegisterData = {
   date:           string
   change_fund:    number
@@ -16,6 +24,7 @@ type RegisterData = {
   total_sales:    number
   anydeli_orders: number
   expected_total: number
+  recent3:        Recent3Row[]
   checked: {
     actual:     number
     diff:       number
@@ -86,6 +95,42 @@ export default function CashRegisterPage() {
             />
           </div>
         </div>
+
+        {/* 直近3日サマリー（一覧で素早く確認） */}
+        {data && data.recent3 && data.recent3.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              📅 直近3日サマリー
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-400 border-b">
+                    <th className="text-left py-1.5 font-medium">日付</th>
+                    <th className="text-right py-1.5 font-medium">売上</th>
+                    <th className="text-right py-1.5 font-medium">現金</th>
+                    <th className="text-right py-1.5 font-medium">オンライン</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recent3.map(r => (
+                    <tr
+                      key={r.date}
+                      onClick={() => setDate(r.date)}
+                      className={`border-b last:border-0 cursor-pointer hover:bg-gray-50 ${r.date === date ? 'bg-blue-50' : ''}`}
+                    >
+                      <td className="py-2 text-gray-700">{r.date.slice(5).replace('-', '/')}</td>
+                      <td className="py-2 text-right font-semibold text-gray-900">{yenFmt(r.anydeli_sales)}</td>
+                      <td className="py-2 text-right text-orange-600">{r.cash_sales > 0 ? yenFmt(r.cash_sales) : '—'}</td>
+                      <td className="py-2 text-right text-blue-600">{r.online_sales > 0 ? yenFmt(r.online_sales) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-2">行をタップすると詳細を表示します</p>
+          </div>
+        )}
 
         {/* エラー */}
         {error && (

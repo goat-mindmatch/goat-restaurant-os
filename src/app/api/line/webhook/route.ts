@@ -45,6 +45,20 @@ function normalizeName(input: string): string {
     .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
 }
 
+// Push送信をリトライ付きで確実化（レシート完了/失敗通知が無言で落ちるのを防ぐ）
+async function sendLineMessageReliable(userId: string, text: string, attempts = 3): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await sendLineMessage(userId, text)
+      return true
+    } catch (e) {
+      console.error(`[push-retry] 失敗 ${i + 1}/${attempts}:`, e)
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+    }
+  }
+  return false
+}
+
 // 経営者ロールのスタッフ全員に Push 通知を送る（未登録試行アラート等）
 async function notifyManagers(message: string) {
   try {
@@ -873,7 +887,8 @@ async function handleReceiptImage(lineUserId: string, messageId: string, replyTo
     return
   }
 
-  await replyLineMessage(replyToken, '📷 レシートを読み取り中です...')
+  await replyLineMessage(replyToken,
+    '📷 レシートを読み取り中です...\n（10〜30秒ほどで結果をお送りします。1分以上たっても返信が来ない場合はもう一度送り直してください）')
 
   try {
     // LINE Content API からバイナリ画像を取得
@@ -990,7 +1005,7 @@ JSONのみを返してください。前後の説明・コードブロックは�
     }
     const catLabel = CATEGORY_LABELS[expense.category] ?? expense.category
 
-    await sendLineMessage(
+    const okSent = await sendLineMessageReliable(
       lineUserId,
       `✅ レシートをPLに記録しました！\n\n` +
       `📅 日付: ${expense.date}\n` +
@@ -1000,6 +1015,10 @@ JSONのみを返してください。前後の説明・コードブロックは�
       (expense.note ? `📝 ${expense.note}\n` : '') +
       `\n内容が違う場合はダッシュボードで修正できます。`
     )
+    if (!okSent) {
+      // 通知は落ちたがDB保存は成功している。記録は残っている旨をログに残す。
+      console.error('[receipt-ocr] 完了通知のpushに失敗（DB保存は成功済み）', { lineUserId, expenseId: expense.id })
+    }
   } catch (e) {
     const errMessage = e instanceof Error ? e.message : String(e)
     console.error('[receipt-ocr] failed', {
@@ -1009,16 +1028,12 @@ JSONのみを返してください。前後の説明・コードブロックは�
       error: errMessage,
       stack: e instanceof Error ? e.stack : undefined,
     })
-    try {
-      await sendLineMessage(
-        lineUserId,
-        `❌ レシートの読み取りに失敗しました。\n\n` +
-        `理由: ${errMessage.slice(0, 150) || '不明（タイムアウトの可能性）'}\n\n` +
-        `もう一度撮影しなおして送信するか、ダッシュボードから手動入力してください。`
-      )
-    } catch (pushError) {
-      console.error('[receipt-ocr] error push notification failed:', pushError)
-    }
+    await sendLineMessageReliable(
+      lineUserId,
+      `❌ レシートの読み取りに失敗しました。\n\n` +
+      `理由: ${errMessage.slice(0, 150) || '不明（タイムアウトの可能性）'}\n\n` +
+      `もう一度撮影しなおして送信するか、ダッシュボードから手動入力してください。`
+    )
   }
 }
 
@@ -1153,7 +1168,7 @@ async function handleTodaySales(lineUserId: string, replyToken: string) {
     .toISOString().split('T')[0]
 
   const { data: sales } = await db.from('daily_sales')
-    .select('total_sales, store_sales, delivery_sales, store_orders, delivery_orders, uber_sales, rocketnow_sales, lunch_sales, dinner_sales, food_cost, labor_cost')
+    .select('total_sales, store_sales, delivery_sales, store_orders, delivery_orders, uber_sales, rocketnow_sales, lunch_sales, lunch_confirmed_at, anydeli_cash_sales, anydeli_online_sales, food_cost, labor_cost')
     .eq('tenant_id', TENANT_ID)
     .eq('date', todayISO)
     .single()
@@ -1167,9 +1182,9 @@ async function handleTodaySales(lineUserId: string, replyToken: string) {
     .lte('date', todayISO)
   const monthTotal = (monthRows ?? []).reduce((s: number, r: { total_sales: number | null }) => s + (r.total_sales ?? 0), 0)
 
-  // 月間目標
+  // 目標（月次 + 昼/夜の日次目標）
   const { data: tenant } = await db.from('tenants')
-    .select('monthly_target').eq('id', TENANT_ID).single()
+    .select('monthly_target, lunch_target_ratio, lunch_target, dinner_target').eq('id', TENANT_ID).single()
   const monthlyTarget = tenant?.monthly_target ?? 0
 
   if (!sales) {
@@ -1180,6 +1195,41 @@ async function handleTodaySales(lineUserId: string, replyToken: string) {
 
   const fmt = (n: number | null) => n != null ? `¥${n.toLocaleString()}` : '未入力'
   const pct = (a: number | null, b: number) => (a && b > 0) ? ` (${Math.round(a / b * 100)}%)` : ''
+
+  // 昼/夜の日次目標（明示設定優先・なければ月次÷日数×比率）
+  const [yy, mm] = todayISO.split('-').map(Number)
+  const daysInMonth = new Date(Date.UTC(yy, mm, 0)).getUTCDate()
+  const dailyTarget = monthlyTarget > 0 ? Math.round(monthlyTarget / daysInMonth) : 0
+  const lunchRatio = Number(tenant?.lunch_target_ratio ?? 0.6)
+  const lunchTarget  = tenant?.lunch_target  != null ? Number(tenant.lunch_target)  : Math.round(dailyTarget * lunchRatio)
+  const dinnerTarget = tenant?.dinner_target != null ? Number(tenant.dinner_target) : Math.round(dailyTarget * (1 - lunchRatio))
+
+  // 判定 ×/◯/◎（◎は目標+15,000以上）
+  const judge = (actual: number, target: number): string => {
+    if (target <= 0) return '—'
+    if (actual >= target + 15000) return '◎'
+    if (actual >= target) return '◯'
+    return '×'
+  }
+
+  // 昼確定済みなら昼/夜判定を表示
+  const total = Number(sales.total_sales ?? 0)
+  const lunchConfirmed = sales.lunch_confirmed_at != null
+  const lunchSales = lunchConfirmed ? Number(sales.lunch_sales ?? 0) : 0
+  const dinnerSales = lunchConfirmed ? Math.max(0, total - lunchSales) : 0
+
+  const judgeLine = lunchConfirmed
+    ? `🌞 昼: ${judge(lunchSales, lunchTarget)} ${fmt(lunchSales)}\n` +
+      `🌙 夜: ${judge(dinnerSales, dinnerTarget)} ${fmt(dinnerSales)}\n` +
+      `🎯 当日: ${judge(total, dailyTarget)}（目標 ${fmt(dailyTarget)}）\n`
+    : `🌞🌙 昼/夜: 昼未確定（ダッシュボードで「昼を確定」してください）\n`
+
+  // 現金/オンライン内訳
+  const cash = Number(sales.anydeli_cash_sales ?? 0)
+  const online = Number(sales.anydeli_online_sales ?? 0)
+  const cashLine = (cash > 0 || online > 0)
+    ? `💵 現金: ${fmt(cash)} / 💳 オンライン: ${fmt(online)}\n`
+    : ''
 
   const flLine = (sales.food_cost || sales.labor_cost)
     ? `\n💰 FL比率: 食材 ${fmt(sales.food_cost)} / 人件費 ${fmt(sales.labor_cost)}`
@@ -1194,8 +1244,9 @@ async function handleTodaySales(lineUserId: string, replyToken: string) {
     `💴 合計: ${fmt(sales.total_sales)}\n` +
     `🏪 店内: ${fmt(sales.store_sales)}（${sales.store_orders ?? 0}件）\n` +
     `🛵 デリバリー: ${fmt(sales.delivery_sales)}（${sales.delivery_orders ?? 0}件）\n` +
-    (sales.lunch_sales ? `🌞 ランチ: ${fmt(sales.lunch_sales)}\n` : '') +
-    (sales.dinner_sales ? `🌙 ディナー: ${fmt(sales.dinner_sales)}\n` : '') +
+    cashLine +
+    `─────────\n` +
+    judgeLine +
     flLine +
     monthLine +
     `\n\n詳細はダッシュボードで確認できます👇\nhttps://goat-restaurant-os.vercel.app/dashboard`

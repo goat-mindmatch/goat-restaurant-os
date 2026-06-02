@@ -80,20 +80,22 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
     }
   }, [router, toast])
 
-  // 全サービス 今すぐ同期（AnyDeli + Uber Eats + RocketNow）
+  // 店頭(AnyDeli)を今すぐ同期。
+  // 2026-06: Uber/RocketNow は新ポータルのSPA化で自動取得不能になったため
+  // この同期では対象外（手動入力に移行）。
   const handleSyncNow = useCallback(async () => {
     setSyncing(true)
-    toast('⏳ 同期リクエストを送信中...', 'info')
+    toast('⏳ 店頭(エニデリ)の同期リクエストを送信中...', 'info')
     try {
       const res  = await fetch('/api/admin/sync-trigger', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ services: ['anydeli', 'uber', 'rocketnow'] }),
+        body:    JSON.stringify({ services: ['anydeli'] }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? '送信失敗')
 
-      toast('📡 全サービス同期リクエスト送信済み。最大90秒で自動取込されます', 'info')
+      toast('📡 店頭(エニデリ)同期リクエスト送信済み。最大90秒で自動取込されます', 'info')
 
       // 完了まで10秒ごとにポーリング（最大90秒）
       let count = 0
@@ -106,12 +108,12 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
           if (statusJson.completed && statusJson.completed_at >= requestedAt) {
             clearInterval(pollRef.current!)
             setSyncing(false)
-            toast('✅ 同期完了！データを更新します')
+            toast('✅ 店頭の同期完了！データを更新します')
             setTimeout(() => handleRefresh(), 1000)
           } else if (count >= 9) {
             clearInterval(pollRef.current!)
             setSyncing(false)
-            toast('⚠️ タイムアウト。Macが起動しているか確認してください', 'err')
+            toast('⚠️ 同期がタイムアウトしました。時間をおいて再度お試しください', 'err')
           }
         } catch {
           if (count >= 9) {
@@ -261,20 +263,31 @@ export default function SalesClient({ initialSales }: { initialSales: SalesRow[]
             className="flex items-center justify-center gap-1.5 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold disabled:opacity-50"
           >
             <span className={syncing ? 'animate-pulse' : ''}>⚡</span>
-            {syncing ? '取込中...' : '全データを一括更新'}
+            {syncing ? '取込中...' : '店頭(エニデリ)を更新'}
           </button>
         </div>
         {syncing && (
           <p className="text-xs text-blue-500 text-center mt-2">
-            全サービスのデータを取込中です。タブを閉じても続きます ✓
+            店頭(エニデリ)のデータを取込中です。タブを閉じても続きます ✓
           </p>
         )}
+        {/* Uber/RocketNow は手動入力に移行した旨を明示 */}
+        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <p className="text-xs text-amber-800 font-semibold mb-1">🛵 Uber / RocketNow は手動入力です</p>
+          <p className="text-[11px] text-amber-700 mb-2">
+            新ポータルの仕様変更で自動取得ができないため、アプリの数字を見て入力してください。
+          </p>
+          <a href="/staff-home/delivery-input"
+            className="block text-center py-2 bg-amber-500 text-white rounded-lg text-xs font-bold">
+            デリバリー売上入力を開く →
+          </a>
+        </div>
         <div className="mt-3 border-t pt-3">
           <button
             onClick={() => { setShowManual(!showManual); setManualStep(1) }}
             className="w-full py-3 rounded-xl font-semibold text-sm bg-gray-50 text-gray-600"
           >
-            ✍️ 手動入力
+            ✍️ 詳細手動入力（店内/配達/コスト）
           </button>
         </div>
       </div>

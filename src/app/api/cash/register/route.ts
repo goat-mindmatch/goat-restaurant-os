@@ -41,6 +41,29 @@ export async function GET(req: NextRequest) {
     const totalSales   = Number(sales?.anydeli_sales ?? 0)
     const expectedTotal = changeFund + cashSales  // レジ内想定金額
 
+    // 直近3日のサマリー（一覧表示用・「出ない」誤認の解消）
+    const start = new Date(date + 'T00:00:00Z')
+    start.setUTCDate(start.getUTCDate() - 2)
+    const startDate = start.toISOString().split('T')[0]
+    const { data: recentRows } = await db
+      .from('daily_sales')
+      .select('date, anydeli_sales, anydeli_cash_sales, anydeli_online_sales, total_sales')
+      .eq('tenant_id', TENANT_ID)
+      .gte('date', startDate)
+      .lte('date', date)
+      .order('date', { ascending: false })
+
+    const recent3 = (recentRows ?? []).map((r: {
+      date: string; anydeli_sales: number | null; anydeli_cash_sales: number | null
+      anydeli_online_sales: number | null; total_sales: number | null
+    }) => ({
+      date: r.date,
+      anydeli_sales: Number(r.anydeli_sales ?? 0),
+      cash_sales: Number(r.anydeli_cash_sales ?? 0),
+      online_sales: Number(r.anydeli_online_sales ?? 0),
+      total_sales: Number(r.total_sales ?? 0),
+    }))
+
     return NextResponse.json({
       date,
       change_fund:      changeFund,
@@ -49,6 +72,7 @@ export async function GET(req: NextRequest) {
       total_sales:      totalSales,
       anydeli_orders:   Number(sales?.anydeli_orders ?? 0),
       expected_total:   expectedTotal,              // つり銭準備金 + 現金売上
+      recent3,                                       // 直近3日サマリー
       // 照合済みデータ（あれば）
       checked: sales?.cash_register_checked_at ? {
         actual:     Number(sales.cash_register_actual ?? 0),

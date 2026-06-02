@@ -73,6 +73,9 @@ export default function SalesDashboardClient() {
   const [mealSaving, setMealSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [confirmingLunch, setConfirmingLunch] = useState(false)
+  const [lunchFormOpen, setLunchFormOpen] = useState(false)
+  const [uberLunch, setUberLunch] = useState('')
+  const [rocketLunch, setRocketLunch] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -118,9 +121,16 @@ export default function SalesDashboardClient() {
 
   const confirmLunch = async () => {
     if (!data) return
+    const uLunch = uberLunch === '' ? 0 : Number(uberLunch)
+    const rLunch = rocketLunch === '' ? 0 : Number(rocketLunch)
+    const lunchTotal = data.sales.store + uLunch + rLunch
     const ok = window.confirm(
-      `現在の総売上 ${yen(data.sales.total)} を「昼売上」として確定します。\n` +
-      `（夜売上 = 総売上 − 昼売上 で自動計算されます）\nよろしいですか？`
+      `昼売上を確定します。\n\n` +
+      `店頭/エニデリ昼: ${yen(data.sales.store)}\n` +
+      `Uber昼: ${yen(uLunch)}\n` +
+      `RocketNow昼: ${yen(rLunch)}\n` +
+      `─────────\n昼合計: ${yen(lunchTotal)}\n\n` +
+      `夜売上 = 1日の総売上 − 昼合計 で自動計算されます。よろしいですか？`
     )
     if (!ok) return
     setConfirmingLunch(true)
@@ -128,10 +138,12 @@ export default function SalesDashboardClient() {
       const res = await fetch('/api/today-sales/confirm-lunch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date }),
+        body: JSON.stringify({ date, uber_lunch: uLunch, rocketnow_lunch: rLunch }),
       })
       const j = await res.json()
       if (!res.ok) { alert(`確定失敗: ${j.error ?? res.status}`); return }
+      setLunchFormOpen(false)
+      setUberLunch(''); setRocketLunch('')
       await load()
     } finally {
       setConfirmingLunch(false)
@@ -224,23 +236,66 @@ export default function SalesDashboardClient() {
             <p className="text-xs text-gray-400 mt-1">日次目標 {yen(data.targets.daily)} ／ ◎は +¥15,000 以上</p>
           </div>
 
-          {/* 昼を確定（昼営業終了時に1タップ） */}
+          {/* 昼を確定（昼営業終了=15時頃に実施） */}
           {!data.lunch_confirmed ? (
-            <button
-              onClick={confirmLunch}
-              disabled={confirmingLunch}
-              className="w-full bg-amber-500 active:bg-amber-600 text-white rounded-2xl shadow-sm p-4 text-left disabled:opacity-50"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-bold">☀️ 昼を確定する</p>
-                  <p className="text-xs opacity-80 mt-0.5">
-                    昼営業終了時にタップ → 現在の総売上 {yen(data.sales.total)} を昼として記録
-                  </p>
+            !lunchFormOpen ? (
+              <button
+                onClick={() => setLunchFormOpen(true)}
+                className="w-full bg-amber-500 active:bg-amber-600 text-white rounded-2xl shadow-sm p-4 text-left"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold">☀️ 昼を確定する</p>
+                    <p className="text-xs opacity-80 mt-0.5">
+                      昼営業終了時にタップ → Uber/RocketNowの昼分を入力して確定
+                    </p>
+                  </div>
+                  <span className="text-xl">→</span>
                 </div>
-                <span className="text-xl">{confirmingLunch ? '…' : '✓'}</span>
+              </button>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-sm p-4 border-2 border-amber-300 space-y-3">
+                <p className="text-sm font-bold text-amber-700">☀️ 昼を確定</p>
+                <div className="bg-amber-50 rounded-lg p-2 text-xs text-gray-600">
+                  店頭/エニデリ昼は自動取込済み: <span className="font-bold">{yen(data.sales.store)}</span>
+                  <br />Uber/RocketNowアプリで<b>昼分</b>を確認して入力してください（無ければ0でOK）
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-xs text-gray-500">Uber 昼分（円）</span>
+                    <input
+                      type="number" inputMode="numeric" placeholder="0"
+                      value={uberLunch}
+                      onChange={e => setUberLunch(e.target.value)}
+                      className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-gray-500">RocketNow 昼分（円）</span>
+                    <input
+                      type="number" inputMode="numeric" placeholder="0"
+                      value={rocketLunch}
+                      onChange={e => setRocketLunch(e.target.value)}
+                      className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500">
+                  昼合計 = 店頭 {yen(data.sales.store)} + Uber {yen(uberLunch === '' ? 0 : Number(uberLunch))} + Rocket {yen(rocketLunch === '' ? 0 : Number(rocketLunch))}
+                  　→ <b>{yen(data.sales.store + (uberLunch === '' ? 0 : Number(uberLunch)) + (rocketLunch === '' ? 0 : Number(rocketLunch)))}</b>
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setLunchFormOpen(false)} disabled={confirmingLunch}
+                    className="bg-gray-100 text-gray-700 font-semibold py-2.5 rounded-xl text-sm">
+                    キャンセル
+                  </button>
+                  <button onClick={confirmLunch} disabled={confirmingLunch}
+                    className="bg-amber-500 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">
+                    {confirmingLunch ? '確定中...' : '☀️ 昼を確定'}
+                  </button>
+                </div>
               </div>
-            </button>
+            )
           ) : (
             <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
               <p className="text-xs text-amber-700">☀️ 昼確定済み（{yen(data.sales.lunch)}）</p>
