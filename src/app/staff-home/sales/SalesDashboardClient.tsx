@@ -21,6 +21,7 @@ type TodaySalesResponse = {
   sales: {
     total: number
     store: number
+    store_lunch: number
     anydeli: number
     uber: number
     rocketnow: number
@@ -123,10 +124,10 @@ export default function SalesDashboardClient() {
     if (!data) return
     const uLunch = uberLunch === '' ? 0 : Number(uberLunch)
     const rLunch = rocketLunch === '' ? 0 : Number(rocketLunch)
-    const lunchTotal = data.sales.store + uLunch + rLunch
+    const lunchTotal = data.sales.store_lunch + uLunch + rLunch
     const ok = window.confirm(
       `昼売上を確定します。\n\n` +
-      `店頭/エニデリ昼: ${yen(data.sales.store)}\n` +
+      `店頭/エニデリ昼: ${yen(data.sales.store_lunch)}\n` +
       `Uber昼: ${yen(uLunch)}\n` +
       `RocketNow昼: ${yen(rLunch)}\n` +
       `─────────\n昼合計: ${yen(lunchTotal)}\n\n` +
@@ -257,7 +258,7 @@ export default function SalesDashboardClient() {
               <div className="bg-white rounded-2xl shadow-sm p-4 border-2 border-amber-300 space-y-3">
                 <p className="text-sm font-bold text-amber-700">☀️ 昼を確定</p>
                 <div className="bg-amber-50 rounded-lg p-2 text-xs text-gray-600">
-                  店頭/エニデリ昼は自動取込済み: <span className="font-bold">{yen(data.sales.store)}</span>
+                  店頭/エニデリ昼は自動取込済み: <span className="font-bold">{yen(data.sales.store_lunch)}</span>
                   <br />Uber/RocketNowアプリで<b>昼分</b>を確認して入力してください（無ければ0でOK）
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -281,8 +282,8 @@ export default function SalesDashboardClient() {
                   </label>
                 </div>
                 <p className="text-xs text-gray-500">
-                  昼合計 = 店頭 {yen(data.sales.store)} + Uber {yen(uberLunch === '' ? 0 : Number(uberLunch))} + Rocket {yen(rocketLunch === '' ? 0 : Number(rocketLunch))}
-                  　→ <b>{yen(data.sales.store + (uberLunch === '' ? 0 : Number(uberLunch)) + (rocketLunch === '' ? 0 : Number(rocketLunch)))}</b>
+                  昼合計 = 店頭 {yen(data.sales.store_lunch)} + Uber {yen(uberLunch === '' ? 0 : Number(uberLunch))} + Rocket {yen(rocketLunch === '' ? 0 : Number(rocketLunch))}
+                  　→ <b>{yen(data.sales.store_lunch + (uberLunch === '' ? 0 : Number(uberLunch)) + (rocketLunch === '' ? 0 : Number(rocketLunch)))}</b>
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setLunchFormOpen(false)} disabled={confirmingLunch}

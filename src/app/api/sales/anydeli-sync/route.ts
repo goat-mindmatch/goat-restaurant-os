@@ -101,6 +101,10 @@ export async function POST(req: NextRequest) {
     const updated: string[] = []
     const errors: string[] = []
     const now = new Date().toISOString()
+    // JST時刻。15:00〜20:59 の同期は「昼締め」窓とみなし、店頭昼を固定スナップショットする。
+    const jstHour = Math.floor((Date.now() + 9 * 60 * 60 * 1000) / 3_600_000) % 24
+    const isLunchWindow = jstHour >= 15 && jstHour < 21
+    const todayJst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
 
     for (const row of rows) {
       const upsertPayload: Record<string, unknown> = {
@@ -113,6 +117,12 @@ export async function POST(req: NextRequest) {
         store_sales:       row.amount,
         store_orders:      row.orders,
         data_source:       'api',
+      }
+
+      // 昼締め窓(15〜20時JST)に当日分を同期した時のみ、店頭昼を固定スナップショット。
+      // 昼確定がこの値を優先使用するため、21時以降に昼確定しても過大計上しない。
+      if (isLunchWindow && row.date === todayJst) {
+        upsertPayload.store_lunch_sales = row.amount
       }
 
       // 現金/オンライン内訳が提供された場合のみ更新

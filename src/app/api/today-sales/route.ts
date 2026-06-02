@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   // 当日Google口コミ件数: history の最新2件で delta を出す
   const [todayRes, monthRes, tenantRes, mealsTodayRes, mealsMonthRes, reviewHistoryRes, reviewMonthRes] = await Promise.all([
     db.from('daily_sales')
-      .select('date, total_sales, store_sales, delivery_sales, lunch_sales, dinner_sales, lunch_confirmed_at, anydeli_sales, anydeli_cash_sales, anydeli_online_sales, uber_sales, rocketnow_sales')
+      .select('date, total_sales, store_sales, store_lunch_sales, delivery_sales, lunch_sales, dinner_sales, lunch_confirmed_at, anydeli_sales, anydeli_cash_sales, anydeli_online_sales, uber_sales, rocketnow_sales')
       .eq('tenant_id', TENANT_ID)
       .eq('date', date)
       .maybeSingle(),
@@ -86,6 +86,7 @@ export async function GET(req: NextRequest) {
     date: string
     total_sales: number | null
     store_sales: number | null
+    store_lunch_sales: number | null
     delivery_sales: number | null
     lunch_sales: number | null
     dinner_sales: number | null
@@ -162,6 +163,8 @@ export async function GET(req: NextRequest) {
     sales: {
       total:    totalSales,
       store:    storeSales,
+      // 昼確定フォーム用: 15時固定の店頭昼（なければ現在のstore）
+      store_lunch: today?.store_lunch_sales != null ? Number(today.store_lunch_sales) : storeSales,
       anydeli:  anydeliSales,
       uber:     uberSales,
       rocketnow: rocketSales,

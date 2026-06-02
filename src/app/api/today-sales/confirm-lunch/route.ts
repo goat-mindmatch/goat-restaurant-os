@@ -39,15 +39,18 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createServiceClient() as any
 
-    // 店頭昼（その時点の store_sales = AnyDeli 同期値）を取得
+    // 店頭昼を取得。15時同期で固定した store_lunch_sales を優先（時刻依存バグ回避）。
+    // 未取得なら store_sales にフォールバック。
     const { data: row } = await db
       .from('daily_sales')
-      .select('store_sales')
+      .select('store_sales, store_lunch_sales')
       .eq('tenant_id', TENANT_ID)
       .eq('date', date)
       .maybeSingle()
 
-    const storeLunch = Number(row?.store_sales ?? 0)
+    const storeLunch = row?.store_lunch_sales != null
+      ? Number(row.store_lunch_sales)
+      : Number(row?.store_sales ?? 0)
     const lunchSales = storeLunch + uberLunch + rocketLunch
 
     const { error } = await db

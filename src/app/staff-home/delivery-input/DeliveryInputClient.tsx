@@ -171,6 +171,15 @@ export default function DeliveryInputClient() {
         </div>
       </div>
 
+      {/* 入力ルールの注記（二重入力の混乱防止） */}
+      <div className="mx-4 mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
+        <p className="text-xs text-blue-800 font-semibold mb-1">💡 ここは「1日の合計」を入力します</p>
+        <p className="text-[11px] text-blue-700 leading-relaxed">
+          Uber/RocketNowの<b>1日の合計売上</b>（昼＋夜）を入力してください。<br />
+          昼/夜の判定は売上ダッシュボードの「☀️昼を確定」で別途行います（昼分はそちらで入力）。
+        </p>
+      </div>
+
       {loading && <p className="text-center text-gray-400 py-6 text-sm">読み込み中...</p>}
 
       {/* Uber 入力カード */}
