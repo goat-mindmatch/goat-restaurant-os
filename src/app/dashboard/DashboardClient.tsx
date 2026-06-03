@@ -64,6 +64,9 @@ type DashboardData = {
     estimated: number
     remaining: number
     ratio: number | null
+    actual: number
+    actualRatio: number | null
+    diff: number
   }
   week: {
     data: { date: string; total_sales: number | null; store_sales: number | null; delivery_sales: number | null }[]
@@ -641,6 +644,64 @@ export default function DashboardClient({ data }: { data: DashboardData }) {
           </div>
         </Section>
       )}
+
+      {/* ─── 人件費 予実比較（今月） ─── */}
+      <Section title="人件費 予実比較（今月）" defaultOpen={false}>
+        <div className="rounded-xl p-4 shadow-sm"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div className="grid grid-cols-2 gap-3">
+            {/* 予測（確定シフト） */}
+            <div className="rounded-xl p-3" style={{ background: 'var(--bg-sub, #f8fafc)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-sub)' }}>予測（確定シフト）</p>
+              <p className="text-xl font-bold" style={{ color: 'var(--text-main)' }}>
+                ¥{data.labor.estimated.toLocaleString()}
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--text-sub)' }}>
+                比率 {data.labor.ratio !== null ? `${data.labor.ratio}%` : '—'}
+              </p>
+            </div>
+            {/* 実績（打刻） */}
+            <div className="rounded-xl p-3" style={{ background: 'var(--bg-sub, #f8fafc)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-sub)' }}>実績（打刻）</p>
+              <p className="text-xl font-bold" style={{ color: 'var(--text-main)' }}>
+                ¥{data.labor.actual.toLocaleString()}
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--text-sub)' }}>
+                比率 {data.labor.actualRatio !== null ? `${data.labor.actualRatio}%` : '—'}
+              </p>
+            </div>
+          </div>
+          {/* 差分（着地） */}
+          {data.labor.estimated > 0 ? (
+            <div className="mt-3 rounded-xl p-3 flex items-center justify-between"
+              style={{ background: data.labor.diff > 0 ? '#fef2f2' : '#f0fdf4' }}>
+              <div>
+                <p className="text-xs" style={{ color: 'var(--text-sub)' }}>差分（実績 − 予測）</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-sub)' }}>
+                  {data.labor.diff > 0 ? '想定より人件費が増えています' : data.labor.diff < 0 ? '想定より人件費を抑えられています' : '想定どおり'}
+                </p>
+              </div>
+              <p className="text-2xl font-bold"
+                style={{ color: data.labor.diff > 0 ? '#dc2626' : '#16a34a' }}>
+                {data.labor.diff > 0 ? '+' : ''}¥{data.labor.diff.toLocaleString()}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-3 rounded-xl p-3 text-center"
+              style={{ background: '#fffbeb' }}>
+              <p className="text-xs" style={{ color: '#b45309' }}>
+                今月の確定シフトが未登録のため、予測との比較ができません。
+              </p>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-sub)' }}>
+                シフト確認画面で当月のシフトを確定すると、予実比較が表示されます。
+              </p>
+            </div>
+          )}
+          <p className="text-[10px] mt-2" style={{ color: 'var(--text-sub)' }}>
+            ※ 予測＝確定シフト、実績＝打刻（出退勤）から算出。基本給＋深夜手当(25%増)ベースの概算です。
+          </p>
+        </div>
+      </Section>
 
       {/* ─── 本日の出勤状況 ─── */}
       <Section title="本日の出勤状況" defaultOpen={false}>

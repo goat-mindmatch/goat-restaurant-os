@@ -28,7 +28,7 @@ async function getDashboardData() {
   sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6)
   const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
 
-  const [todaySalesRes, monthSalesRes, weekSalesRes, todayAttendanceRes, tenantRes, monthShiftsRes, tablesRes, pendingCallsRes, todayReviewsRes] =
+  const [todaySalesRes, monthSalesRes, weekSalesRes, todayAttendanceRes, tenantRes, monthShiftsRes, tablesRes, pendingCallsRes, todayReviewsRes, monthAttendanceRes] =
     await Promise.all([
       db.from('daily_sales')
         .select('total_sales, store_sales, delivery_sales, store_orders, delivery_orders, uber_sales, rocketnow_sales, menu_sales, lunch_sales, dinner_sales, ai_comment, uber_synced_at')
@@ -66,6 +66,12 @@ async function getDashboardData() {
         .eq('tenant_id', TENANT_ID)
         .gte('created_at', today + 'T00:00:00')
         .lte('created_at', today + 'T23:59:59') as Promise<{ data: { staff_id: string; staff: { name: string } | null }[] | null }>,
+      // 今月の打刻（実績人件費の集計用）
+      db.from('attendance')
+        .select('clock_in, clock_out, staff(hourly_wage)')
+        .eq('tenant_id', TENANT_ID)
+        .gte('date', firstDayOfMonth)
+        .lte('date', today) as Promise<{ data: AttendanceWageRow[] | null }>,
     ])
 
   const monthTotal    = monthSalesRes.data?.reduce((s: number, d: MonthSales) => s + (d.total_sales ?? 0), 0) ?? 0
@@ -112,6 +118,26 @@ async function getDashboardData() {
     : monthlyTarget > 0
       ? Math.round((estimatedLaborCost / monthlyTarget) * 100)
       : null
+
+  // 実績人件費（打刻ベース）。予測と同じ計算式（基本給＋深夜手当25%増）で揃え、
+  // clock_in〜clock_out の実時間で集計する。
+  let actualLaborCost = 0
+  for (const a of (monthAttendanceRes.data ?? [])) {
+    if (!a.clock_in || !a.clock_out) continue
+    const [sh, sm] = a.clock_in.split(':').map(Number)
+    const [eh, em] = a.clock_out.split(':').map(Number)
+    const hours = (eh * 60 + em - sh * 60 - sm) / 60
+    if (hours <= 0) continue // 日跨ぎ等は対象外
+    const wage = a.staff?.hourly_wage ?? DEFAULT_WAGE
+    const lateHours = Math.max(0, (eh + em / 60) - 22)
+    const normalHours = hours - lateHours
+    actualLaborCost += normalHours * wage + lateHours * wage * 1.25
+  }
+  const actualLaborRounded = Math.round(actualLaborCost)
+  const actualLaborRatio = monthTotal > 0
+    ? Math.round((actualLaborCost / monthTotal) * 100)
+    : null
+  const laborDiff = actualLaborRounded - Math.round(estimatedLaborCost) // 実績 − 予測（+なら予定超過）
 
   // 週次トレンド（7日分）
   const weekData = weekSalesRes.data ?? []
@@ -171,6 +197,10 @@ async function getDashboardData() {
       estimated: Math.round(estimatedLaborCost),
       remaining: remainingLaborBudget,
       ratio: laborRatio,
+      // 予実比較（月合計）: 予測=確定シフト / 実績=打刻
+      actual: actualLaborRounded,
+      actualRatio: actualLaborRatio,
+      diff: laborDiff,
     },
     week: {
       data: weekData,
@@ -246,4 +276,10 @@ type ShiftRow = {
   start_time: string
   end_time: string
   staff: { hourly_wage?: number } | null
+}
+
+type AttendanceWageRow = {
+  clock_in: string | null
+  clock_out: string | null
+  staff: { hourly_wage: number | null } | null
 }
