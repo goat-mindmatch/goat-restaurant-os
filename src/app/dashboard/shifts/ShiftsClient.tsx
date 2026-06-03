@@ -3,11 +3,7 @@
 import { useState } from 'react'
 
 const DAYS_JP = ['日', '月', '火', '水', '木', '金', '土']
-const TIME_OPTIONS = Array.from({ length: 29 }, (_, i) => {
-  const hour = Math.floor(i / 2) + 8
-  const min = i % 2 === 0 ? '00' : '30'
-  return `${String(hour).padStart(2, '0')}:${min}`
-})
+// 時刻入力は <input type="time" step={60}> を使用（1分単位で自由入力）。
 
 type StaffRow = { id: string; name: string }
 type StaffDetailRow = {
@@ -353,21 +349,21 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
 
                       {s.confirmed && (
                         <div className="mt-3 flex items-center gap-2 text-sm">
-                          <select
+                          <input
+                            type="time"
+                            step={60}
                             value={s.confirmed.start_time.slice(0, 5)}
                             onChange={e => updateTime(s.id, 'start_time', e.target.value)}
                             className="border rounded px-2 py-1 bg-white flex-1"
-                          >
-                            {TIME_OPTIONS.map(t => <option key={t}>{t}</option>)}
-                          </select>
+                          />
                           <span>〜</span>
-                          <select
+                          <input
+                            type="time"
+                            step={60}
                             value={s.confirmed.end_time.slice(0, 5)}
                             onChange={e => updateTime(s.id, 'end_time', e.target.value)}
                             className="border rounded px-2 py-1 bg-white flex-1"
-                          >
-                            {TIME_OPTIONS.map(t => <option key={t}>{t}</option>)}
-                          </select>
+                          />
                         </div>
                       )}
 

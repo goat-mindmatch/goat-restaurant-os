@@ -21,12 +21,7 @@ type AttendanceRow = {
   staff: { name: string } | null
 }
 
-const TIME_OPTIONS = Array.from({ length: 41 }, (_, i) => {
-  const totalMin = 6 * 60 + i * 30 // 6:00 〜 26:00（翌2:00）
-  const hour = Math.floor(totalMin / 60)
-  const min = totalMin % 60
-  return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`
-})
+// 時刻入力は <input type="time" step={60}> を使用（1分単位で自由入力）。
 
 export default function AttendanceClient({ staffList }: { staffList: Staff[] }) {
   const today = new Date().toISOString().split('T')[0]
@@ -171,19 +166,13 @@ export default function AttendanceClient({ staffList }: { staffList: Staff[] }) 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-500 mb-0.5 block">出勤</label>
-                    <select value={editIn} onChange={e => setEditIn(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none">
-                      <option value="">--</option>
-                      {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                    <input type="time" step={60} value={editIn} onChange={e => setEditIn(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 mb-0.5 block">退勤</label>
-                    <select value={editOut} onChange={e => setEditOut(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none">
-                      <option value="">--</option>
-                      {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                    <input type="time" step={60} value={editOut} onChange={e => setEditOut(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                   </div>
                 </div>
                 <div>
@@ -221,19 +210,13 @@ export default function AttendanceClient({ staffList }: { staffList: Staff[] }) 
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-gray-500 mb-0.5 block">出勤</label>
-              <select value={addIn} onChange={e => setAddIn(e.target.value)}
-                className="w-full border border-orange-200 rounded-xl px-2 py-2 text-sm bg-white focus:outline-none">
-                <option value="">--</option>
-                {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <input type="time" step={60} value={addIn} onChange={e => setAddIn(e.target.value)}
+                className="w-full border border-orange-200 rounded-xl px-2 py-2 text-sm bg-white focus:outline-none" />
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-0.5 block">退勤</label>
-              <select value={addOut} onChange={e => setAddOut(e.target.value)}
-                className="w-full border border-orange-200 rounded-xl px-2 py-2 text-sm bg-white focus:outline-none">
-                <option value="">--（未退勤）</option>
-                {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <label className="text-xs text-gray-500 mb-0.5 block">退勤（未退勤なら空欄）</label>
+              <input type="time" step={60} value={addOut} onChange={e => setAddOut(e.target.value)}
+                className="w-full border border-orange-200 rounded-xl px-2 py-2 text-sm bg-white focus:outline-none" />
             </div>
           </div>
           <div>
