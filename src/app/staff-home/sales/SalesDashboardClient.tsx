@@ -112,8 +112,8 @@ export default function SalesDashboardClient() {
       const requestedAt = j.requested_at
       if (!res.ok) { setStoreSyncMsg('⚠️ 最新化リクエストに失敗しました'); return }
 
-      // 完了まで最大90秒ポーリング
-      for (let i = 0; i < 18; i++) {
+      // 完了まで最大3分ポーリング（AnyDeliのブラウザ同期は2分前後＋待ち時間がかかる）
+      for (let i = 0; i < 36; i++) {
         await new Promise(r => setTimeout(r, 5000))
         try {
           const sres = await fetch('/api/admin/sync-status', { cache: 'no-store' })
@@ -124,10 +124,11 @@ export default function SalesDashboardClient() {
             return
           }
         } catch { /* retry */ }
+        // 途中経過: 現在値を反映（待っている間も最新を取りに行く）
+        if (i % 3 === 2) await load()
       }
-      // タイムアウトしても現在値で続行可能
       await load()
-      setStoreSyncMsg('⏱️ 最新化が時間内に完了しませんでした。表示値で確定するか、少し待って再度お試しください。')
+      setStoreSyncMsg('⏱️ 取り込みに時間がかかっています。少し待って「🔄店頭を最新化」を押すか、表示値のまま確定してOKです（後で取り直せます）。')
     } finally {
       setStoreSyncing(false)
     }
@@ -357,9 +358,9 @@ export default function SalesDashboardClient() {
                     className="bg-gray-100 text-gray-700 font-semibold py-2.5 rounded-xl text-sm">
                     キャンセル
                   </button>
-                  <button onClick={confirmLunch} disabled={confirmingLunch || storeSyncing}
+                  <button onClick={confirmLunch} disabled={confirmingLunch}
                     className="bg-amber-500 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">
-                    {confirmingLunch ? '確定中...' : storeSyncing ? '店頭最新化中…' : '☀️ 昼を確定'}
+                    {confirmingLunch ? '確定中...' : '☀️ 昼を確定'}
                   </button>
                 </div>
               </div>

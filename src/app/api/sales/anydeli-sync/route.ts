@@ -107,27 +107,42 @@ export async function POST(req: NextRequest) {
     const todayJst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
 
     for (const row of rows) {
+      // 既存値を取得（0上書き防止・店頭昼の固定判定に使用）
+      const { data: existing } = await db
+        .from('daily_sales')
+        .select('store_sales, store_lunch_sales')
+        .eq('tenant_id', TENANT_ID)
+        .eq('date', row.date)
+        .maybeSingle()
+      const existingStore = Number(existing?.store_sales ?? 0)
+
       const upsertPayload: Record<string, unknown> = {
         tenant_id:         TENANT_ID,
         date:              row.date,
-        anydeli_sales:     row.amount,
-        anydeli_orders:    row.orders,
         anydeli_synced_at: now,
-        // store_sales にも反映させることで total_sales（= store_sales + delivery_sales）に乗る
-        store_sales:       row.amount,
-        store_orders:      row.orders,
         data_source:       'api',
       }
 
-      // 昼締め窓(15〜20時JST)に当日分を同期した時のみ、店頭昼を固定スナップショット。
-      // 昼確定がこの値を優先使用するため、21時以降に昼確定しても過大計上しない。
-      if (isLunchWindow && row.date === todayJst) {
-        upsertPayload.store_lunch_sales = row.amount
+      // ── バグ修正1: ¥0 で既存の正の店頭売上を上書きしない ──
+      // AnyDeliのスクレイプが失敗/空で 0 を返すことがあり、それで店頭を消していた。
+      // 新値が正、または既存が無い(0)時のみ更新する。
+      if (row.amount > 0 || existingStore === 0) {
+        upsertPayload.anydeli_sales  = row.amount
+        upsertPayload.anydeli_orders = row.orders
+        upsertPayload.store_sales    = row.amount   // total_sales = store + delivery に乗る
+        upsertPayload.store_orders   = row.orders
+        // 現金/オンライン内訳も正値のときだけ
+        if (row.cash_sales   !== undefined) upsertPayload.anydeli_cash_sales   = row.cash_sales
+        if (row.online_sales !== undefined) upsertPayload.anydeli_online_sales = row.online_sales
       }
 
-      // 現金/オンライン内訳が提供された場合のみ更新
-      if (row.cash_sales !== undefined)   upsertPayload.anydeli_cash_sales   = row.cash_sales
-      if (row.online_sales !== undefined) upsertPayload.anydeli_online_sales = row.online_sales
+      // ── バグ修正2: 店頭昼は「窓内の初回同期」で固定し、以降は上書きしない ──
+      // 以前は窓内(15〜20時JST)の毎回の同期で店頭昼が更新され、昼が夜寄りに膨らんでいた。
+      // store_lunch_sales が未設定(null)のときだけ初回値を固定する。
+      if (isLunchWindow && row.date === todayJst && row.amount > 0
+          && existing?.store_lunch_sales == null) {
+        upsertPayload.store_lunch_sales = row.amount
+      }
 
       const { error: upsertError } = await db
         .from('daily_sales')
