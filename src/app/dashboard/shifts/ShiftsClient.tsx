@@ -31,6 +31,7 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [broadcasting, setBroadcasting] = useState(false)
+  const [requesting,   setRequesting]   = useState(false)
   const [generating,   setGenerating]   = useState(false)
   const [shiftDraft,   setShiftDraft]   = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -138,6 +139,25 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
     }
   }
 
+  // シフト希望提出依頼を一斉送信（毎月20日cronの手動版）
+  const handleRequestBroadcast = async () => {
+    if (!confirm('シフト希望提出の依頼を、全スタッフのLINEに一斉送信します。\n（翌月分・提出期限は今月25日）\nよろしいですか？')) return
+    setRequesting(true)
+    try {
+      const res = await fetch('/api/shifts/request-broadcast', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setMessage(`✅ ${data.year}年${data.month}月のシフト希望依頼を ${data.sent}/${data.total}名に送信しました`)
+      } else {
+        setMessage(`❌ 送信失敗: ${data.error}`)
+      }
+    } catch (e) {
+      setMessage(`❌ 送信失敗: ${(e as Error).message}`)
+    } finally {
+      setRequesting(false)
+    }
+  }
+
   // 一斉通知
   const handleBroadcast = async () => {
     if (!confirm(`${month}月の確定シフトを全スタッフにLINE通知します。よろしいですか？`)) return
@@ -192,6 +212,20 @@ export default function ShiftsClient({ year, month, lastDay, staffList, requestM
             <span className="text-xs font-normal text-gray-400">/{lastDay}日</span>
           </p>
         </div>
+      </div>
+
+      {/* シフト希望提出 一斉送信（毎月20日の自動配信が不発でも手動で送れる） */}
+      <div className="mx-4 mt-3">
+        <button
+          onClick={handleRequestBroadcast}
+          disabled={requesting || staffList.length === 0}
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl text-sm"
+        >
+          {requesting ? '送信中...' : `📨 シフト希望提出を依頼（全スタッフに一斉送信）`}
+        </button>
+        <p className="text-[11px] text-gray-400 mt-1 text-center">
+          翌月分のシフト希望提出をLINEで依頼します（提出期限は今月25日）
+        </p>
       </div>
 
       {/* ボタン群 */}
