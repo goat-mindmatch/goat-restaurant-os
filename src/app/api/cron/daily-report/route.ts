@@ -159,7 +159,9 @@ ${trendText}
       .eq('is_active', true)
       .not('line_user_id', 'is', null)
 
-    const recipients = managers ?? []
+    // LINE無料枠に戻すため、日報のLINE送信は既定で停止（ダッシュボードで閲覧）。
+    // 復活させたい場合のみ環境変数 DAILY_REPORT_PUSH=on を設定。
+    const recipients = process.env.DAILY_REPORT_PUSH === 'on' ? (managers ?? []) : []
     for (const m of recipients) {
       try {
         // トレンドサマリーを先頭に付ける

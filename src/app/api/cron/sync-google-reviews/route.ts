@@ -58,6 +58,8 @@ export async function GET(req: NextRequest) {
   // Vercel Cron: Authorization ヘッダー or 管理ツール: ?secret= クエリの両方を受け付ける
   const auth = req.headers.get('authorization')
   const querySecret = req.nextUrl.searchParams.get('secret')
+  // notify=1 の回だけ経営者へpush（LINE無料枠節約のため1日1回＝夜の回だけ付与）
+  const notify = req.nextUrl.searchParams.get('notify') === '1'
   const isAuthorized =
     !CRON_SECRET ||
     auth === `Bearer ${CRON_SECRET}` ||
@@ -177,10 +179,11 @@ export async function GET(req: NextRequest) {
       console.warn('[sync-google-reviews] delta exceeds cap, skip auto-attribution', { delta: safeDelta, cap: DELTA_CAP })
     }
 
-    // 管理者に日次レポート
+    // 管理者に日次レポート（LINE無料枠に戻すため送信先は経営者2名に限定）
     const { data: managers } = await db.from('staff')
       .select('line_user_id, name')
       .eq('tenant_id', TENANT_ID).eq('role', 'manager')
+      .in('name', ['中地', '谷手'])
       .not('line_user_id', 'is', null)
 
     const attributionMsg = deltaCapped
@@ -191,11 +194,14 @@ export async function GET(req: NextRequest) {
               : `\n⚠️ 出勤スタッフが0名のためEXP配分なし`)
           : '')
 
-    for (const m of managers ?? []) {
-      try {
-        await sendStaffLineMessage(m.line_user_id,
-          `📊 Google口コミ日次レポート\n\n総件数: ${currentCount}件（前日比 +${delta}）\n平均評価: ★${place.rating ?? '-'}${attributionMsg}`)
-      } catch {}
+    // notify=1（1日1回・夜の回）かつ 件数が増えた時だけ送る（無料枠節約。+0件の通知は出さない）
+    if (notify && delta > 0) {
+      for (const m of managers ?? []) {
+        try {
+          await sendStaffLineMessage(m.line_user_id,
+            `📊 Google口コミ日次レポート\n\n総件数: ${currentCount}件（前日比 +${delta}）\n平均評価: ★${place.rating ?? '-'}${attributionMsg}`)
+        } catch {}
+      }
     }
 
     return NextResponse.json({

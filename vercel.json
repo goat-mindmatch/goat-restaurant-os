@@ -5,19 +5,11 @@
       "schedule": "30 23 * * *"
     },
     {
-      "path": "/api/cron/sync-google-reviews",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/sync-google-reviews",
+      "path": "/api/cron/sync-google-reviews?notify=0",
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/sync-google-reviews",
-      "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/sync-google-reviews",
+      "path": "/api/cron/sync-google-reviews?notify=1",
       "schedule": "0 14 * * *"
     },
     {
@@ -45,16 +37,8 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/sales-input-reminder?phase=lunch_urgent",
-      "schedule": "30 6 * * *"
-    },
-    {
       "path": "/api/cron/sales-input-reminder?phase=dinner",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/sales-input-reminder?phase=dinner_urgent",
-      "schedule": "0 14 * * *"
     }
   ]
 }

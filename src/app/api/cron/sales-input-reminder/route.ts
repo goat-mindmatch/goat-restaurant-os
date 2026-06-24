@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
   }
 
   const phase = req.nextUrl.searchParams.get('phase') ?? 'lunch'
+  const dryRun = req.nextUrl.searchParams.get('dryRun') === '1'
   const date = jstToday()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -108,28 +109,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, phase, skipped: true, reason: 'already_done' })
   }
 
-  // 通知先: 当日出勤スタッフ + 経営者（重複排除）
-  const [onDutyRes, managersRes] = await Promise.all([
-    db.from('attendance')
-      .select('staff_id, staff:staff_id(line_user_id, name)')
-      .eq('tenant_id', TENANT_ID)
-      .eq('date', date)
-      .not('clock_in', 'is', null),
-    db.from('staff')
-      .select('line_user_id, name')
-      .eq('tenant_id', TENANT_ID)
-      .eq('role', 'manager')
-      .eq('is_active', true)
-      .not('line_user_id', 'is', null),
-  ])
+  // 通知先: その日いちばん早く出勤した代表1名のみ（経営者・他の出勤者には送らない）
+  //   背景: LINE無料枠(月200通)に戻すため送信先を最小化。担当者を固定せず
+  //         clock_in が最も早い1名へ送ることで、休み・属人化の穴を作らない。
+  const { data: onDuty } = await db
+    .from('attendance')
+    .select('clock_in, staff:staff_id(line_user_id, name)')
+    .eq('tenant_id', TENANT_ID)
+    .eq('date', date)
+    .not('clock_in', 'is', null)
+    .order('clock_in', { ascending: true })
+    .limit(1)
 
   const recipients = new Map<string, string>() // line_user_id -> name
-  for (const a of (onDutyRes.data ?? [])) {
-    const s = a.staff
-    if (s?.line_user_id) recipients.set(s.line_user_id, s.name ?? '')
-  }
-  for (const m of (managersRes.data ?? [])) {
-    if (m.line_user_id) recipients.set(m.line_user_id, m.name ?? '')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lead = (onDuty ?? [])[0]?.staff as any
+  if (lead?.line_user_id) recipients.set(lead.line_user_id, lead.name ?? '')
+
+  // dryRun: 実送信せず、送信予定の宛先だけ返す（誤送信防止の検証用）
+  if (dryRun) {
+    return NextResponse.json({
+      ok: true, phase, dryRun: true,
+      wouldSend: Array.from(recipients.values()),
+      count: recipients.size,
+    })
   }
 
   const notified: string[] = []
