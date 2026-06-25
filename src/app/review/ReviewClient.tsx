@@ -110,6 +110,10 @@ export default function ReviewClient({
             </div>
           </div>
         </div>
+        <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer"
+          className="block mt-4 text-center text-sm text-blue-600 underline">
+          Google投稿画面が開かなかった場合はこちらをタップ
+        </a>
         <div className="text-center mt-6 text-sm text-gray-500">またのご来店をお待ちしております 🙌</div>
         <div className="text-center mt-3">
           <button onClick={handleReset} className="text-xs text-gray-400 underline">もう一度受け付ける</button>
