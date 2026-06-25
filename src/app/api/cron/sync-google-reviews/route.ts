@@ -128,56 +128,10 @@ export async function GET(req: NextRequest) {
       newCached++
     }
 
-    // 2026-05-29 移行: Places API の delta を出勤スタッフへ自動配分する
-    //   背景: スクショ送付・検証コード運用が現場負担。スタッフ報告フローを廃止し、
-    //         「投稿は自由 / 反映件数は API で自動取得 / EXP は出勤者で按分」に変更。
-    const todayJst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
-    let attributed = 0
-    let onDutyCount = 0
-    let deltaCapped = false
-
-    // 安全弁: 1回の delta が異常に大きい場合は自動配分しない（EXP暴発防止）。
-    //   - 履歴の欠損/復元で previousCount=0 になり巨大 delta が出るケース
-    //   - 初回(isFirstRun)は既に delta=0 だが、二重に上限も設ける
-    const DELTA_CAP = 20
-    const safeDelta = delta
-
-    if (safeDelta > 0 && safeDelta <= DELTA_CAP) {
-      // 当日に出勤したスタッフ（clock_in 済み）
-      const { data: onDuty } = await db.from('attendance')
-        .select('staff_id')
-        .eq('tenant_id', TENANT_ID)
-        .eq('date', todayJst)
-        .not('clock_in', 'is', null)
-
-      const staffIds = Array.from(new Set(
-        ((onDuty ?? []) as Array<{ staff_id: string }>).map(a => a.staff_id)
-      ))
-      onDutyCount = staffIds.length
-
-      if (staffIds.length > 0) {
-        // delta 件を staff にラウンドロビンで配分
-        const rows = Array.from({ length: safeDelta }).map((_, i) => ({
-          tenant_id: TENANT_ID,
-          staff_id: staffIds[i % staffIds.length],
-          completed: true,
-          verified_at: new Date().toISOString(),
-          exp_awarded: 150,
-          auto_attributed: true,
-          note: 'auto-attributed from Places API delta',
-        }))
-        const { error: insertError, data: inserted } = await db.from('reviews').insert(rows).select('id')
-        if (!insertError) {
-          attributed = inserted?.length ?? 0
-        } else {
-          console.error('[sync-google-reviews] auto-attribute insert失敗:', insertError)
-        }
-      }
-    } else if (safeDelta > DELTA_CAP) {
-      // 上限超過: 自動配分せず経営者に手動確認を促す
-      deltaCapped = true
-      console.warn('[sync-google-reviews] delta exceeds cap, skip auto-attribution', { delta: safeDelta, cap: DELTA_CAP })
-    }
+    // 2026-06-26 変更: 自動配分は一旦停止。スタッフはPINログイン中に手入力で申告。
+    const attributed = 0
+    const onDutyCount = 0
+    const deltaCapped = false
 
     // 管理者に日次レポート（LINE無料枠に戻すため送信先は経営者2名に限定）
     const { data: managers } = await db.from('staff')
@@ -186,13 +140,7 @@ export async function GET(req: NextRequest) {
       .in('name', ['中地', '谷手'])
       .not('line_user_id', 'is', null)
 
-    const attributionMsg = deltaCapped
-      ? `\n⚠️ 増加が+${delta}件と異常に大きいため自動EXP配分を保留しました。\n手動でご確認ください（履歴リセット等の可能性）。`
-      : (delta > 0
-          ? (onDutyCount > 0
-              ? `\n👥 出勤${onDutyCount}名で${attributed}件をEXP配分済み`
-              : `\n⚠️ 出勤スタッフが0名のためEXP配分なし`)
-          : '')
+    const attributionMsg = `\n📌 自動配分は停止中です。スタッフ申告分はスタッフホームから手入力してください。`
 
     // notify=1（1日1回・夜の回）かつ 件数が増えた時だけ送る（無料枠節約。+0件の通知は出さない）
     if (notify && delta > 0) {

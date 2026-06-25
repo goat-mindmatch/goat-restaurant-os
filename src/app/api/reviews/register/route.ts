@@ -21,7 +21,19 @@ function generateCouponCode(): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { staff_id, customer_line_user_id } = await req.json()
+    const body = await req.json() as {
+      staff_id?: string | null
+      customer_line_user_id?: string | null
+      platform?: string
+    }
+
+    const staff_id = body.staff_id
+    const customer_line_user_id = body.customer_line_user_id
+    const platform = body.platform ?? 'google'
+
+    if (!['google', 'tabelog', 'both'].includes(platform)) {
+      return NextResponse.json({ error: 'invalid platform' }, { status: 400 })
+    }
 
     // 必須チェック（staff_id と customer_line_user_id のどちらかは必要）
     if (!staff_id && !customer_line_user_id) {

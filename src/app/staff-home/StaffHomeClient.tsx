@@ -55,6 +55,8 @@ export default function StaffHomeClient({
   currentMonth: string
 }) {
   const [currentTime, setCurrentTime] = useState('')
+  const [selfReportLoading, setSelfReportLoading] = useState(false)
+  const [selfReportMessage, setSelfReportMessage] = useState<string | null>(null)
 
   // 現在時刻を1分ごとに更新
   useEffect(() => {
@@ -78,6 +80,36 @@ export default function StaffHomeClient({
     if (h < 17) return 'お疲れ様です'
     return 'お疲れ様です'
   })()
+
+  const handleSelfReport = async () => {
+    setSelfReportLoading(true)
+    setSelfReportMessage(null)
+    try {
+      const res = await fetch('/api/reviews/self-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: 1 }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error ?? '自己申告に失敗しました')
+      }
+
+      const inserted = data.inserted ?? 0
+      const todayCount = data.today_count ?? 0
+      const limit = data.limit ?? 20
+      const message = data.truncated
+        ? '上限により1日分を上限いっぱいまで記録しました。'
+        : `${inserted}件、自己申告を記録しました。`
+
+      setSelfReportMessage(`${message} 本日${todayCount} / ${limit}件`)
+    } catch (e) {
+      setSelfReportMessage((e as Error).message)
+    } finally {
+      setSelfReportLoading(false)
+    }
+  }
 
   return (
     <div style={{ minHeight: '100dvh', background: '#0a0f1e', paddingBottom: '32px' }}>
@@ -271,13 +303,25 @@ export default function StaffHomeClient({
           <Card
             icon="⭐"
             iconBg="#1c1400"
-            title="口コミのお願い"
-            description="来店されたお客様にGoogleや食べログへの口コミをお願いするためのフォームです。口コミ1件につき150 EXPが付与されます。"
+            title="口コミ案内を記録"
+            description="Google口コミに誘導したときに1タップで記録。1日20件まで、1件につき150 EXPが付与されます。"
             badge={null}
           >
-            <a href="/review" style={btnStyle('#ea580c', '#1c0a00', '#7c2d12')}>
-              ⭐ 口コミフォームを開く →
-            </a>
+            <button
+              onClick={handleSelfReport}
+              disabled={selfReportLoading}
+              style={{
+                ...btnStyle('#ea580c', '#1c0a00', '#7c2d12'),
+                opacity: selfReportLoading ? 0.6 : 1,
+              }}
+            >
+              {selfReportLoading ? '記録中…' : '⭐ 口コミ案内を1件記録する'}
+            </button>
+            {selfReportMessage ? (
+              <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: '12px' }}>
+                {selfReportMessage}
+              </p>
+            ) : null}
           </Card>
         </Section>
 
