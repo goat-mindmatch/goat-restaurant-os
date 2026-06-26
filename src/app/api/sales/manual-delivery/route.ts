@@ -2,16 +2,17 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
- * 手動デリバリー売上入力API（Uber / RocketNow）
+ * 手動デリバリー売上入力API（Uber / RocketNow / 店頭）
  * 新ポータルが自動取得不可になったため、現場が「確認して入力するだけ」で
  * 反映できるようにする。
  *
  * GET  /api/sales/manual-delivery?date=YYYY-MM-DD
- *   → その日の現在値（uber/rocketnow/anydeli/total）を返す（確認表示用）
+ *   → その日の現在値（store/uber/rocketnow/anydeli/total）を返す（確認表示用）
  *
  * POST /api/sales/manual-delivery
  *   body: {
  *     date: 'YYYY-MM-DD',
+ *     store_sales?: number, store_orders?: number,
  *     uber_sales?: number, uber_orders?: number,
  *     rocketnow_sales?: number, rocketnow_orders?: number
  *   }
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient() as any
   const { data } = await db
     .from('daily_sales')
-    .select('date, store_sales, anydeli_sales, uber_sales, uber_orders, rocketnow_sales, rocketnow_orders, delivery_sales, total_sales, uber_synced_at, rocketnow_synced_at')
+    .select('date, store_sales, store_orders, anydeli_sales, anydeli_orders, uber_sales, uber_orders, rocketnow_sales, rocketnow_orders, delivery_sales, total_sales, uber_synced_at, rocketnow_synced_at')
     .eq('tenant_id', TENANT_ID)
     .eq('date', date)
     .maybeSingle()
@@ -43,9 +44,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     date,
     current: data ?? {
+      store_sales: 0, store_orders: 0,
+      anydeli_sales: 0, anydeli_orders: 0,
       uber_sales: 0, uber_orders: 0,
       rocketnow_sales: 0, rocketnow_orders: 0,
-      anydeli_sales: 0, total_sales: 0,
+      total_sales: 0,
     },
   })
 }
@@ -58,10 +61,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
     }
 
+    const hasStore = body.store_sales !== undefined || body.store_orders !== undefined
     const hasUber = body.uber_sales !== undefined || body.uber_orders !== undefined
     const hasRocket = body.rocketnow_sales !== undefined || body.rocketnow_orders !== undefined
-    if (!hasUber && !hasRocket) {
-      return NextResponse.json({ error: 'uber_* または rocketnow_* のいずれかを指定してください' }, { status: 400 })
+    if (!hasStore && !hasUber && !hasRocket) {
+      return NextResponse.json({ error: 'store_* / uber_* / rocketnow_* のいずれかを指定してください' }, { status: 400 })
     }
 
     const num = (v: unknown): number => {
@@ -75,14 +79,14 @@ export async function POST(req: NextRequest) {
     // 既存値を取得して他媒体を保持
     const { data: existing } = await db
       .from('daily_sales')
-      .select('store_sales, anydeli_sales, uber_sales, uber_orders, rocketnow_sales, rocketnow_orders, menu_sales')
+      .select('store_sales, store_orders, anydeli_sales, anydeli_orders, uber_sales, uber_orders, rocketnow_sales, rocketnow_orders, menu_sales')
       .eq('tenant_id', TENANT_ID)
       .eq('date', date)
       .maybeSingle()
 
-    // store_sales / anydeli_sales はここでは触らない（AnyDeli同期が管理）。
-    // delivery_sales の再計算に menu_sales のみ使用。
-    const menuSales  = Number(existing?.menu_sales)  || 0
+    const menuSales   = Number(existing?.menu_sales)   || 0
+    const storeSales  = hasStore  ? num(body.store_sales)  : (Number(existing?.store_sales) || 0)
+    const storeOrders = hasStore  ? num(body.store_orders) : (Number(existing?.store_orders) || 0)
 
     const uberSales      = hasUber   ? num(body.uber_sales)      : (Number(existing?.uber_sales) || 0)
     const uberOrders     = hasUber   ? num(body.uber_orders)     : (Number(existing?.uber_orders) || 0)
@@ -95,6 +99,10 @@ export async function POST(req: NextRequest) {
     const payload: Record<string, unknown> = {
       tenant_id:      TENANT_ID,
       date,
+      store_sales:    storeSales,
+      store_orders:   storeOrders,
+      anydeli_sales:  storeSales,
+      anydeli_orders: storeOrders,
       uber_sales:     uberSales,
       uber_orders:    uberOrders,
       rocketnow_sales:  rocketnowSales,
@@ -115,7 +123,7 @@ export async function POST(req: NextRequest) {
     // 反映後の値を返す
     const { data: after } = await db
       .from('daily_sales')
-      .select('date, store_sales, anydeli_sales, uber_sales, uber_orders, rocketnow_sales, rocketnow_orders, delivery_sales, total_sales')
+      .select('date, store_sales, anydeli_sales, store_orders, anydeli_orders, uber_sales, uber_orders, rocketnow_sales, rocketnow_orders, delivery_sales, total_sales')
       .eq('tenant_id', TENANT_ID)
       .eq('date', date)
       .maybeSingle()

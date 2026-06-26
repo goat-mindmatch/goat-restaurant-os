@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic'
  * Vercel Cronで毎日呼ばれる売上同期ヘルスチェック。
  *
  * 監視ルール:
- *   - AnyDeli: anydeli_synced_at が 36時間以上前 → 同期停止アラート
  *   - Uber:    uber_synced_at が 36時間以上前 → 同期停止アラート
  *   - RocketNow: rocketnow_synced_at が 36時間以上前 → 同期停止アラート
  *   - いずれかが3日連続で total_sales=0 だが同期は走っている → セッション切れ疑い
@@ -26,10 +25,8 @@ const STALE_HOURS = 36
 type SalesRow = {
   date: string
   total_sales: number | null
-  anydeli_sales: number | null
   uber_sales: number | null
   rocketnow_sales: number | null
-  anydeli_synced_at: string | null
   uber_synced_at: string | null
   rocketnow_synced_at: string | null
 }
@@ -51,10 +48,10 @@ export async function GET(req: NextRequest) {
   // 直近5日の同期メタを取得
   const { data: rows } = await db
     .from('daily_sales')
-    .select('date, total_sales, anydeli_sales, uber_sales, rocketnow_sales, anydeli_synced_at, uber_synced_at, rocketnow_synced_at')
-    .eq('tenant_id', TENANT_ID)
-    .order('date', { ascending: false })
-    .limit(5)
+      .select('date, total_sales, uber_sales, rocketnow_sales, uber_synced_at, rocketnow_synced_at')
+      .eq('tenant_id', TENANT_ID)
+      .order('date', { ascending: false })
+      .limit(5)
 
   const list = (rows ?? []) as SalesRow[]
   if (list.length === 0) {
@@ -63,22 +60,8 @@ export async function GET(req: NextRequest) {
 
   const issues: string[] = []
 
-  // ── AnyDeli: 完全自動同期チャネル。停止＝障害なので厳しく監視 ──
-  {
-    const latest = list[0]
-    const lastSync = latest.anydeli_synced_at
-    const stale = hoursSince(lastSync)
-    if (stale > STALE_HOURS) {
-      issues.push(
-        `❌ AnyDeli: 最終同期から ${Math.round(stale)} 時間経過 ` +
-        `(最終: ${lastSync ?? '記録なし'})\n` +
-        `→ GitHub Actions の実行履歴を確認。セッション切れなら\n` +
-        `  node scripts/setup-delivery-session.js anydeli を実行`
-      )
-    }
-  }
-
   // ── Uber / RocketNow: 2026-06 から手動入力運用。 ──
+  // AnyDeli 自動同期は停止中のため、staleness監視はしない。
   // 自動同期の停止は異常ではないため staleness では警告しない。
   // 代わりに「3日連続で売上も入力もゼロ」なら入力忘れリマインドを出す。
   const manualServices: Array<{ salesKey: keyof SalesRow; label: string }> = [

@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 
 type Current = {
+  store_sales?: number
+  store_orders?: number
   uber_sales?: number
   uber_orders?: number
   rocketnow_sales?: number
@@ -24,6 +26,7 @@ function jstYesterday(): string {
 }
 
 // 各サービスの確認先（モバイルブラウザで開く）
+const ANYDELI_URL = 'https://shop.anydeli.co.jp/'
 const UBER_URL = 'https://merchants.ubereats.com/'
 const ROCKET_URL = 'https://store.rocketnow.co.jp/merchant/'
 
@@ -32,17 +35,20 @@ export default function DeliveryInputClient() {
   const [current, setCurrent] = useState<Current>({})
   const [loading, setLoading] = useState(true)
 
+  const [storeSales, setStoreSales] = useState('')
+  const [storeOrders, setStoreOrders] = useState('')
   const [uberSales, setUberSales] = useState('')
   const [uberOrders, setUberOrders] = useState('')
   const [rocketSales, setRocketSales] = useState('')
   const [rocketOrders, setRocketOrders] = useState('')
 
+  const [savingStore, setSavingStore] = useState(false)
   const [savingUber, setSavingUber] = useState(false)
   const [savingRocket, setSavingRocket] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
   // 入力中フラグ: ユーザーが触った欄は load() の自動プリフィルで上書きしない（競合防止）
-  const touched = useRef<{ uber: boolean; rocket: boolean }>({ uber: false, rocket: false })
+  const touched = useRef<{ store: boolean; uber: boolean; rocket: boolean }>({ store: false, uber: false, rocket: false })
   // load の採番。新しいload開始時に古いloadの結果を破棄する（ref共有なのでクロージャを跨いで機能する）
   const loadSeq = useRef(0)
 
@@ -56,6 +62,10 @@ export default function DeliveryInputClient() {
       if (seq !== loadSeq.current) return
       setCurrent(j.current ?? {})
       // 未入力 or 強制(保存直後)の欄のみプリフィル。入力中の欄は保持。
+      if (opts?.force || !touched.current.store) {
+        setStoreSales(j.current?.store_sales ? String(j.current.store_sales) : '')
+        setStoreOrders(j.current?.store_orders ? String(j.current.store_orders) : '')
+      }
       if (opts?.force || !touched.current.uber) {
         setUberSales(j.current?.uber_sales ? String(j.current.uber_sales) : '')
         setUberOrders(j.current?.uber_orders ? String(j.current.uber_orders) : '')
@@ -72,13 +82,36 @@ export default function DeliveryInputClient() {
 
   // 日付が変わったら touched をリセットして新しい日付の値をプリフィル
   useEffect(() => {
-    touched.current = { uber: false, rocket: false }
+    touched.current = { store: false, uber: false, rocket: false }
     load({ force: true })
   }, [date, load])
 
   const flash = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 2500)
+  }
+
+  const saveStore = async () => {
+    if (storeSales === '') { alert('店頭売上金額を入力してください'); return }
+    setSavingStore(true)
+    try {
+      const res = await fetch('/api/sales/manual-delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date,
+          store_sales: Number(storeSales),
+          store_orders: storeOrders === '' ? 0 : Number(storeOrders),
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok) { alert(`保存失敗: ${j.error ?? res.status}`); return }
+      setCurrent(j.saved ?? current)
+      touched.current.store = false
+      flash('✅ 店頭売上を保存しました')
+    } finally {
+      setSavingStore(false)
+    }
   }
 
   const saveUber = async () => {
@@ -165,7 +198,7 @@ export default function DeliveryInputClient() {
         <p className="text-xs opacity-80">この日の総売上（自動計算）</p>
         <p className="text-3xl font-bold mt-1">{yen(current.total_sales)}</p>
         <div className="flex gap-4 mt-2 text-xs opacity-90">
-          <span>店頭/エニデリ {yen(current.anydeli_sales)}</span>
+          <span>店頭/エニデリ {yen(current.store_sales ?? current.anydeli_sales)}</span>
           <span>Uber {yen(current.uber_sales)}</span>
           <span>Rocket {yen(current.rocketnow_sales)}</span>
         </div>
@@ -175,12 +208,55 @@ export default function DeliveryInputClient() {
       <div className="mx-4 mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
         <p className="text-xs text-blue-800 font-semibold mb-1">💡 ここは「1日の合計」を入力します</p>
         <p className="text-[11px] text-blue-700 leading-relaxed">
-          Uber/RocketNowの<b>1日の合計売上</b>（昼＋夜）を入力してください。<br />
-          昼/夜の判定は売上ダッシュボードの「☀️昼を確定」で別途行います（昼分はそちらで入力）。
+          店頭/エニデリ、Uber、RocketNowの<b>1日の合計売上</b>（昼＋夜）を入力してください。<br />
+          昼/夜の判定は売上ダッシュボードの「☀️昼を確定」で別途行います（店頭昼分はそちらで入力）。
         </p>
       </div>
 
       {loading && <p className="text-center text-gray-400 py-6 text-sm">読み込み中...</p>}
+
+      {/* 店頭（エニデリ）入力カード */}
+      <div className="mx-4 mt-4 bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-green-700 px-4 py-3 flex items-center justify-between">
+          <span className="text-white font-bold">店頭（エニデリ）</span>
+          <a
+            href={ANYDELI_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white text-green-700 text-xs font-bold px-3 py-1.5 rounded-lg"
+          >📲 管理画面を開く</a>
+        </div>
+        <div className="p-4 space-y-3">
+          <p className="text-xs text-gray-500">
+            AnyDeli 管理画面で本日の店頭売上を確認 → 下に入力してください
+          </p>
+          <label className="block">
+            <span className="text-xs text-gray-500">売上金額（円）</span>
+            <input
+              type="number" inputMode="numeric" placeholder="例: 80000"
+              value={storeSales}
+              onChange={e => { touched.current.store = true; setStoreSales(e.target.value) }}
+              className="w-full mt-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-bold focus:border-green-500 outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs text-gray-500">注文件数（任意）</span>
+            <input
+              type="number" inputMode="numeric" placeholder="例: 120"
+              value={storeOrders}
+              onChange={e => { touched.current.store = true; setStoreOrders(e.target.value) }}
+              className="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none"
+            />
+          </label>
+          <button
+            onClick={saveStore}
+            disabled={savingStore}
+            className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-base disabled:opacity-50"
+          >
+            {savingStore ? '保存中...' : '💾 店頭売上を保存'}
+          </button>
+        </div>
+      </div>
 
       {/* Uber 入力カード */}
       <div className="mx-4 mt-4 bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -269,8 +345,7 @@ export default function DeliveryInputClient() {
       </div>
 
       <p className="text-center text-[10px] text-gray-400 mt-4 px-6">
-        ※ 店頭・エニデリは自動取込のため入力不要です。<br />
-        Uber/RocketNowのみ手動入力をお願いします。
+        ※ 店頭・Uber・RocketNow それぞれ「1日の合計」を入力してください。
       </p>
 
       {/* トースト */}

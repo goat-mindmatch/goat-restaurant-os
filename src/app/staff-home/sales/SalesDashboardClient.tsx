@@ -54,6 +54,11 @@ type TodaySalesResponse = {
 const yen = (n: number) => `¥${(n ?? 0).toLocaleString()}`
 const WEEK_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
+function numInput(v: string): number {
+  const n = Math.round(Number(v))
+  return Number.isFinite(n) && n >= 0 ? n : 0
+}
+
 function jstToday(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
 }
@@ -75,6 +80,7 @@ export default function SalesDashboardClient() {
   const [copied, setCopied] = useState(false)
   const [confirmingLunch, setConfirmingLunch] = useState(false)
   const [lunchFormOpen, setLunchFormOpen] = useState(false)
+  const [storeLunch, setStoreLunch] = useState('')
   const [uberLunch, setUberLunch] = useState('')
   const [rocketLunch, setRocketLunch] = useState('')
   const [storeSyncing, setStoreSyncing] = useState(false)
@@ -138,8 +144,10 @@ export default function SalesDashboardClient() {
   const openLunchForm = useCallback(() => {
     setLunchFormOpen(true)
     setStoreSyncMsg(null)
+    if (data && data.sales.store_lunch != null) setStoreLunch(String(data.sales.store_lunch))
+    else setStoreLunch('')
     syncStore()
-  }, [syncStore])
+  }, [syncStore, data])
 
   const saveMeal = async () => {
     const amount = Number(mealAmount)
@@ -168,12 +176,13 @@ export default function SalesDashboardClient() {
 
   const confirmLunch = async () => {
     if (!data) return
-    const uLunch = uberLunch === '' ? 0 : Number(uberLunch)
-    const rLunch = rocketLunch === '' ? 0 : Number(rocketLunch)
-    const lunchTotal = data.sales.store_lunch + uLunch + rLunch
+    const sLunch = numInput(storeLunch === '' ? String(data.sales.store_lunch) : storeLunch)
+    const uLunch = numInput(uberLunch)
+    const rLunch = numInput(rocketLunch)
+    const lunchTotal = sLunch + uLunch + rLunch
     const ok = window.confirm(
       `昼売上を確定します。\n\n` +
-      `店頭/エニデリ昼: ${yen(data.sales.store_lunch)}\n` +
+      `店頭/エニデリ昼: ${yen(sLunch)}\n` +
       `Uber昼: ${yen(uLunch)}\n` +
       `RocketNow昼: ${yen(rLunch)}\n` +
       `─────────\n昼合計: ${yen(lunchTotal)}\n\n` +
@@ -185,12 +194,19 @@ export default function SalesDashboardClient() {
       const res = await fetch('/api/today-sales/confirm-lunch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, uber_lunch: uLunch, rocketnow_lunch: rLunch }),
+        body: JSON.stringify({
+          date,
+          store_lunch: sLunch,
+          uber_lunch: uLunch,
+          rocketnow_lunch: rLunch,
+        }),
       })
       const j = await res.json()
       if (!res.ok) { alert(`確定失敗: ${j.error ?? res.status}`); return }
       setLunchFormOpen(false)
-      setUberLunch(''); setRocketLunch('')
+      setStoreLunch('')
+      setUberLunch('')
+      setRocketLunch('')
       await load()
     } finally {
       setConfirmingLunch(false)
@@ -305,7 +321,7 @@ export default function SalesDashboardClient() {
                   <div>
                     <p className="text-sm font-bold">☀️ 昼を確定する</p>
                     <p className="text-xs opacity-80 mt-0.5">
-                      タップすると店頭(エニデリ)を最新化 → Uber/RocketNowの昼分を入力して確定
+                      タップすると店頭(エニデリ)を最新化 → 店頭/Uber/RocketNowの昼分を入力して確定
                     </p>
                   </div>
                   <span className="text-xl">→</span>
@@ -321,15 +337,19 @@ export default function SalesDashboardClient() {
                   </div>
                 )}
                 <div className="bg-amber-50 rounded-lg p-2 text-xs text-gray-600">
-                  店頭/エニデリ昼（自動取込）: <span className="font-bold">{yen(data.sales.store_lunch)}</span>
-                  <button
-                    onClick={syncStore}
-                    disabled={storeSyncing}
-                    className="ml-2 text-blue-600 underline disabled:opacity-50"
-                  >{storeSyncing ? '更新中…' : '🔄 最新化'}</button>
-                  <br />Uber/RocketNowアプリで<b>昼分</b>を確認して入力してください（無ければ0でOK）
+                  店頭/エニデリ、Uber、RocketNowの<b>昼分</b>を入力します。
+                  <br />無ければ 0 でOK。
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <label className="block">
+                    <span className="text-xs text-gray-500">店頭昼分（円）</span>
+                    <input
+                      type="number" inputMode="numeric" placeholder="0"
+                      value={storeLunch}
+                      onChange={e => setStoreLunch(e.target.value)}
+                      className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
                   <label className="block">
                     <span className="text-xs text-gray-500">Uber 昼分（円）</span>
                     <input
@@ -350,8 +370,8 @@ export default function SalesDashboardClient() {
                   </label>
                 </div>
                 <p className="text-xs text-gray-500">
-                  昼合計 = 店頭 {yen(data.sales.store_lunch)} + Uber {yen(uberLunch === '' ? 0 : Number(uberLunch))} + Rocket {yen(rocketLunch === '' ? 0 : Number(rocketLunch))}
-                  　→ <b>{yen(data.sales.store_lunch + (uberLunch === '' ? 0 : Number(uberLunch)) + (rocketLunch === '' ? 0 : Number(rocketLunch)))}</b>
+                  昼合計 = 店頭 {yen(numInput(storeLunch))} + Uber {yen(numInput(uberLunch))} + Rocket {yen(numInput(rocketLunch))}
+                  　→ <b>{yen(numInput(storeLunch) + numInput(uberLunch) + numInput(rocketLunch))}</b>
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setLunchFormOpen(false)} disabled={confirmingLunch}
@@ -418,7 +438,7 @@ export default function SalesDashboardClient() {
           <Link href="/staff-home/delivery-input" className="block bg-slate-900 rounded-2xl shadow-sm p-4 text-white active:opacity-90">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-bold">🛵 Uber / RocketNow 売上入力</p>
+              <p className="text-sm font-bold">🛵 店頭 / Uber / RocketNow 売上入力</p>
                 <p className="text-xs opacity-70 mt-0.5">アプリの数字を見て入力するだけ</p>
               </div>
               <span className="text-xl">→</span>
@@ -514,7 +534,7 @@ export default function SalesDashboardClient() {
           </div>
 
           <p className="text-center text-[10px] text-gray-400 pt-2">
-            ※ 自動取込（15時 / 21時 / 23時）後に最新化されます
+            ※ 必要に応じて「店頭を最新化」をタップして取り込みを試せます
           </p>
         </div>
       )}

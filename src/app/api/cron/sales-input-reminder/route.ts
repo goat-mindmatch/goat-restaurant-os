@@ -7,8 +7,7 @@ export const dynamic = 'force-dynamic'
  * 規定時間に未入力なら「至急」の追いかけ通知を送る。
  *
  * 通知の方針:
- *   - エニテリ(店頭/AnyDeli)は自動更新済みである旨を必ず明記
- *   - スタッフが入力すべきもの（Uber/RocketNow）だけを依頼する
+ *   - 店頭・Uber・RocketNow の3つを入力対象として案内する
  *
  * Vercel Cron（JST）:
  *   15:00 → phase=lunch        （昼締めリマインド）
@@ -68,9 +67,10 @@ export async function GET(req: NextRequest) {
     if (!lunchConfirmed) {
       message =
         `☀️ 昼の締め時間です（15時）\n\n` +
-        `✅ エニテリ（店頭）は自動更新済み：${yen(storeSales)}\n\n` +
-        `📲 あなたが入力するのはこちら：\n` +
-        `　Uber Eats / RocketNow の「昼分」の売上\n\n` +
+        `店頭・Uber・RocketNow の「昼分」を入力してください。\n\n` +
+        `現時点の店頭売上: ${yen(storeSales)}\n` +
+        `📲 以下を確認して入力してください：\n` +
+        `　店頭 / Uber / RocketNow の「昼分」売上\n\n` +
         `売上ダッシュボードの「☀️昼を確定」から入力してください👇\n` +
         `${BASE}/staff-home/sales`
     }
@@ -78,17 +78,19 @@ export async function GET(req: NextRequest) {
     if (!lunchConfirmed) {
       message =
         `🚨 至急：昼の確定がまだです\n\n` +
-        `✅ エニテリ（店頭 ${yen(storeSales)}）は自動更新済みです。\n` +
-        `📲 Uber / RocketNow の「昼分」を入力して『昼を確定』してください👇\n` +
+        `店頭・Uber・RocketNow の「昼分」を入力してください。\n\n` +
+        `現時点の店頭売上: ${yen(storeSales)}\n` +
+        `📲 店頭 / Uber / RocketNow の「昼分」を入力して『昼を確定』してください👇\n` +
         `${BASE}/staff-home/sales`
     }
   } else if (phase === 'dinner') {
     if (!deliveryEntered) {
       message =
         `🌙 夜の締め時間です（21時）\n\n` +
-        `✅ エニテリ（店頭）は自動更新済み：${yen(storeSales)}\n\n` +
-        `📲 あなたが入力するのはこちら：\n` +
-        `　Uber Eats / RocketNow の「1日の合計」売上（昼＋夜）\n\n` +
+        `店頭・Uber・RocketNow の「1日の合計」を入力してください。\n\n` +
+        `現時点の店頭売上: ${yen(storeSales)}\n\n` +
+        `📲 以下を入力してください：\n` +
+        `　店頭 / Uber / RocketNow の「1日の合計」売上\n\n` +
         `デリバリー売上入力から入力してください👇\n` +
         `${BASE}/staff-home/delivery-input`
     }
@@ -96,8 +98,9 @@ export async function GET(req: NextRequest) {
     if (!deliveryEntered) {
       message =
         `🚨 至急：デリバリー売上の入力がまだです\n\n` +
-        `✅ エニテリ（店頭 ${yen(storeSales)}）は自動更新済みです。\n` +
-        `📲 Uber / RocketNow の「1日の合計」を入力してください👇\n` +
+        `店頭・Uber・RocketNow の「1日の合計」を入力してください。\n\n` +
+        `現時点の店頭売上: ${yen(storeSales)}\n` +
+        `📲 店頭 / Uber / RocketNow の「1日の合計」を入力してください👇\n` +
         `${BASE}/staff-home/delivery-input`
     }
   } else {

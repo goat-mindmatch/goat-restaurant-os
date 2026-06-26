@@ -3,12 +3,11 @@ export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/today-sales/confirm-lunch
- *   body: { date: 'YYYY-MM-DD', uber_lunch?: number, rocketnow_lunch?: number }
+ *   body: { date: 'YYYY-MM-DD', store_lunch?: number, uber_lunch?: number, rocketnow_lunch?: number }
  *   昼営業終了（15時）時に、昼売上を確定する。
- *     lunch_sales = 店頭昼(その時点の store_sales) + Uber昼 + RocketNow昼
+ *     lunch_sales = 店頭昼 + Uber昼 + RocketNow昼
  *   夜売上は ダッシュボードが total - lunch で算出する。
- *   ※ store_sales は 15:00 の AnyDeli 同期で「昼までの店頭合計」が入っている前提。
- *      Uber/RocketNow の昼分はこのAPIで受け取って合算・保持する。
+ *   ※ 店頭昼は当日分の store_lunch があればそれを使い、なければ store_sales を使う。
  *   再実行で「昼を取り直す」ことも可能（最新値で上書き）。
  *
  * DELETE /api/today-sales/confirm-lunch?date=YYYY-MM-DD
@@ -33,6 +32,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
     }
 
+    const storeLunchBody = body.store_lunch_sales ?? body.store_lunch
     const uberLunch   = num(body.uber_lunch)
     const rocketLunch = num(body.rocketnow_lunch)
 
@@ -48,9 +48,11 @@ export async function POST(req: NextRequest) {
       .eq('date', date)
       .maybeSingle()
 
-    const storeLunch = row?.store_lunch_sales != null
-      ? Number(row.store_lunch_sales)
-      : Number(row?.store_sales ?? 0)
+    const storeLunch = storeLunchBody != null
+      ? num(storeLunchBody)
+      : row?.store_lunch_sales != null
+        ? Number(row.store_lunch_sales)
+        : Number(row?.store_sales ?? 0)
     const lunchSales = storeLunch + uberLunch + rocketLunch
 
     const { error } = await db
@@ -60,6 +62,7 @@ export async function POST(req: NextRequest) {
           tenant_id: TENANT_ID,
           date,
           lunch_sales: lunchSales,
+          store_lunch_sales: storeLunch,
           uber_lunch_sales: uberLunch,
           rocketnow_lunch_sales: rocketLunch,
           lunch_confirmed_at: new Date().toISOString(),
@@ -92,6 +95,7 @@ export async function DELETE(req: NextRequest) {
       .from('daily_sales')
       .update({
         lunch_sales: 0,
+        store_lunch_sales: null,
         uber_lunch_sales: 0,
         rocketnow_lunch_sales: 0,
         lunch_confirmed_at: null,
