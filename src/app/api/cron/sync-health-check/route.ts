@@ -95,11 +95,7 @@ export async function GET(req: NextRequest) {
   const message =
     `🚨 売上同期ヘルスチェック異常\n\n` +
     issues.join('\n\n') +
-    `\n\n対応手順:\n` +
-    `1. GitHub Actionsの実行履歴を確認\n` +
-    `2. セッション切れの場合は Mac で\n` +
-    `   node scripts/setup-delivery-session.js <service>\n` +
-    `   を実行してSecretsを更新`
+    `\n\n※ 売上が実際に0なら問題ありません。入力漏れの場合は売上入力ページから手入力してください。`
 
   const notified: string[] = []
   for (const m of (managers ?? []) as Array<{ line_user_id: string; name: string }>) {
